@@ -44,6 +44,29 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 - Model selection: DeepSeek exposes `deepseek-chat`; “reasoner” models are blocked
 - Max tokens: default `10000`; configurable in Options (stored per user)
 
+### Default Categories (excerpt)
+
+```json
+[
+  { "category": "Dev Tools", "keywords": ["github", "gitlab", "api", "docs"] },
+  { "category": "News", "keywords": ["news", "blog", "medium", "zhihu"] },
+  { "category": "Education", "keywords": ["course", "tutorial", "learn", "university"] },
+  { "category": "Tools", "keywords": ["tool", "software", "app", "utility"] },
+  { "category": "Entertainment", "keywords": ["video", "music", "game", "movie"] },
+  { "category": "Shopping", "keywords": ["shop", "store", "amazon", "taobao"] },
+  { "category": "Social Media", "keywords": ["twitter", "facebook", "instagram", "linkedin"] },
+  { "category": "Finance", "keywords": ["bank", "finance", "investment", "crypto"] },
+  { "category": "AI & ML", "keywords": ["ai", "ml", "huggingface", "openai"] },
+  { "category": "Cloud & DevOps", "keywords": ["docker", "k8s", "cloudflare", "vercel"] },
+  { "category": "Notes & Knowledge", "keywords": ["obsidian", "evernote", "wiki", "notion"] },
+  { "category": "Project & Tasks", "keywords": ["asana", "trello", "todoist", "clickup"] },
+  { "category": "Maps & Navigation", "keywords": ["google maps", "osm", "gaode", "baidu map"] },
+  { "category": "Blogging & CMS", "keywords": ["wordpress", "ghost", "blogger", "cms"] }
+]
+```
+
+Full rule set lives in `services/classificationService.js` and `services/defaultRules.js`.
+
 ## Tech Stack
 
 - Manifest V3, native HTML/CSS/JavaScript
@@ -126,6 +149,29 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 - AI 服务商：支持 `OpenAI` 与 `DeepSeek`（兼容 OpenAI HTTP 接口）
 - 模型选择：DeepSeek 当前提供 `deepseek-chat`；“reasoner/思考型”模型被屏蔽
 - 最大 Token：默认 `8192`，可在选项页自定义（按用户存储）
+
+### 默认分类（片段）
+
+```json
+[
+  { "category": "开发工具", "keywords": ["github", "gitlab", "api", "docs"] },
+  { "category": "新闻资讯", "keywords": ["news", "blog", "medium", "知乎"] },
+  { "category": "学习教育", "keywords": ["课程", "教程", "learn", "大学"] },
+  { "category": "工具软件", "keywords": ["工具", "software", "app", "utility"] },
+  { "category": "娱乐休闲", "keywords": ["视频", "音乐", "游戏", "电影"] },
+  { "category": "购物", "keywords": ["shop", "store", "淘宝", "亚马逊"] },
+  { "category": "社交媒体", "keywords": ["Twitter", "Facebook", "Instagram", "LinkedIn"] },
+  { "category": "金融理财", "keywords": ["银行", "金融", "投资", "加密货币"] },
+  { "category": "AI与机器学习", "keywords": ["AI", "ML", "HuggingFace", "OpenAI"] },
+  { "category": "云服务与DevOps", "keywords": ["Docker", "K8s", "Cloudflare", "Vercel"] },
+  { "category": "笔记与知识库", "keywords": ["Obsidian", "Evernote", "Wiki", "Notion"] },
+  { "category": "项目与任务管理", "keywords": ["Asana", "Trello", "Todoist", "ClickUp"] },
+  { "category": "地图与导航", "keywords": ["Google Maps", "OSM", "高德", "百度地图"] },
+  { "category": "博客平台与CMS", "keywords": ["WordPress", "Ghost", "Blogger", "CMS"] }
+]
+```
+
+完整规则见 `services/classificationService.js` 与 `services/defaultRules.js`。
 
 ## 技术栈
 
