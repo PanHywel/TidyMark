@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TidyMark - 书签管理</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- 备份提示 -->
+    <div class="backup-warning" id="backupWarning">
+      <div class="warning-content">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span data-i18n="backup.warning">使用插件前请先手动导出备份</span>
+        <button class="warning-close" id="warningCloseBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 头部 -->
+    <header class="header">
+      <div class="logo">
+        <img src="icons/icon32.svg" alt="TidyMark">
+        <h1>TidyMark</h1>
+      </div>
+    </header>
+
+    <!-- 统计信息 -->
+    <section class="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="totalBookmarks">0</div>
+        <div class="stat-label" data-i18n="stats.totalBookmarks">总书签</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="totalCategories">0</div>
+        <div class="stat-label" data-i18n="stats.totalCategories">分类</div>
+      </div>
+      
+    </section>
+
+    <!-- 主要操作 -->
+    <section class="actions">
+      <button class="action-btn primary" id="backupBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7,10 12,15 17,10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span data-i18n="actions.backup">备份书签</span>
+      </button>
+      
+      <button class="action-btn secondary" id="organizeBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"></path>
+        </svg>
+        <span data-i18n="actions.organize">自动整理</span>
+      </button>
+
+      <button class="action-btn tertiary" id="settingsBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"></path>
+        </svg>
+        <span data-i18n="actions.settings">设置</span>
+      </button>
+    </section>
+
+    <!-- 搜索框 -->
+    <section class="search">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input type="text" id="searchInput" data-i18n-placeholder="search.placeholder" placeholder="搜索书签...">
+      </div>
+    </section>
+
+    <!-- 分类列表 -->
+    <section class="categories">
+      <div class="section-header">
+        <h3 data-i18n="categories.header">分类管理</h3>
+        <button class="add-category-btn" id="addCategoryBtn" title="添加分类">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="category-list" id="categoryList">
+        <!-- 分类项将通过JavaScript动态生成 -->
+      </div>
+      <div class="empty-state" id="emptyCategoryState" style="display: none;">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"></path>
+          </svg>
+        </div>
+        <h4 data-i18n="categories.empty.title">还没有创建分类</h4>
+        <p data-i18n="categories.empty.tip">点击上方的 + 按钮创建第一个分类，或使用"自动整理"功能让AI帮你分类书签</p>
+      </div>
+    </section>
+
+    
+
+    <!-- 加载状态 -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p data-i18n="loading.text">加载中...</p>
+    </div>
+
+    <!-- 错误提示 -->
+    <div class="error" id="error" style="display: none;">
+      <p id="errorMessage"></p>
+      <button class="retry-btn" id="retryBtn" data-i18n="error.retry">重试</button>
+    </div>
+  </div>
+
+  <script src="services/i18n.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#f093fb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="4" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="64" cy="64" r="56" fill="url(#grad1)" stroke="#fff" stroke-width="4" filter="url(#shadow)"/>
+  
+  <!-- 主书签图标 -->
+  <path d="M32 24 C32 20 36 16 40 16 L88 16 C92 16 96 20 96 24 L96 104 L64 80 L32 104 Z" 
+        fill="#fff" stroke="none" filter="url(#glow)"/>
+  
+  <!-- 整理图标组 -->
+  <g transform="translate(85, 35)">
+    <!-- 主齿轮 -->
+    <circle cx="0" cy="0" r="16" fill="#ffd700" stroke="#fff" stroke-width="2"/>
+    <path d="M-8,-8 L8,8 M8,-8 L-8,8" stroke="#764ba2" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="6" fill="#764ba2"/>
+    
+    <!-- 小齿轮 -->
+    <circle cx="12" cy="12" r="8" fill="#ff6b6b" stroke="#fff" stroke-width="1.5"/>
+    <path d="M8,8 L16,16 M16,8 L8,16" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- 分类线条 -->
+  <g stroke="#e0e7ff" stroke-width="3" stroke-linecap="round">
+    <line x1="40" y1="32" x2="80" y2="32"/>
+    <line x1="40" y1="42" x2="72" y2="42"/>
+    <line x1="40" y1="52" x2="64" y2="52"/>
+    <line x1="40" y1="62" x2="56" y2="62"/>
+    <line x1="40" y1="72" x2="48" y2="72"/>
+  </g>
+  
+  <!-- 装饰元素 -->
+  <g fill="#e0e7ff" opacity="0.8">
+    <circle cx="48" cy="80" r="2"/>
+    <circle cx="56" cy="85" r="2"/>
+    <circle cx="64" cy="90" r="2"/>
+    <circle cx="72" cy="95" r="2"/>
+  </g>
+  
+  <!-- 魔法星星 -->
+  <g fill="#ffd700" opacity="0.9">
+    <path d="M20 40 L22 46 L28 46 L23 50 L25 56 L20 52 L15 56 L17 50 L12 46 L18 46 Z"/>
+    <path d="M100 70 L101.5 74 L105.5 74 L102.5 76.5 L104 80.5 L100 78 L96 80.5 L97.5 76.5 L94.5 74 L98.5 74 Z"/>
+  </g>
+</svg>

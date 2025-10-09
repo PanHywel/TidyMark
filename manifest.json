@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "TidyMark",
+  "version": "1.0.0",
+  "description": "智能书签管理扩展，自动分类整理您的书签",
+  
+  "permissions": [
+    "bookmarks",
+    "storage",
+    "downloads",
+    "activeTab"
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TidyMark - 书签管理",
+    "default_icon": {
+      "16": "icons/icon16.svg",
+      "32": "icons/icon32.svg",
+      "48": "icons/icon48.svg",
+      "128": "icons/icon128.svg"
+    }
+  },
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "options_page": "options.html",
+  
+  "icons": {
+    "16": "icons/icon16.svg",
+    "32": "icons/icon32.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  },
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
