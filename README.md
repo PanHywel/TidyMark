@@ -33,6 +33,11 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 - Settings: right-click the icon → “Options” to configure AI provider/model and limits
 - Backup/restore: export/import JSON backups from the Options page
 
+## Screenshots
+
+![Home](./home.png)
+![Settings](./setting.png)
+
 ## Configuration
 
 - AI provider: `OpenAI` and `DeepSeek` (OpenAI-compatible endpoints supported)
@@ -110,6 +115,11 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 - 手动管理：在弹出窗口中查看和调整分类
 - 设置配置：在“选项”页面配置 AI 服务商/模型和最大 Token
 - 备份恢复：在“选项”页面导出/导入 JSON 备份
+
+## 界面截图
+
+![主页](./home.png)
+![设置](./setting.png)
 
 ## 配置说明
 
