@@ -154,20 +154,19 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 
 ```json
 [
-  { "category": "开发工具", "keywords": ["github", "gitlab", "api", "docs"] },
-  { "category": "新闻资讯", "keywords": ["news", "blog", "medium", "知乎"] },
-  { "category": "学习教育", "keywords": ["课程", "教程", "learn", "大学"] },
-  { "category": "工具软件", "keywords": ["工具", "software", "app", "utility"] },
-  { "category": "娱乐休闲", "keywords": ["视频", "音乐", "游戏", "电影"] },
-  { "category": "购物", "keywords": ["shop", "store", "淘宝", "亚马逊"] },
-  { "category": "社交媒体", "keywords": ["Twitter", "Facebook", "Instagram", "LinkedIn"] },
-  { "category": "金融理财", "keywords": ["银行", "金融", "投资", "加密货币"] },
-  { "category": "AI与机器学习", "keywords": ["AI", "ML", "HuggingFace", "OpenAI"] },
-  { "category": "云服务与DevOps", "keywords": ["Docker", "K8s", "Cloudflare", "Vercel"] },
-  { "category": "笔记与知识库", "keywords": ["Obsidian", "Evernote", "Wiki", "Notion"] },
-  { "category": "项目与任务管理", "keywords": ["Asana", "Trello", "Todoist", "ClickUp"] },
-  { "category": "地图与导航", "keywords": ["Google Maps", "OSM", "高德", "百度地图"] },
-  { "category": "博客平台与CMS", "keywords": ["WordPress", "Ghost", "Blogger", "CMS"] }
+  { "category": "开源与代码托管", "keywords": ["github", "gitlab", "gitee", "bitbucket", "source code", "repository", "repo"] },
+  { "category": "开发文档与API", "keywords": ["docs", "documentation", "api", "sdk", "developer", "reference", "文档", "接口"] },
+  { "category": "前端框架", "keywords": ["react", "vue", "angular", "svelte", "nextjs", "nuxt", "vite", "webpack", "babel"] },
+  { "category": "后端框架", "keywords": ["spring", "django", "flask", "fastapi", "express", "koa", "rails", "laravel", "nestjs"] },
+  { "category": "云服务与DevOps", "keywords": ["aws", "azure", "gcp", "cloud", "kubernetes", "k8s", "docker", "ci", "cd", "devops", "cloudflare", "vercel", "netlify"] },
+  { "category": "数据库与数据", "keywords": ["mysql", "postgres", "mongodb", "redis", "sqlite", "elasticsearch", "clickhouse", "data", "数据库"] },
+  { "category": "AI与机器学习", "keywords": ["ai", "ml", "deep learning", "transformer", "openai", "huggingface", "stable diffusion", "llm", "midjourney", "dalle"] },
+  { "category": "技术博客与社区", "keywords": ["blog", "博客", "medium", "dev.to", "reddit", "社区", "论坛"] },
+  { "category": "新闻资讯与媒体", "keywords": ["news", "资讯", "newsletter", "techcrunch", "hacker news"] },
+  { "category": "在线工具与服务", "keywords": ["tool", "工具", "software", "app", "utility", "online", "smallpdf", "tinypng"] },
+  { "category": "视频与音乐", "keywords": ["youtube", "bilibili", "netflix", "spotify", "视频", "音乐"] },
+  { "category": "购物电商", "keywords": ["shop", "购物", "store", "taobao", "jd", "amazon", "aliexpress"] },
+  { "category": "社交媒体", "keywords": ["twitter", "x.com", "facebook", "instagram", "tiktok", "linkedin", "wechat", "weibo", "discord", "telegram"] }
 ]
 ```
 
