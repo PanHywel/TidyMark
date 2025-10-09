@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine tag name
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG_NAME=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+          fi
+
+      - name: Package extension
+        run: |
+          mkdir -p dist
+          zip -r "dist/tidymark-${TAG_NAME}.zip" \
+            manifest.json \
+            popup.html popup.css popup.js \
+            options.html options.css options.js \
+            background.js \
+            icons services \
+            README.md LICENSE
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: TidyMark ${{ env.TAG_NAME }}
+          files: dist/tidymark-${{ env.TAG_NAME }}.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
