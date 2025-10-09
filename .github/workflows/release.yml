@@ -17,6 +17,8 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,5 +52,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
