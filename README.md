@@ -35,8 +35,8 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 
 ## Screenshots
 
-<a href="./home.png"><img src="./home.png" alt="Home" width="800"></a>
-<a href="./setting.png"><img src="./setting.png" alt="Settings" width="800"></a>
+<a href="./home.png"><img src="./home.png" alt="Home" width="400"></a>
+<a href="./setting.png"><img src="./setting.png" alt="Settings" width="400"></a>
 
 ## Configuration
 
@@ -141,8 +141,8 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 
 ## 界面截图
 
-<a href="./home.png"><img src="./home.png" alt="主页" width="800"></a>
-<a href="./setting.png"><img src="./setting.png" alt="设置" width="800"></a>
+<a href="./home.png"><img src="./home.png" alt="主页" width="400"></a>
+<a href="./setting.png"><img src="./setting.png" alt="设置" width="400"></a>
 
 ## 配置说明
 
