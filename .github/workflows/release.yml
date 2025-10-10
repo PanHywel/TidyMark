@@ -37,10 +37,9 @@ jobs:
           mkdir -p dist
           zip -r "dist/tidymark-${TAG_NAME}.zip" \
             manifest.json \
-            popup.html popup.css popup.js \
-            options.html options.css options.js \
-            background.js \
-            icons services \
+            icons \
+            src \
+            services \
             README.md LICENSE
 
       - name: Create GitHub Release
