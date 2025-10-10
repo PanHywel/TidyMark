@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.6 — 2025-10-10
+
+- CI: fix release packaging to include `src/`, `services/`, `icons/`, and `manifest.json`.
+- Result: generated ZIP contains all runtime files and runs correctly.
+- No functional changes.
+
+---
 ## v1.0.5 — 2025-10-10
 
 - README: point screenshot links to project root (`./home.png`, `./setting.png`, `./nav.png`).
@@ -74,6 +81,14 @@
 - README：将截图链接改为根目录相对路径（`./home.png`、`./setting.png`、`./nav.png`）。
 - 资源：将截图文件移回仓库根目录，便于本地预览。
 - 文档：新增 `docs/index.html` 用于本地截图预览（非功能改动）。
+- 无功能改动。
+
+---
+
+## v1.0.6 — 2025-10-10（中文）
+
+- CI：修复 Release 打包清单，包含 `src/`、`services/`、`icons/` 与 `manifest.json`。
+- 结果：生成的 ZIP 包含完整运行文件，安装后可正常运行。
 - 无功能改动。
 
 ---
