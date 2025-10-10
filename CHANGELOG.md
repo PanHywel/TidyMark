@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.4 — 2025-10-10
+
+- README: switch screenshot links to Raw GitHub URLs for reliable preview in any environment.
+- Pages: normalize header icon paths to root-absolute `/icons/...` for consistent loading.
+- No functional changes.
+
+---
+
 ## v1.0.3 — 2025-10-10
 
 - Move `preview.html` to `src/pages/preview/index.html` and fix resource paths.
@@ -41,6 +49,14 @@
 - 选项页：AI 服务商/模型配置；屏蔽非标准 “reasoner/思考型” 模型。
 - 整理后清理：自动删除已变为空的源目录。
 - 新增双语 README 与 MIT 许可证。
+
+---
+
+## v1.0.4 — 2025-10-10（中文）
+
+- README 截图链接改为 Raw GitHub 地址，确保各环境可预览。
+- 页面头部图标路径统一为根绝对路径 `/icons/...`，提升加载一致性。
+- 无功能改动。
 
 ---
 
