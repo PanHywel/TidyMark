@@ -12,6 +12,7 @@ class OptionsManager {
     await this.loadSettings();
     this.bindEvents();
     this.renderUI();
+    this.setVersionTexts();
   }
 
   // 加载设置
@@ -809,6 +810,46 @@ class OptionsManager {
       max_tokens: 1,
       temperature: 0
     };
+  }
+
+  // 设置头部与底部的版本号显示
+  setVersionTexts() {
+    const setHeader = (ver) => {
+      const headerVer = document.querySelector('.header .version');
+      if (headerVer) headerVer.textContent = `v${ver || ''}`.trim();
+    };
+    const setFooter = (ver) => {
+      const footerP = document.querySelector('.footer .footer-info p[data-i18n="footer.app"]');
+      if (footerP) {
+        // 保持中文描述，但替换版本号为动态值
+        footerP.textContent = `TidyMark - 智能书签管理扩展 v${ver || ''}`.trim();
+      }
+    };
+    try {
+      if (typeof chrome !== 'undefined' && chrome?.runtime?.getManifest) {
+        const ver = chrome.runtime.getManifest().version;
+        if (ver) {
+          setHeader(ver);
+          setFooter(ver);
+          return;
+        }
+      }
+      // 预览/非扩展环境：读取根路径的 manifest.json
+      fetch('/manifest.json')
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(m => {
+          const ver = m?.version || '';
+          setHeader(ver);
+          setFooter(ver);
+        })
+        .catch(() => {
+          setHeader('1.0.0');
+          setFooter('1.0.0');
+        });
+    } catch (e) {
+      setHeader('1.0.0');
+      setFooter('1.0.0');
+    }
   }
 }
 
