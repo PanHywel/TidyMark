@@ -989,6 +989,28 @@ class PopupManager {
       toast.remove();
     }, 3000);
   }
+
+  // 在弹窗头部显示版本号
+  setVersionBadge() {
+    const el = document.getElementById('versionText');
+    if (!el) return;
+    const setText = (ver) => {
+      el.textContent = `v${ver || ''}`.trim();
+    };
+    try {
+      if (typeof chrome !== 'undefined' && chrome?.runtime?.getManifest) {
+        const ver = chrome.runtime.getManifest().version;
+        if (ver) return setText(ver);
+      }
+      // 预览/非扩展环境：尝试读取本地 manifest.json
+      fetch('manifest.json')
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(m => setText(m?.version || ''))
+        .catch(() => setText('1.0.0'));
+    } catch (e) {
+      setText('1.0.0');
+    }
+  }
 }
 
 // 初始化
@@ -1012,23 +1034,3 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
-  setVersionBadge() {
-    const el = document.getElementById('versionText');
-    if (!el) return;
-    const setText = (ver) => {
-      el.textContent = `v${ver || ''}`.trim();
-    };
-    try {
-      if (typeof chrome !== 'undefined' && chrome?.runtime?.getManifest) {
-        const ver = chrome.runtime.getManifest().version;
-        if (ver) return setText(ver);
-      }
-      // 预览/非扩展环境：尝试读取本地 manifest.json
-      fetch('manifest.json')
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(m => setText(m?.version || ''))
-        .catch(() => setText('1.0.0'));
-    } catch (e) {
-      setText('1.0.0');
-    }
-  }

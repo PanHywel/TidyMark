@@ -27,6 +27,9 @@
   },
   
   "options_page": "options.html",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
   
   "icons": {
     "16": "icons/icon16.png",

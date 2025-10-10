@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TidyMark 导航</title>
+  <link rel="stylesheet" href="newtab.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <div class="theme-dropdown">
+        <button type="button" id="theme-toggle-btn" class="theme-btn" title="主题">
+          <span class="sr-only">主题</span>
+          <!-- 图标由脚本根据当前模式填充 -->
+        </button>
+        <div class="dropdown-menu" id="theme-menu" hidden>
+          <button type="button" class="dropdown-item" data-mode="system">系统</button>
+          <button type="button" class="dropdown-item" data-mode="light">明亮</button>
+          <button type="button" class="dropdown-item" data-mode="dark">暗色</button>
+        </div>
+      </div>
+    </div>
+    <header class="header">
+      <div class="time" id="current-time">--:--</div>
+      <div class="subtitle">愿你高效、专注地浏览每一天</div>
+    </header>
+
+    <main class="main">
+      <form id="search-form" class="search" autocomplete="off">
+        <select id="search-engine" class="engine-select" aria-label="搜索引擎">
+          <option value="google">Google</option>
+          <option value="bing">Bing</option>
+          <option value="duck">DuckDuckGo</option>
+          <option value="baidu">百度</option>
+        </select>
+        <input id="search-input" type="text" placeholder="搜索或输入网址" aria-label="搜索" />
+        <button type="submit" title="搜索">搜索</button>
+      </form>
+      <div class="search-hint" id="search-hint">输入“#”开头进行书签搜索</div>
+
+      <section class="bookmarks" id="bookmark-sections" aria-live="polite">
+        <!-- 动态渲染书签分类与列表 -->
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="brand">
+        <img src="icons/icon32.png" alt="TidyMark" />
+        <span>TidyMark</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>
