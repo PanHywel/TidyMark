@@ -157,9 +157,9 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 
 ## Screenshots
 
-<a href="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/home.png"><img src="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/home.png" alt="Home" width="400"></a>
-<a href="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/setting.png"><img src="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/setting.png" alt="Settings" width="400"></a>
-<a href="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/nav.png"><img src="https://raw.githubusercontent.com/PanHywel/TidyMark/master/assets/screenshots/nav.png" alt="Navigation" width="400"></a>
+<a href="./assets/screenshots/home.png"><img src="./assets/screenshots/home.png" alt="Home" width="400"></a>
+<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="400"></a>
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="400"></a>
 
 Navigation: bookmark-based categorized navigation with search engine/theme switch; searches open in a new tab.
 

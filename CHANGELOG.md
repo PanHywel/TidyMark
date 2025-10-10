@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.5 — 2025-10-10
+
+- README: point screenshot links to project root (`./home.png`, `./setting.png`, `./nav.png`).
+- Assets: move screenshots back to repository root for simpler local preview.
+- Docs: add `docs/index.html` for local screenshot preview (non-functional).
+- No functional changes.
+
+---
+
 ## v1.0.4 — 2025-10-10
 
 - README: switch screenshot links to Raw GitHub URLs for reliable preview in any environment.
@@ -56,6 +65,15 @@
 
 - README 截图链接改为 Raw GitHub 地址，确保各环境可预览。
 - 页面头部图标路径统一为根绝对路径 `/icons/...`，提升加载一致性。
+- 无功能改动。
+
+---
+
+## v1.0.5 — 2025-10-10（中文）
+
+- README：将截图链接改为根目录相对路径（`./home.png`、`./setting.png`、`./nav.png`）。
+- 资源：将截图文件移回仓库根目录，便于本地预览。
+- 文档：新增 `docs/index.html` 用于本地截图预览（非功能改动）。
 - 无功能改动。
 
 ---
