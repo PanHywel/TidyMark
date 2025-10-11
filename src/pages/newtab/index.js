@@ -778,14 +778,14 @@
     }
   }
 
-  // 搜索跳转（默认 Google，可扩展）
+  // 搜索跳转（默认 Bing，可扩展）
   const engines = {
     google: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
     bing: (q) => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
     duck: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
     baidu: (q) => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`
   };
-  let selectedEngine = 'google';
+  let selectedEngine = 'bing';
   let themeMode = 'system';
   let categoryOrder = [];
   let allBookmarks = [];
