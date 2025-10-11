@@ -20,6 +20,7 @@
           <button type="button" class="dropdown-item" data-mode="dark">暗色</button>
         </div>
       </div>
+      <!-- 书签收起/展开按钮已移除，改用选项页配置是否展示书签列表（默认不展示） -->
     </div>
     <header class="header">
       <div class="time" id="current-time">--:--</div>
@@ -38,22 +39,20 @@
           <option value="duck">DuckDuckGo</option>
           <option value="baidu">百度</option>
         </select>
-        <input id="search-input" type="text" placeholder="搜索或输入网址" aria-label="搜索" />
+        <input id="search-input" type="text" placeholder="搜索或输入网址（“#”开头进行书签搜索）" aria-label="搜索" />
         <button type="submit" title="搜索">搜索</button>
       </form>
-      <div class="search-hint" id="search-hint">输入“#”开头进行书签搜索</div>
+      
 
       <section class="bookmarks" id="bookmark-sections" aria-live="polite">
         <!-- 动态渲染书签分类与列表 -->
       </section>
+      <div class="bookmarks-placeholder" id="bookmarks-placeholder" hidden>
+        书签列表已隐藏。可在“设置 → 导航页”中打开显示。
+      </div>
     </main>
 
-    <footer class="footer">
-      <div class="brand">
-        <img src="../../../icons/icon32.png" alt="TidyMark" />
-        <span>TidyMark</span>
-      </div>
-    </footer>
+    <!-- 底部品牌已移除 -->
   </div>
 
   <script src="index.js"></script>

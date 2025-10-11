@@ -34,7 +34,11 @@ class OptionsManager {
           'maxCategories',
           'weatherEnabled',
           'weatherCity',
-          'wallpaperEnabled'
+          'wallpaperEnabled',
+          // 新增：分离透明度与书签栏默认收起
+          'searchUnfocusedOpacity',
+          'bookmarksUnfocusedOpacity',
+          'showBookmarks'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -50,7 +54,10 @@ class OptionsManager {
           'maxCategories',
           'weatherEnabled',
           'weatherCity',
-          'wallpaperEnabled'
+          'wallpaperEnabled',
+          'searchUnfocusedOpacity',
+          'bookmarksUnfocusedOpacity',
+          'showBookmarks'
         ];
         
         keys.forEach(key => {
@@ -77,7 +84,20 @@ class OptionsManager {
         maxCategories: result.maxCategories ?? undefined,
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
-        wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : false
+        wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : false,
+        searchUnfocusedOpacity: (() => {
+          const v = result.searchUnfocusedOpacity;
+          const num = typeof v === 'string' ? parseFloat(v) : v;
+          if (Number.isFinite(num) && num >= 0.6 && num <= 1) return num;
+          return 0.86;
+        })(),
+        bookmarksUnfocusedOpacity: (() => {
+          const v = result.bookmarksUnfocusedOpacity;
+          const num = typeof v === 'string' ? parseFloat(v) : v;
+          if (Number.isFinite(num) && num >= 0.6 && num <= 1) return num;
+          return 0.86;
+        })(),
+        showBookmarks: result.showBookmarks !== undefined ? !!result.showBookmarks : false
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -93,7 +113,10 @@ class OptionsManager {
         aiModel: 'gpt-3.5-turbo',
         maxTokens: 8192,
         classificationLanguage: 'auto',
-        maxCategories: undefined
+        maxCategories: undefined,
+        searchUnfocusedOpacity: 0.86,
+        bookmarksUnfocusedOpacity: 0.86,
+        showBookmarks: false
       };
       this.classificationRules = this.settings.classificationRules;
     }
@@ -234,6 +257,46 @@ class OptionsManager {
     if (wallpaperEnabled) {
       wallpaperEnabled.addEventListener('change', (e) => {
         this.settings.wallpaperEnabled = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 非聚焦透明度（分离：搜索框与书签框）
+    const searchOpacity = document.getElementById('searchUnfocusedOpacity');
+    const searchOpacityValue = document.getElementById('searchUnfocusedOpacityValue');
+    if (searchOpacity) {
+      const syncSearchView = (val) => { if (searchOpacityValue) searchOpacityValue.textContent = Number(val).toFixed(2); };
+      syncSearchView(this.settings.searchUnfocusedOpacity || 0.86);
+      searchOpacity.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (Number.isFinite(val)) {
+          this.settings.searchUnfocusedOpacity = Math.max(0.6, Math.min(1, val));
+          syncSearchView(this.settings.searchUnfocusedOpacity);
+          this.saveSettings();
+        }
+      });
+    }
+
+    const bookmarksOpacity = document.getElementById('bookmarksUnfocusedOpacity');
+    const bookmarksOpacityValue = document.getElementById('bookmarksUnfocusedOpacityValue');
+    if (bookmarksOpacity) {
+      const syncBookmarksView = (val) => { if (bookmarksOpacityValue) bookmarksOpacityValue.textContent = Number(val).toFixed(2); };
+      syncBookmarksView(this.settings.bookmarksUnfocusedOpacity || 0.86);
+      bookmarksOpacity.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (Number.isFinite(val)) {
+          this.settings.bookmarksUnfocusedOpacity = Math.max(0.6, Math.min(1, val));
+          syncBookmarksView(this.settings.bookmarksUnfocusedOpacity);
+          this.saveSettings();
+        }
+      });
+    }
+
+    // 书签列表是否展示
+    const showBookmarks = document.getElementById('showBookmarks');
+    if (showBookmarks) {
+      showBookmarks.addEventListener('change', (e) => {
+        this.settings.showBookmarks = !!e.target.checked;
         this.saveSettings();
       });
     }
@@ -417,6 +480,21 @@ class OptionsManager {
     if (weatherCity) weatherCity.value = this.settings.weatherCity || '';
     const wallpaperEnabled = document.getElementById('wallpaperEnabled');
     if (wallpaperEnabled) wallpaperEnabled.checked = !!this.settings.wallpaperEnabled;
+
+    // 非聚焦透明度回显（分离）
+    const searchOpacity = document.getElementById('searchUnfocusedOpacity');
+    const searchOpacityValue = document.getElementById('searchUnfocusedOpacityValue');
+    if (searchOpacity) searchOpacity.value = String(this.settings.searchUnfocusedOpacity || 0.86);
+    if (searchOpacityValue) searchOpacityValue.textContent = Number(this.settings.searchUnfocusedOpacity || 0.86).toFixed(2);
+
+    const bookmarksOpacity = document.getElementById('bookmarksUnfocusedOpacity');
+    const bookmarksOpacityValue = document.getElementById('bookmarksUnfocusedOpacityValue');
+    if (bookmarksOpacity) bookmarksOpacity.value = String(this.settings.bookmarksUnfocusedOpacity || 0.86);
+    if (bookmarksOpacityValue) bookmarksOpacityValue.textContent = Number(this.settings.bookmarksUnfocusedOpacity || 0.86).toFixed(2);
+
+    // 书签列表是否展示回显
+    const showBookmarks = document.getElementById('showBookmarks');
+    if (showBookmarks) showBookmarks.checked = !!this.settings.showBookmarks;
   }
 
   // 获取默认规则

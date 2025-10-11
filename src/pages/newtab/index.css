@@ -8,18 +8,29 @@
   --accent: #4f8cff;
   --accent-contrast: #ffffff;
   --shadow: 0 8px 24px rgba(0,0,0,0.25);
+  /* 玻璃拟态（暗色，继续下调） */
+  --glass-bg: rgba(0,0,0,0.12);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  /* 非聚焦时透明度（分离：搜索框、书签列表） */
+  --search-unfocused-opacity: 0.86;
+  --bookmarks-unfocused-opacity: 0.86;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
     --bg: #f7f8fa;
-    --fg: #1f2328;
+    --fg: #374151; /* 更柔和的浅色主题前景色 */
     --muted: #6b7280;
     --card: #ffffff;
     --border: #e5e7eb;
     --accent: #2563eb;
     --accent-contrast: #ffffff;
     --shadow: 0 8px 24px rgba(0,0,0,0.08);
+    /* 玻璃拟态（浅色，继续下调） */
+    --glass-bg: rgba(0,0,0,0.08);
+    --glass-border: rgba(255,255,255,0.06);
+    --glass-shadow: 0 10px 24px rgba(0,0,0,0.08);
   }
 }
 
@@ -37,13 +48,16 @@
 
 :root[data-theme="light"] {
   --bg: #f7f8fa;
-  --fg: #1f2328;
+  --fg: #374151; /* 更柔和的浅色主题前景色 */
   --muted: #6b7280;
   --card: #ffffff;
   --border: #e5e7eb;
   --accent: #2563eb;
   --accent-contrast: #ffffff;
   --shadow: 0 8px 24px rgba(0,0,0,0.08);
+  --glass-bg: rgba(0,0,0,0.08);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-shadow: 0 10px 24px rgba(0,0,0,0.08);
 }
 
 * { box-sizing: border-box; }
@@ -60,6 +74,9 @@ body {
   background-repeat: no-repeat;
   background-attachment: fixed;
 }
+
+/* 统一支持 HTML hidden 属性，不被组件 display 覆盖 */
+[hidden] { display: none !important; }
 
 /* 小屏与移动端禁用 fixed，避免滚动时出现“变形/抖动” */
 @media (max-width: 768px) {
@@ -80,7 +97,7 @@ body {
   z-index: 1; /* 置于壁纸暗层之上 */
 }
 
-.header { text-align: center; margin-bottom: 28px; }
+.header { text-align: center; margin-bottom: 28px; position: relative; }
 .time {
   font-size: 56px;
   font-weight: 700;
@@ -89,7 +106,7 @@ body {
 .subtitle { color: var(--muted); margin-top: 8px; }
 .time { text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
 .subtitle { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
-.search-hint { text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+/* 外部搜索提示已移除，保留输入框占位符提示 */
 .topbar { position: absolute; top: 12px; right: 24px; z-index: 2; }
 .theme-dropdown { position: relative; }
 .dropdown-menu {
@@ -142,12 +159,7 @@ body {
 
 .main { display: grid; gap: 24px; min-width: 0; }
 
-.search-hint {
-  color: var(--muted);
-  font-size: 12px;
-  text-align: center;
-  margin-top: -12px; /* 与搜索框视觉贴近 */
-}
+/* 外部搜索提示已移除 */
 
 /* 天气摘要条 */
 .weather-inline {
@@ -201,6 +213,7 @@ body {
   border-radius: 14px;
   padding: 12px;
   box-shadow: var(--shadow);
+  transition: opacity 160ms ease;
 }
 .engine-select {
   appearance: none;
@@ -217,6 +230,11 @@ body {
   background-position: right 10px center;
 }
 .engine-select:hover { border-color: var(--accent); }
+
+/* 非聚焦态统一调暗（不影响交互） */
+.search:not(:hover):not(:focus-within) { opacity: var(--search-unfocused-opacity); }
+.bookmarks { transition: opacity 160ms ease; }
+.bookmarks:not(:hover) { opacity: var(--bookmarks-unfocused-opacity); }
 .engine-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
 .search input {
   appearance: none;
@@ -242,6 +260,14 @@ body {
 
 .bookmarks { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; width: 100%; min-width: 0; }
 @media (max-width: 900px) { .bookmarks { grid-template-columns: 1fr; } }
+
+.bookmarks-placeholder {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 6px 0 0;
+  text-align: center;
+}
 
 .section {
   background: var(--card);
@@ -335,3 +361,43 @@ body {
  .brand img { width: 18px; height: 18px; }
 
 /* 移除暗层，仅保留文字阴影以增强可读性 */
+.header::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -8px;
+  width: min(720px, 92%);
+  height: calc(100% + 16px);
+  border-radius: 16px;
+  z-index: -1; /* 放在内容之后，不遮挡文字 */
+  pointer-events: none; /* 不影响点击等交互 */
+  display: none; /* 默认不显示，仅壁纸时显示 */
+}
+
+/* 有壁纸时给 Header 加一层轻薄玻璃拟态背景（不覆盖整页） */
+body.has-wallpaper .header::before {
+  display: block;
+  background: var(--glass-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 明亮主题：有壁纸时，Header 文本改为亮色以提高适配性 */
+@media (prefers-color-scheme: light) {
+  body.has-wallpaper .header { color: #ffffff; }
+  /* 覆盖副标题、天气、搜索提示为亮色 */
+  body.has-wallpaper .subtitle,
+  body.has-wallpaper .weather-inline,
+  body.has-wallpaper .weather-inline .weather-desc,
+  body.has-wallpaper .weather-refresh { color: rgba(255,255,255,0.9); }
+}
+
+:root[data-theme="light"] body.has-wallpaper .header { color: #ffffff; }
+/* 手动明亮主题下同样覆盖为亮色 */
+:root[data-theme="light"] body.has-wallpaper .subtitle,
+:root[data-theme="light"] body.has-wallpaper .weather-inline,
+:root[data-theme="light"] body.has-wallpaper .weather-inline .weather-desc,
+:root[data-theme="light"] body.has-wallpaper .weather-refresh { color: rgba(255,255,255,0.9); }

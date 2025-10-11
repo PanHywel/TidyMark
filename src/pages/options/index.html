@@ -90,6 +90,33 @@
             <p class="setting-desc inline-hint">开启后，新标签页将使用 Bing 每日壁纸作为背景</p>
           </div>
         </div>
+
+        <div class="setting-item">
+          <label>非聚焦透明度（导航页框）</label>
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label for="searchUnfocusedOpacity">搜索框透明度</label>
+              <input type="range" id="searchUnfocusedOpacity" min="0.6" max="1" step="0.02">
+              <p class="setting-desc">未聚焦/未悬停时：当前 <span id="searchUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+            </div>
+            <div class="setting-item">
+              <label for="bookmarksUnfocusedOpacity">书签框透明度</label>
+              <input type="range" id="bookmarksUnfocusedOpacity" min="0.6" max="1" step="0.02">
+              <p class="setting-desc">未悬停时：当前 <span id="bookmarksUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="toggle-row">
+            <label class="setting-label">
+              <input type="checkbox" id="showBookmarks">
+              <span class="checkmark"></span>
+              <span>显示书签列表</span>
+            </label>
+            <p class="setting-desc inline-hint">默认不展示。开启后，新标签页显示书签列表。</p>
+          </div>
+        </div>
       </div>
     </section>
 

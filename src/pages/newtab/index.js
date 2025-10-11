@@ -12,6 +12,8 @@
   const elPage = document.querySelector('.page');
   const elWeather = document.getElementById('weather-bar');
   const elWallpaperBtn = document.getElementById('wallpaper-toggle-btn');
+  // 书签展示由配置控制；不再使用顶部按钮
+  const elBookmarksPlaceholder = document.getElementById('bookmarks-placeholder');
   
   // 壁纸：60s Bing 壁纸
   const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
@@ -149,6 +151,86 @@
   // 加载壁纸偏好与壁纸
   await loadWallpaperPreference();
   await loadWallpaper();
+
+  // 书签列表是否展示（默认不展示）
+  function applyShowBookmarks(show) {
+    const visible = !!show;
+    if (elSections) elSections.hidden = !visible;
+    if (elBookmarksPlaceholder) elBookmarksPlaceholder.hidden = visible;
+  }
+
+  async function loadShowBookmarksPreference() {
+    let show = false;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const { showBookmarks } = await chrome.storage.sync.get(['showBookmarks']);
+        show = !!showBookmarks;
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('showBookmarks');
+        if (raw != null) {
+          try {
+            const parsed = JSON.parse(raw);
+            show = !!parsed;
+          } catch {
+            show = raw === 'true';
+          }
+        }
+      }
+    } catch {}
+    applyShowBookmarks(show);
+  }
+  await loadShowBookmarksPreference();
+
+  // 监听设置变化（扩展环境）
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'sync' && changes.showBookmarks) {
+        applyShowBookmarks(!!changes.showBookmarks.newValue);
+      }
+    });
+  }
+  // 监听本地存储变化（同源预览环境）
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'showBookmarks') {
+      try {
+        const v = e.newValue;
+        let val = false;
+        if (v != null) {
+          try { val = !!JSON.parse(v); } catch { val = v === 'true'; }
+        }
+        applyShowBookmarks(val);
+      } catch {}
+    }
+  });
+
+  // 加载非聚焦透明度偏好并应用到页面（分离：搜索框与书签框）
+  async function loadOpacityPreferences() {
+    let sVal = 0.86;
+    let bVal = 0.86;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const { searchUnfocusedOpacity, bookmarksUnfocusedOpacity } = await chrome.storage.sync.get(['searchUnfocusedOpacity','bookmarksUnfocusedOpacity']);
+        const sNum = typeof searchUnfocusedOpacity === 'string' ? parseFloat(searchUnfocusedOpacity) : searchUnfocusedOpacity;
+        const bNum = typeof bookmarksUnfocusedOpacity === 'string' ? parseFloat(bookmarksUnfocusedOpacity) : bookmarksUnfocusedOpacity;
+        if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
+        if (Number.isFinite(bNum) && bNum >= 0.6 && bNum <= 1) bVal = bNum;
+      } else if (typeof localStorage !== 'undefined') {
+        const sRaw = localStorage.getItem('searchUnfocusedOpacity');
+        const bRaw = localStorage.getItem('bookmarksUnfocusedOpacity');
+        if (sRaw) {
+          const sNum = parseFloat(sRaw.replace(/^"|"$/g, ''));
+          if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
+        }
+        if (bRaw) {
+          const bNum = parseFloat(bRaw.replace(/^"|"$/g, ''));
+          if (Number.isFinite(bNum) && bNum >= 0.6 && bNum <= 1) bVal = bNum;
+        }
+      }
+    } catch {}
+    document.documentElement.style.setProperty('--search-unfocused-opacity', String(sVal));
+    document.documentElement.style.setProperty('--bookmarks-unfocused-opacity', String(bVal));
+  }
+  await loadOpacityPreferences();
 
   // 天气：获取设置与渲染
   const WEATHER_TTL = 15 * 60 * 1000; // 15分钟缓存
@@ -443,7 +525,6 @@
   let categoryOrder = [];
   let allBookmarks = [];
   const elMain = document.querySelector('.main');
-  const elHint = document.getElementById('search-hint');
   let inputDebounceTimer = null;
 
   async function loadCategoryOrder() {
@@ -480,11 +561,13 @@
   function renderThemeIcon(mode) {
     if (!elThemeBtn) return;
     const icons = {
-      system: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.57a.5.5 0 0 0 .12-.65l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.41-1.06-.72-1.63-.95l-.36-2.54a.5.5 0 0 0-.5-.43h-3.84a.5.5 0 0 0-.5.43l-.36 2.54c-.57.23-1.12.54-1.63.95l-2.39-.96a.5.5 0 0 0-.61.22L2.71 8.84a.5.5 0 0 0 .12.65l2.03 1.57c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.57a.5.5 0 0 0-.12.65l1.92 3.32a.5.5 0 0 0 .61.22l2.39-.96c.5.41 1.06.72 1.63.95l.36 2.54a.5.5 0 0 0 .5.43h3.84a.5.5 0 0 0 .5-.43l.36-2.54c.57-.23 1.12-.54 1.63-.95l2.39.96a.5.5 0 0 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.65l-2.03-1.57ZM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/></svg>`,
       light: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.76 4.84l-1.8-1.79-1.41 1.41 1.79 1.8 1.42-1.42Zm10.48 0 1.8-1.79 1.41 1.41-1.79 1.8-1.42-1.42ZM12 4V1h-2v3h2Zm0 19v-3h-2v3h2ZM4 12H1v2h3v-2Zm22 0h-3v2h3v-2ZM6.76 19.16l-1.42 1.42-1.79-1.8 1.41-1.41 1.8 1.79Zm10.48 0 1.42 1.42 1.79-1.8-1.41-1.41-1.8 1.79ZM12 6a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></svg>`,
       dark: `<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`
     };
-    elThemeBtn.innerHTML = icons[mode] || icons.system;
+    const isSystem = mode === 'system';
+    const systemIsDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const effective = isSystem ? (systemIsDark ? 'dark' : 'light') : mode;
+    elThemeBtn.innerHTML = icons[effective] || icons.light;
   }
 
   async function loadEnginePreference() {
@@ -583,6 +666,21 @@
   }
   loadThemePreference();
 
+  // 系统主题变化时，如果当前为“系统”模式，更新按钮图标
+  const prefersDarkMql = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+  if (prefersDarkMql) {
+    if (typeof prefersDarkMql.addEventListener === 'function') {
+      prefersDarkMql.addEventListener('change', () => {
+        if (themeMode === 'system') renderThemeIcon('system');
+      });
+    } else if (typeof prefersDarkMql.addListener === 'function') {
+      // 兼容旧浏览器
+      prefersDarkMql.addListener(() => {
+        if (themeMode === 'system') renderThemeIcon('system');
+      });
+    }
+  }
+
   elForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = (elInput.value || '').trim();
@@ -610,14 +708,12 @@
       const bm = parseBookmarkSearch(val);
       if (!bm || !bm.keyword) {
         clearBookmarkSearchResults();
-        if (elHint) elHint.textContent = '输入“#”开头进行书签搜索';
         return;
       }
       if (inputDebounceTimer) clearTimeout(inputDebounceTimer);
       inputDebounceTimer = setTimeout(() => {
         if (allBookmarks.length === 0) return;
         renderBookmarkSearchResults(bm.keyword);
-        if (elHint) elHint.textContent = `正在搜索书签：${bm.keyword}`;
       }, 120);
     });
   }

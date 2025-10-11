@@ -149,3 +149,23 @@
 - 可读性：为时间、副标题、天气与提示文字增加轻微 `text-shadow`；根据反馈移除了全局暗层，保持页面更明亮。
 - 性能：壁纸缓存 6 小时，来源为 60s Bing API。
 - 文档：补充 README 的天气功能说明（选项页开关与导航页摘要）。
+
+---
+
+## v1.2.1 — 2025-10-11
+
+- New Tab: fix `showBookmarks` preference parsing and consistency across environments (Chrome storage vs local preview).
+- Visibility: add global `[hidden] { display: none !important; }` to ensure hidden elements are truly hidden.
+- UX: add a centered one-line placeholder text when bookmarks are hidden.
+- Footer: remove bottom TidyMark brand block from the New Tab page.
+- Sync: listen to storage changes to reflect bookmark visibility toggles in real time.
+
+---
+
+## v1.2.1 — 2025-10-11（中文）
+
+- 新标签页：修复 `showBookmarks` 偏好解析不一致问题，统一跨环境（扩展/本地预览）。
+- 显示控制：新增全局 `[hidden] { display: none !important; }`，确保隐藏元素真正不可见。
+- 体验：在隐藏书签时显示居中的单行占位提示文案。
+- 页脚：移除新标签页底部的 TidyMark 品牌区块。
+- 同步：监听存储变更，书签显示开关可实时生效。
