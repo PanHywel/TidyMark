@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.2 — 2025-10-11
+
+- New Tab: change default search engine to Bing.
+- Install: set `searchEngine='bing'` in local storage on first install when unset.
+- Docs: README notes Bing as the default search engine (bilingual).
+
+---
+
 ## v1.3.1 — 2025-10-11
 
 - New Tab: enable Bing wallpaper by default; honors stored preference if present.

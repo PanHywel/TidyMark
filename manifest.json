@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TidyMark",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "智能书签管理扩展，自动分类整理您的书签",
   
   "permissions": [

@@ -64,7 +64,7 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 
 ### 可配置项（Options / 新标签页导航）
 
-- 搜索引擎：在导航页搜索框左侧选择 `Google/Bing/DuckDuckGo/百度`
+- 搜索引擎：在导航页搜索框左侧选择 `Google/Bing/DuckDuckGo/百度`（默认 Bing）
 - 主题模式：右上角按钮切换 `系统/明亮/暗色`
 - 壁纸背景：在“选项”页开启“显示 Bing 壁纸背景”（默认开启）
 - 天气摘要：在“选项”页开启“显示天气”，并设置城市；导航页副标题区域可点击修改城市；缓存 15 分钟
@@ -216,7 +216,7 @@ Major feature: besides automatic bookmark organization, the New Tab navigation i
 
 ### Configurable Features (Options / New Tab)
 
-- Search engine: choose `Google/Bing/DuckDuckGo/Baidu` in the search form
+- Search engine: choose `Google/Bing/DuckDuckGo/Baidu` in the search form (default Bing)
 - Theme mode: switch `system/light/dark` via the top-right theme button
 - Wallpaper: enable Bing daily wallpaper background in Options (off by default)
 - Weather summary: enable in Options and set city; clickable subtitle area to change city; cached for 15 minutes
