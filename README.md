@@ -61,6 +61,24 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 - AI 服务商：支持 `OpenAI` 与 `DeepSeek`（兼容 OpenAI HTTP 接口）
 - 支持模型：`OpenAI` 系列与 `DeepSeek` 的 `deepseek-chat`
 
+### 可配置项（Options / 新标签页导航）
+
+- 搜索引擎：在导航页搜索框左侧选择 `Google/Bing/DuckDuckGo/百度`
+- 主题模式：右上角按钮切换 `系统/明亮/暗色`
+- 壁纸背景：在“选项”页开启“显示 Bing 壁纸背景”（默认关闭）
+- 天气摘要：在“选项”页开启“显示天气”，并设置城市；导航页副标题区域可点击修改城市；缓存 15 分钟
+- 60s 读懂世界：在“选项”页开启“显示 60s 读懂世界”；支持透明度（未悬停）
+- 透明度（未聚焦/未悬停）：
+  - 搜索框透明度 `searchUnfocusedOpacity`（范围 0.60–1.00，默认 0.86）
+  - 书签框透明度 `bookmarksUnfocusedOpacity`（范围 0.60–1.00，默认 0.86）
+  - 60s 栏目透明度 `sixtyUnfocusedOpacity`（范围 0.60–1.00，默认 0.86）
+- 书签列表显示：在“选项”页勾选“显示书签列表”（默认不展示，开启后显示分类书签）
+
+### 自动书签分类（规则与 AI）
+
+- 分类规则管理：支持添加/编辑/删除规则、重置为默认；依据标题与 URL 关键词匹配
+- AI 分类助手：可启用 AI 建议；配置服务商（OpenAI/DeepSeek）、API Key/端点、模型、`maxTokens`、分类语言（中文/English/自动）
+
 ### 默认分类（片段）
 
 ```json
@@ -194,6 +212,24 @@ Major feature: besides automatic bookmark organization, the New Tab navigation i
 
 - AI provider: `OpenAI` and `DeepSeek` (OpenAI-compatible endpoints supported)
 - Supported models: OpenAI family and DeepSeek `deepseek-chat`
+
+### Configurable Features (Options / New Tab)
+
+- Search engine: choose `Google/Bing/DuckDuckGo/Baidu` in the search form
+- Theme mode: switch `system/light/dark` via the top-right theme button
+- Wallpaper: enable Bing daily wallpaper background in Options (off by default)
+- Weather summary: enable in Options and set city; clickable subtitle area to change city; cached for 15 minutes
+- 60s Digest: enable “60s read the world” in Options; supports non-hover opacity
+- Opacity (non-focused/non-hover states):
+  - Search box `searchUnfocusedOpacity` (0.60–1.00, default 0.86)
+  - Bookmarks `bookmarksUnfocusedOpacity` (0.60–1.00, default 0.86)
+  - 60s section `sixtyUnfocusedOpacity` (0.60–1.00, default 0.86)
+- Bookmarks visibility: toggle “Show bookmarks list” in Options (hidden by default; shows categorized bookmarks when enabled)
+
+### Auto Categorization (Rules & AI)
+
+- Rule management: add/edit/delete rules; reset to defaults; matches by bookmark title/URL keywords
+- AI assistant: enable AI suggestions; configure provider (OpenAI/DeepSeek), API key/endpoint, model, `maxTokens`, classification language (Chinese/English/auto)
 
 ### Default Categories (excerpt)
 
