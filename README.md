@@ -35,9 +35,10 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 
 ## 界面截图
 
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="导航页" width="500"></a>
 <a href="./assets/screenshots/home.png"><img src="./assets/screenshots/home.png" alt="主页" width="400"></a>
 <a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="设置" width="400"></a>
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="导航页" width="400"></a>
+
 
 导航页：基于浏览器书签的分类导航，支持搜索引擎/主题切换；搜索结果在新标签页打开。
 可选启用 Bing 壁纸作为背景（在“选项”页开启），背景将全屏显示并保持比例不变形；文本采用轻微阴影增强可读性。
@@ -186,10 +187,10 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 - Keep the extension UI open until completion; closing it early interrupts the request and the optimization will not take effect.
 
 ## Screenshots
-
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="500"></a>
 <a href="./assets/screenshots/home.png"><img src="./assets/screenshots/home.png" alt="Home" width="400"></a>
 <a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="400"></a>
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="400"></a>
+
 
  Navigation: bookmark-based categorized navigation with search engine/theme switch; searches open in a new tab.
  Optional Bing wallpaper background (enable in Options) with true fullscreen coverage via `background-size: cover`; mobile disables `background-attachment: fixed` to avoid jitter; subtle text shadows improve readability on bright/complex images.
