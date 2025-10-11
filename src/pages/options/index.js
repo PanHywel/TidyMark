@@ -88,7 +88,7 @@ class OptionsManager {
         maxCategories: result.maxCategories ?? undefined,
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
-        wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : false,
+        wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : true,
         sixtySecondsEnabled: result.sixtySecondsEnabled !== undefined ? !!result.sixtySecondsEnabled : true,
         searchUnfocusedOpacity: (() => {
           const v = result.searchUnfocusedOpacity;
@@ -119,6 +119,7 @@ class OptionsManager {
         maxTokens: 8192,
         classificationLanguage: 'auto',
         maxCategories: undefined,
+        wallpaperEnabled: true,
         sixtySecondsEnabled: true,
         searchUnfocusedOpacity: 0.86,
         bookmarksUnfocusedOpacity: 0.86,
