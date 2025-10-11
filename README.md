@@ -24,6 +24,8 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 - 手动管理：在弹出窗口中查看和调整分类
 - 设置配置：在“选项”页面配置 AI 服务商/模型
 
+- 预览调整：在“整理预览”弹窗中，点击书签即可切换分类；可在选择框中选择已有分类或新增分类。
+
 ### 注意事项（AI 优化）
 
 - 使用 AI 优化分类时，响应可能需要 2–3 分钟，请耐心等待。
@@ -149,6 +151,8 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 - Auto organize: click “Auto Organize” to categorize bookmarks
 - Manual manage: review and adjust categories in the popup UI
 - Settings: right-click the icon → “Options” to configure AI provider/model
+
+- Preview adjust: in the organize preview dialog, click a bookmark to change its category; choose an existing category or add a new one in the picker.
 
 ### Notes (AI Optimization)
 

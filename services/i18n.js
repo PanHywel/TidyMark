@@ -211,8 +211,16 @@
     'preview.expand': { 'zh-CN': '展开全部', 'zh-TW': '展開全部', 'en': 'Expand all', 'ru': 'Развернуть все' },
     'preview.collapse': { 'zh-CN': '收起', 'zh-TW': '收起', 'en': 'Collapse', 'ru': 'Свернуть' },
     'preview.info': { 'zh-CN': '手动调整即将支持：您将可以在此界面移动、排除或合并分类。', 'zh-TW': '手動調整即將支援：您將能在此移動、排除或合併分類。', 'en': 'Manual adjustments coming soon: move, exclude, and merge categories here.', 'ru': 'Скоро: ручные правки — перенос, исключение и объединение категорий.' },
+    'preview.infoManual': { 'zh-CN': '现在支持手动调整：可为每条书签选择或新增分类。', 'zh-TW': '現在支援手動調整：可為每條書籤選擇或新增分類。', 'en': 'Manual adjustments supported: choose or add categories per bookmark.', 'ru': 'Поддерживаются ручные правки: выбор или добавление категории для закладки.' },
+    'preview.clickHint': { 'zh-CN': '点击书签切换分类', 'zh-TW': '點擊書籤切換分類', 'en': 'Click bookmark to switch category', 'ru': 'Нажмите на закладку, чтобы сменить категорию' },
     'preview.cancel': { 'zh-CN': '取消', 'zh-TW': '取消', 'en': 'Cancel', 'ru': 'Отмена' },
     'preview.confirm': { 'zh-CN': '确认整理', 'zh-TW': '確認整理', 'en': 'Confirm Organize', 'ru': 'Подтвердить сортировку' },
+
+    // Picker modal
+    'preview.pickCategory': { 'zh-CN': '选择分类', 'zh-TW': '選擇分類', 'en': 'Pick Category', 'ru': 'Выберите категорию' },
+    'preview.addCategory': { 'zh-CN': '新增分类…', 'zh-TW': '新增分類…', 'en': 'Add category…', 'ru': 'Добавить категорию…' },
+    'preview.inputNewCategory': { 'zh-CN': '请输入新分类名', 'zh-TW': '請輸入新分類名稱', 'en': 'Enter a new category name', 'ru': 'Введите название новой категории' },
+    'preview.apply': { 'zh-CN': '应用', 'zh-TW': '套用', 'en': 'Apply', 'ru': 'Применить' },
 
     // Common
     'common.viewMore': { 'zh-CN': '查看更多', 'zh-TW': '檢視更多', 'en': 'View more', 'ru': 'Показать ещё' },

@@ -980,6 +980,7 @@ body {
   white-space: nowrap;
   text-overflow: ellipsis;
   transition: background-color 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
 }
 
 .bookmark-entry:hover {
@@ -1004,7 +1005,7 @@ body {
 }
 
 .info-banner {
-  margin-top: 8px;
+  margin: 8px 0;
   padding: 10px 12px;
   background: #f8fafc;
   border: 1px dashed #cbd5e1;
@@ -1062,3 +1063,39 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* 分类选择器（小型模态）样式 */
+.picker-dialog {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.12);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-dialog .modal-header {
+  padding: 10px 12px;
+}
+.picker-dialog .modal-title {
+  font-size: 14px;
+}
+.picker-dialog .modal-body {
+  padding: 10px 12px;
+}
+.picker-dialog .modal-footer {
+  padding: 10px 12px;
+}
+
+.picker-select {
+  appearance: none;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+}
+.picker-select:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0 — 2025-10-11
+
+- Popup: add concise top hint “点击书签切换分类” for manual adjustments.
+- Picker: unify category picker to a mini modal (`picker-dialog`) and style select (`picker-select`).
+- UX: set bookmark items to pointer cursor in preview for better discoverability.
+- i18n: add preview picker-related keys and shorten `preview.clickHint`.
+- Docs: update README with manual switching instructions.
+
+---
+
 ## v1.0.6 — 2025-10-10
 
 - CI: fix release packaging to include `src/`, `services/`, `icons/`, and `manifest.json`.
@@ -108,3 +118,13 @@
 - 实现扩展内导航（弹窗/选项/预览页）。
 - 增加顶部导航栏与页面链接，提升访问便捷性。
 - 优化交互：当前页面高亮与一致的路由跳转。
+
+---
+
+## v1.1.0 — 2025-10-11（中文）
+
+- 弹窗：在预览弹窗顶部加入简短提示“点击书签切换分类”。
+- 选择器：统一为小型模态框（`picker-dialog`），并美化选择控件（`picker-select`）。
+- 交互：预览列表中的书签项鼠标样式改为指针，提升可发现性。
+- 国际化：补充预览选择相关键值，精简 `preview.clickHint` 文案。
+- 文档：更新 README，新增手动切换分类的说明。

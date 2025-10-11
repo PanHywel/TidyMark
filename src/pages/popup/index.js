@@ -642,6 +642,7 @@ class PopupManager {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
+      let categoryNames = Object.keys(preview.categories || {});
       modal.innerHTML = `
         <div class="modal-dialog">
           <div class="modal-header">
@@ -650,6 +651,7 @@ class PopupManager {
           </div>
           <div class="modal-body">
             <div class="preview-summary">${window.I18n ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified }) : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`}</div>
+            <div class="info-banner">${window.I18n ? (window.I18n.t('preview.clickHint') || '点击书签切换分类') : '点击书签切换分类'}</div>
             <div id="previewCategories" class="preview-categories">
               ${Object.entries(preview.categories)
                 .filter(([, data]) => data && data.count > 0)
@@ -657,8 +659,8 @@ class PopupManager {
                   const threshold = 10;
                   const collapsedClass = data.bookmarks.length > threshold ? 'collapsed' : '';
                   const listItems = data.bookmarks.map(b => `
-                    <li class="bookmark-entry">
-                      ${this.escapeHtml(b.title || (window.I18n ? window.I18n.t('common.noTitle') : '(无标题)'))}
+                    <li class="bookmark-entry" data-id="${String(b.id)}" data-current="${name}">
+                      <span class="bookmark-title">${this.escapeHtml(b.title || (window.I18n ? window.I18n.t('common.noTitle') : '(无标题)'))}</span>
                     </li>
                   `).join('');
                   const footer = data.bookmarks.length > threshold ? `
@@ -668,7 +670,7 @@ class PopupManager {
                   ` : '';
                   const translatedName = window.I18n ? window.I18n.translateCategoryByName(name) : name;
                   return `
-                    <div class="category-preview-item">
+                    <div class="category-preview-item" data-cat-name="${name}">
                       <div class="category-header">
                         <strong class="category-name">${translatedName}</strong>
                         <span class="badge">${data.count} 个</span>
@@ -680,9 +682,6 @@ class PopupManager {
                     </div>
                   `;
                 }).join('')}
-            </div>
-            <div class="info-banner">
-              ${window.I18n ? window.I18n.t('preview.info') : '手动调整即将支持：您将可以在此界面移动、排除或合并分类。'}
             </div>
           </div>
           <div class="modal-footer">
@@ -714,6 +713,146 @@ class PopupManager {
           btn.textContent = window.I18n ? window.I18n.t('preview.expand') : '展开全部';
         }
       });
+
+      // 点击书签弹出小选择框（事件委托）
+      const categoriesContainer = modal.querySelector('#previewCategories');
+      const rebuildSummary = () => {
+        const summaryEl = modal.querySelector('.preview-summary');
+        if (summaryEl) {
+          const text = window.I18n
+            ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
+            : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
+          summaryEl.textContent = text;
+        }
+      };
+      const updateBadge = (catName) => {
+        const item = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${catName}"]`);
+        const badge = item?.querySelector('.badge');
+        if (badge) {
+          const count = preview.categories[catName]?.count || 0;
+          badge.textContent = `${count} 个`;
+        }
+      };
+      const ensureCategorySection = (catName) => {
+        if (categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${catName}"]`)) return;
+        const translatedName = window.I18n ? window.I18n.translateCategoryByName(catName) : catName;
+        const div = document.createElement('div');
+        div.className = 'category-preview-item';
+        div.setAttribute('data-cat-name', catName);
+        div.innerHTML = `
+          <div class="category-header">
+            <strong class="category-name">${translatedName}</strong>
+            <span class="badge">0 个</span>
+          </div>
+          <ul class="bookmark-list-preview"></ul>
+        `;
+        categoriesContainer.appendChild(div);
+      };
+
+      const openPicker = (li) => {
+        const id = li.getAttribute('data-id');
+        const oldCat = li.getAttribute('data-current');
+        const rect = li.getBoundingClientRect();
+        const pop = document.createElement('div');
+        pop.className = 'picker-popover';
+        const width = 300;
+        const top = Math.min(window.innerHeight - 200, rect.bottom + 8);
+        const left = Math.min(window.innerWidth - width - 16, rect.left);
+        const optionsHtml = categoryNames
+          .map(cat => {
+            const tname = window.I18n ? window.I18n.translateCategoryByName(cat) : cat;
+            return `<option value="${cat}" ${cat === oldCat ? 'selected' : ''}>${tname}</option>`;
+          })
+          .join('') + `<option value="__new__">${window.I18n ? window.I18n.t('preview.addCategory') || '新增分类…' : '新增分类…'}</option>`;
+        pop.innerHTML = `
+          <div class="picker-dialog" style="position: fixed; top: ${top}px; left: ${left}px; width: ${width}px; z-index: 10001;">
+            <div class="modal-header">
+              <h3 class="modal-title">${window.I18n ? (window.I18n.t('preview.pickCategory') || '选择分类') : '选择分类'}</h3>
+              <button class="modal-close picker-close">×</button>
+            </div>
+            <div class="modal-body">
+              <select class="picker-select" style="width: 100%;">${optionsHtml}</select>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline picker-cancel">${window.I18n ? window.I18n.t('preview.cancel') : '取消'}</button>
+              <button class="btn btn-primary picker-apply">${window.I18n ? (window.I18n.t('preview.apply') || '应用') : '应用'}</button>
+            </div>
+          </div>`;
+        document.body.appendChild(pop);
+
+        const cleanup = () => { if (pop && pop.parentNode) pop.parentNode.removeChild(pop); };
+        pop.querySelector('.picker-close').addEventListener('click', cleanup);
+        pop.querySelector('.picker-cancel').addEventListener('click', cleanup);
+        // 点击外部关闭
+        setTimeout(() => {
+          const onDocClick = (ev) => {
+            if (!pop.contains(ev.target)) {
+              cleanup();
+              document.removeEventListener('click', onDocClick);
+            }
+          };
+          document.addEventListener('click', onDocClick);
+        }, 0);
+
+        pop.querySelector('.picker-apply').addEventListener('click', () => {
+          const sel = pop.querySelector('.picker-select');
+          let newCat = sel.value;
+          if (newCat === '__new__') {
+            const inputName = window.prompt(window.I18n ? (window.I18n.t('preview.inputNewCategory') || '请输入新分类名') : '请输入新分类名');
+            if (!inputName) return;
+            newCat = inputName.trim();
+            if (!newCat) return;
+            if (!preview.categories[newCat]) {
+              preview.categories[newCat] = { count: 0, bookmarks: [] };
+              ensureCategorySection(newCat);
+            }
+            if (!categoryNames.includes(newCat)) {
+              categoryNames.push(newCat);
+            }
+          }
+          if (newCat === oldCat) { cleanup(); return; }
+
+          const detail = (preview.details || []).find(d => String(d.bookmark?.id) === String(id));
+          if (!detail) { cleanup(); return; }
+          const bookmark = detail.bookmark;
+          detail.category = newCat;
+
+          if (preview.categories[oldCat]) {
+            preview.categories[oldCat].bookmarks = (preview.categories[oldCat].bookmarks || []).filter(b => String(b.id) !== String(id));
+            preview.categories[oldCat].count = Math.max(0, (preview.categories[oldCat].count || 1) - 1);
+          }
+          if (!preview.categories[newCat]) {
+            preview.categories[newCat] = { count: 0, bookmarks: [] };
+            ensureCategorySection(newCat);
+          }
+          preview.categories[newCat].bookmarks.push(bookmark);
+          preview.categories[newCat].count = (preview.categories[newCat].count || 0) + 1;
+
+          const oldSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${oldCat}"] .bookmark-list-preview`);
+          const newSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${newCat}"] .bookmark-list-preview`);
+          if (newSection) newSection.appendChild(li);
+          li.setAttribute('data-current', newCat);
+          updateBadge(oldCat);
+          updateBadge(newCat);
+
+          const otherName = '其他';
+          if (oldCat === otherName && newCat !== otherName) {
+            preview.classified = (preview.classified || 0) + 1;
+          } else if (oldCat !== otherName && newCat === otherName) {
+            preview.classified = Math.max(0, (preview.classified || 0) - 1);
+          }
+          rebuildSummary();
+          cleanup();
+        });
+      };
+
+      modal.addEventListener('click', (e) => {
+        const li = e.target.closest('.bookmark-entry');
+        if (!li) return;
+        // 避免与展开按钮冲突
+        if (e.target.closest('.collapse-toggle')) return;
+        openPicker(li);
+      });
     });
   }
 
@@ -736,6 +875,7 @@ class PopupManager {
             <div class="dialog-body">
               <p>建议在整理前先备份书签，以防数据丢失。</p>
               <p>是否要先备份书签？</p>
+              <p style="margin-top:8px;color:#6b7280;">${window.I18n ? (window.I18n.t('preview.clickHint') || '点击书签切换分类') : '点击书签切换分类'}</p>
             </div>
             <div class="dialog-actions">
               <button class="dialog-btn secondary" id="skipBackup">跳过备份</button>
