@@ -24,6 +24,17 @@
   // 壁纸：60s Bing 壁纸
   const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
   const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v1';
+  // 60s 项目的多实例备用路由（用于 60s 与 Bing 壁纸）
+  const SIXTY_INSTANCES = [
+    'https://60s.viki.moe',
+    'https://60api.09cdn.xyz',
+    'https://60s.zeabur.app',
+    'https://60s.crystelf.top',
+    'https://cqxx.site',
+    'https://api.yanyua.icu',
+    'https://60s.tmini.net',
+    'https://60s.7se.cn'
+  ];
 
   async function getCachedWallpaper() {
     try {
@@ -58,27 +69,58 @@
   }
 
   async function fetchBingWallpaper60s(signal) {
-    const url = 'https://60s.viki.moe/v2/bing';
-    const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
-    if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
-    const json = await resp.json();
-    if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
-    if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
-    const d = json.data || {};
-    const cover = d.cover_4k || d.cover;
-    if (!cover) throw new Error('未提供壁纸链接');
-    return {
-      title: d.title,
-      description: d.description,
-      main_text: d.main_text,
-      copyright: d.copyright,
-      update_date: d.update_date,
-      update_date_at: d.update_date_at,
-      cover,
-    };
+    // 1) 依次尝试 60s 实例 /v2/bing
+    let lastErr;
+    for (const base of SIXTY_INSTANCES) {
+      try {
+        const url = `${base}/v2/bing`;
+        const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+        if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
+        const json = await resp.json();
+        if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
+        if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
+        const d = json.data || {};
+        const cover = d.cover_4k || d.cover;
+        if (!cover) throw new Error('未提供壁纸链接');
+        return {
+          title: d.title,
+          description: d.description,
+          main_text: d.main_text,
+          copyright: d.copyright,
+          update_date: d.update_date,
+          update_date_at: d.update_date_at,
+          cover,
+        };
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    // 2) 备用：直接请求 Bing 官方接口
+    try {
+      const url = 'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&uhd=1';
+      const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+      if (!resp.ok) throw new Error(`Bing 接口返回状态 ${resp.status}`);
+      const json = await resp.json();
+      const img = json && Array.isArray(json.images) ? json.images[0] : null;
+      const rel = img && (img.url || '');
+      if (!rel) throw new Error('Bing 接口未提供图片URL');
+      const cover = `https://www.bing.com${rel}`;
+      return {
+        title: img && (img.title || ''),
+        description: img && (img.copyright || ''),
+        main_text: '',
+        copyright: img && (img.copyright || ''),
+        update_date: img && (img.enddate || ''),
+        update_date_at: '',
+        cover,
+      };
+    } catch (e) {
+      throw lastErr || e;
+    }
   }
 
-  let wallpaperEnabled = false;
+  let wallpaperEnabled = true;
 
   async function loadWallpaper(force = false) {
     try {
@@ -122,10 +164,10 @@
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
         const { wallpaperEnabled: stored } = await chrome.storage.sync.get(['wallpaperEnabled']);
-        wallpaperEnabled = !!stored; // 默认关闭
+        wallpaperEnabled = stored !== undefined ? !!stored : true; // 默认开启
       } else if (typeof localStorage !== 'undefined') {
         const val = localStorage.getItem('wallpaperEnabled');
-        wallpaperEnabled = val === 'true';
+        wallpaperEnabled = val === null ? true : val === 'true';
       }
     } catch {}
     renderWallpaperToggle();
@@ -299,15 +341,23 @@
   }
 
   async function fetchSixtyData(signal) {
-    const url = 'https://60s.viki.moe/v2/60s';
-    const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
-    if (!resp.ok) throw new Error(`60s 服务返回状态 ${resp.status}`);
-    const json = await resp.json();
-    if (!json || typeof json !== 'object') throw new Error('60s 响应非JSON');
-    if (json.code !== 200) throw new Error(`60s 服务错误码 ${json.code}`);
-    const d = json.data || {};
-    if (!Array.isArray(d.news)) d.news = [];
-    return d;
+    let lastErr;
+    for (const base of SIXTY_INSTANCES) {
+      try {
+        const url = `${base}/v2/60s`;
+        const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+        if (!resp.ok) throw new Error(`60s 服务返回状态 ${resp.status}`);
+        const json = await resp.json();
+        if (!json || typeof json !== 'object') throw new Error('60s 响应非JSON');
+        if (json.code !== 200) throw new Error(`60s 服务错误码 ${json.code}`);
+        const d = json.data || {};
+        if (!Array.isArray(d.news)) d.news = [];
+        return d;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('所有 60s 实例均不可用');
   }
 
   function renderSixty(data) {

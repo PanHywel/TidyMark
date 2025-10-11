@@ -509,7 +509,11 @@ class OptionsManager {
     if (weatherEnabled) weatherEnabled.checked = !!this.settings.weatherEnabled;
     if (weatherCity) weatherCity.value = this.settings.weatherCity || '';
     const wallpaperEnabled = document.getElementById('wallpaperEnabled');
-    if (wallpaperEnabled) wallpaperEnabled.checked = !!this.settings.wallpaperEnabled;
+    if (wallpaperEnabled) {
+      wallpaperEnabled.checked = this.settings.wallpaperEnabled !== undefined
+        ? !!this.settings.wallpaperEnabled
+        : true; // 默认开启
+    }
     const sixtySecondsEnabled = document.getElementById('sixtySecondsEnabled');
     if (sixtySecondsEnabled) sixtySecondsEnabled.checked = !!this.settings.sixtySecondsEnabled;
 
