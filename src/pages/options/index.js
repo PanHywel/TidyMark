@@ -31,7 +31,10 @@ class OptionsManager {
           'aiModel',
           'maxTokens',
           'classificationLanguage',
-          'maxCategories'
+          'maxCategories',
+          'weatherEnabled',
+          'weatherCity',
+          'wallpaperEnabled'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -44,7 +47,10 @@ class OptionsManager {
           'aiModel',
           'maxTokens',
           'classificationLanguage',
-          'maxCategories'
+          'maxCategories',
+          'weatherEnabled',
+          'weatherCity',
+          'wallpaperEnabled'
         ];
         
         keys.forEach(key => {
@@ -68,7 +74,10 @@ class OptionsManager {
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
         maxTokens: (typeof result.maxTokens === 'number' && result.maxTokens > 0) ? result.maxTokens : 8192,
         classificationLanguage: result.classificationLanguage ?? 'auto',
-        maxCategories: result.maxCategories ?? undefined
+        maxCategories: result.maxCategories ?? undefined,
+        weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
+        weatherCity: (result.weatherCity || '').trim(),
+        wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : false
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -202,6 +211,33 @@ class OptionsManager {
       });
     }
 
+    // 天气组件开关
+    const weatherEnabled = document.getElementById('weatherEnabled');
+    if (weatherEnabled) {
+      weatherEnabled.addEventListener('change', (e) => {
+        this.settings.weatherEnabled = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 城市输入
+    const weatherCity = document.getElementById('weatherCity');
+    if (weatherCity) {
+      weatherCity.addEventListener('input', (e) => {
+        this.settings.weatherCity = (e.target.value || '').trim();
+        this.saveSettings();
+      });
+    }
+
+    // 壁纸开关
+    const wallpaperEnabled = document.getElementById('wallpaperEnabled');
+    if (wallpaperEnabled) {
+      wallpaperEnabled.addEventListener('change', (e) => {
+        this.settings.wallpaperEnabled = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
 
     // 按钮事件
     const testAiConnection = document.getElementById('testAiConnection');
@@ -252,6 +288,7 @@ class OptionsManager {
   renderUI() {
     this.updateClassificationRules();
     this.updateAiConfig();
+    this.updateWidgetConfig();
   }
 
   // 更新分类规则
@@ -370,6 +407,16 @@ class OptionsManager {
     }
     // 更新模型选项
     this.updateModelOptions();
+  }
+
+  // 更新导航页组件配置
+  updateWidgetConfig() {
+    const weatherEnabled = document.getElementById('weatherEnabled');
+    const weatherCity = document.getElementById('weatherCity');
+    if (weatherEnabled) weatherEnabled.checked = !!this.settings.weatherEnabled;
+    if (weatherCity) weatherCity.value = this.settings.weatherCity || '';
+    const wallpaperEnabled = document.getElementById('wallpaperEnabled');
+    if (wallpaperEnabled) wallpaperEnabled.checked = !!this.settings.wallpaperEnabled;
   }
 
   // 获取默认规则

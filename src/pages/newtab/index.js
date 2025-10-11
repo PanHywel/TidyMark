@@ -10,6 +10,127 @@
   const elThemeDropdown = document.querySelector('.theme-dropdown');
   const elSections = document.getElementById('bookmark-sections');
   const elPage = document.querySelector('.page');
+  const elWeather = document.getElementById('weather-bar');
+  const elWallpaperBtn = document.getElementById('wallpaper-toggle-btn');
+  
+  // 壁纸：60s Bing 壁纸
+  const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
+  const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v1';
+
+  async function getCachedWallpaper() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([WALLPAPER_CACHE_KEY]);
+        const payload = obj[WALLPAPER_CACHE_KEY];
+        if (payload && payload.timestamp && (Date.now() - payload.timestamp) < WALLPAPER_TTL) {
+          return payload.data;
+        }
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(WALLPAPER_CACHE_KEY);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload && payload.timestamp && (Date.now() - payload.timestamp) < WALLPAPER_TTL) {
+            return payload.data;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  async function setCachedWallpaper(data) {
+    const payload = { timestamp: Date.now(), data };
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [WALLPAPER_CACHE_KEY]: payload });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(WALLPAPER_CACHE_KEY, JSON.stringify(payload));
+      }
+    } catch {}
+  }
+
+  async function fetchBingWallpaper60s(signal) {
+    const url = 'https://60s.viki.moe/v2/bing';
+    const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+    if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
+    const json = await resp.json();
+    if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
+    if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
+    const d = json.data || {};
+    const cover = d.cover_4k || d.cover;
+    if (!cover) throw new Error('未提供壁纸链接');
+    return {
+      title: d.title,
+      description: d.description,
+      main_text: d.main_text,
+      copyright: d.copyright,
+      update_date: d.update_date,
+      update_date_at: d.update_date_at,
+      cover,
+    };
+  }
+
+  let wallpaperEnabled = false;
+
+  async function loadWallpaper(force = false) {
+    try {
+      if (!wallpaperEnabled) {
+        // 关闭时清除背景
+        if (document && document.body) {
+          document.body.style.backgroundImage = 'none';
+          document.body.classList.remove('has-wallpaper');
+        }
+        return;
+      }
+      let wp = null;
+      if (!force) wp = await getCachedWallpaper();
+      if (!wp) {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 15000); // 最多等待15秒
+        try {
+          wp = await fetchBingWallpaper60s(ac.signal);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (wp) await setCachedWallpaper(wp);
+      }
+      if (wp && document && document.body) {
+        document.body.style.backgroundImage = `url('${wp.cover}')`;
+        document.body.classList.add('has-wallpaper');
+      } else if (document && document.body) {
+        document.body.style.backgroundImage = 'none';
+        document.body.classList.remove('has-wallpaper');
+      }
+    } catch (err) {
+      console.warn('加载壁纸失败', err);
+      if (document && document.body) {
+        document.body.style.backgroundImage = 'none';
+        document.body.classList.remove('has-wallpaper');
+      }
+    }
+  }
+
+  async function loadWallpaperPreference() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const { wallpaperEnabled: stored } = await chrome.storage.sync.get(['wallpaperEnabled']);
+        wallpaperEnabled = !!stored; // 默认关闭
+      } else if (typeof localStorage !== 'undefined') {
+        const val = localStorage.getItem('wallpaperEnabled');
+        wallpaperEnabled = val === 'true';
+      }
+    } catch {}
+    renderWallpaperToggle();
+  }
+
+  function renderWallpaperToggle() {
+    if (!elWallpaperBtn) return;
+    elWallpaperBtn.classList.toggle('active', !!wallpaperEnabled);
+    // 简单图标即可，保留 🖼️ 文本
+    elWallpaperBtn.title = wallpaperEnabled ? '壁纸：已开启' : '壁纸：已关闭';
+  }
+
+  // 壁纸偏好由设置页控制；新标签页不再提供按钮切换
 
   // 时间实时更新
   function updateTime() {
@@ -25,6 +146,290 @@
 
   updateTime();
   setInterval(updateTime, 1000);
+  // 加载壁纸偏好与壁纸
+  await loadWallpaperPreference();
+  await loadWallpaper();
+
+  // 天气：获取设置与渲染
+  const WEATHER_TTL = 15 * 60 * 1000; // 15分钟缓存
+
+  async function getWeatherSettings() {
+    let weatherEnabled = true;
+    let weatherCity = '';
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const result = await chrome.storage.sync.get(['weatherEnabled', 'weatherCity']);
+        weatherEnabled = result.weatherEnabled !== undefined ? !!result.weatherEnabled : true;
+        weatherCity = (result.weatherCity || '').trim();
+      } else if (typeof localStorage !== 'undefined') {
+        const e = localStorage.getItem('weatherEnabled');
+        const c = localStorage.getItem('weatherCity');
+        weatherEnabled = e === null ? true : e === 'true';
+        weatherCity = (c || '').replace(/^"|"$/g, '').trim();
+      }
+    } catch {}
+    return { weatherEnabled, weatherCity };
+  }
+
+  async function getCachedWeather(city) {
+    const key = `weather_cache_${(city || 'default').toLowerCase()}`;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const { [key]: cached } = await chrome.storage.local.get([key]);
+        if (cached && cached.timestamp && (Date.now() - cached.timestamp) < WEATHER_TTL) {
+          return cached.data;
+        }
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (obj && obj.timestamp && (Date.now() - obj.timestamp) < WEATHER_TTL) {
+            return obj.data;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  async function setCachedWeather(city, data) {
+    const key = `weather_cache_${(city || 'default').toLowerCase()}`;
+    const payload = { timestamp: Date.now(), data };
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [key]: payload });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(payload));
+      }
+    } catch {}
+  }
+
+  function pickIconByDesc(desc = '') {
+    const d = String(desc).toLowerCase();
+    if (/雷|thunder/.test(d)) return '⛈️';
+    if (/雨|rain/.test(d)) return '🌧️';
+    if (/雪|snow/.test(d)) return '❄️';
+    if (/云|阴|overcast|cloud/.test(d)) return '☁️';
+    if (/雾|fog|霾|haze/.test(d)) return '🌫️';
+    if (/风|wind/.test(d)) return '🌬️';
+    return '☀️';
+  }
+
+  function renderWeather(data) {
+    if (!elWeather) return;
+    if (!data) {
+      elWeather.innerHTML = `
+        <span class="weather-desc">天气加载失败</span>
+        <button type="button" class="weather-refresh" id="weather-refresh-btn" title="刷新">↻ 刷新</button>
+      `;
+      elWeather.hidden = false;
+      const rbtn = document.getElementById('weather-refresh-btn');
+      if (rbtn) {
+        rbtn.onclick = () => loadWeather(true);
+      }
+      // 点击天气区域弹出设置
+      elWeather.onclick = async (e) => {
+        if (e.target && e.target.id === 'weather-refresh-btn') return;
+        const val = prompt('请输入城市名称（例如：南京、雨花台）', '');
+        if (val !== null) {
+          const city = (val || '').trim();
+          await saveWeatherCity(city);
+          loadWeather(true);
+        }
+      };
+      return;
+    }
+    const city = data.city || data.location || data.name || '—';
+    const desc = data.desc || data.type || data.weather || (data.text || '');
+    const temp = data.temp || data.temperature || data.tempC || data.now?.temp || data.data?.temp || '';
+    const tempStr = temp ? `${String(temp).replace(/℃|\s*c/i, '')}℃` : '';
+    const icon = pickIconByDesc(desc);
+    const tips = data.tips || data.data?.tip || '';
+    elWeather.innerHTML = `
+      <div class="weather-icon" aria-hidden="true">${icon}</div>
+      <div class="weather-main">
+        <span class="weather-city">${city}</span>
+        <span class="weather-temp">${tempStr}</span>
+        <span class="weather-desc">${desc || ''}${tips ? ' · ' + tips : ''}</span>
+      </div>
+      <button type="button" class="weather-refresh" id="weather-refresh-btn" title="刷新">↻ 刷新</button>
+    `;
+    elWeather.hidden = false;
+    const rbtn = document.getElementById('weather-refresh-btn');
+    if (rbtn) {
+      rbtn.onclick = () => {
+        // 强制刷新：忽略缓存
+        loadWeather(true);
+      };
+    }
+    // 点击天气区域弹出设置
+    elWeather.onclick = async (e) => {
+      if (e.target && e.target.id === 'weather-refresh-btn') return;
+      const val = prompt('请输入城市名称（例如：南京、雨花台）', city === '—' ? '' : city);
+      if (val !== null) {
+        const nextCity = (val || '').trim();
+        await saveWeatherCity(nextCity);
+        loadWeather(true);
+      }
+    };
+  }
+
+  async function saveWeatherCity(city) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        await chrome.storage.sync.set({ weatherCity: city });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('weatherCity', city || '');
+      }
+    } catch {}
+  }
+
+  async function fetchWeather(city) {
+    // 60s v2 天气端点候选（均支持 HTTPS，按顺序回退）
+    const instances = [
+      'https://60s.viki.moe',
+      'https://60api.09cdn.xyz',
+      'https://60s.zeabur.app',
+      'https://60s.crystelf.top',
+      'https://cqxx.site',
+      'https://api.yanyua.icu',
+      'https://60s.tmini.net',
+      'https://60s.7se.cn'
+    ];
+    let lastError = null;
+    for (const base of instances) {
+      const url = `${base}/v2/weather${city ? `?query=${encodeURIComponent(city)}` : ''}`;
+      try {
+        const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = await resp.json();
+        // 要求 code===200 才视为成功
+        if (typeof json.code === 'number' && json.code === 200 && json.data) {
+          return { __provider: url, ...json };
+        }
+        // 非 200 则继续尝试下一个实例
+        lastError = new Error(json.message || `接口返回非成功状态：${json.code}`);
+      } catch (e) {
+        lastError = e;
+        // 继续尝试下一个实例
+      }
+    }
+    // 海外免费降级：Open-Meteo（需将城市名地理编码为经纬度）
+    try {
+      if (!city) throw lastError || new Error('未指定城市，跳过海外降级');
+      // 1) 城市地理编码（优先中文）
+      const gUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh-CN`;
+      const gResp = await fetch(gUrl, { cache: 'no-store' });
+      if (!gResp.ok) throw new Error(`Geo HTTP ${gResp.status}`);
+      const gJson = await gResp.json();
+      const place = Array.isArray(gJson.results) && gJson.results[0];
+      if (!place) throw new Error('未找到城市经纬度');
+      const lat = place.latitude;
+      const lon = place.longitude;
+      const displayName = [place.admin1 || '', place.name || '', place.country || ''].filter(Boolean).join(' ');
+      // 2) 当前天气
+      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+      const wResp = await fetch(wUrl, { cache: 'no-store' });
+      if (!wResp.ok) throw new Error(`Weather HTTP ${wResp.status}`);
+      const wJson = await wResp.json();
+      const cur = wJson.current_weather || {};
+      const temp = typeof cur.temperature === 'number' ? Math.round(cur.temperature) : '';
+      const code = cur.weathercode;
+      function mapWeatherCode(c) {
+        const m = {
+          0: '晴', 1: '少云', 2: '多云', 3: '阴',
+          45: '雾', 48: '雾',
+          51: '毛毛雨', 53: '毛毛雨', 55: '毛毛雨',
+          56: '冻毛毛雨', 57: '冻毛毛雨',
+          61: '小雨', 63: '中雨', 65: '大雨',
+          66: '冻雨', 67: '冻雨',
+          71: '小雪', 73: '中雪', 75: '大雪',
+          77: '雪粒',
+          80: '阵雨', 81: '阵雨', 82: '阵雨',
+          85: '阵雪', 86: '阵雪',
+          95: '雷暴', 96: '雷暴冰雹', 99: '强雷暴冰雹'
+        };
+        return m[c] || '未知';
+      }
+      const desc = mapWeatherCode(code);
+      // 返回拍平数据，供渲染/标准化直接使用
+      return { __provider: 'open-meteo', city: displayName || city, temp, desc };
+    } catch (e2) {
+      throw e2;
+    }
+  }
+
+  // 已移除：基于 IP 的城市定位逻辑
+
+  async function loadWeather(force = false) {
+    try {
+      const { weatherEnabled, weatherCity } = await getWeatherSettings();
+      if (!weatherEnabled) {
+        if (elWeather) {
+          elWeather.hidden = true;
+        }
+        return;
+      }
+      // 若未填写城市：直接提示用户设置城市，不进行默认请求
+      let city = weatherCity || '';
+      if (!city) {
+        if (elWeather) {
+          elWeather.innerHTML = `<span class="weather-desc">未设置城市</span>`;
+          elWeather.hidden = false;
+          // 点击天气区域弹出设置
+          elWeather.onclick = async () => {
+            const val = prompt('请输入城市名称（例如：南京、雨花台）', '');
+            if (val !== null) {
+              const nextCity = (val || '').trim();
+              await saveWeatherCity(nextCity);
+              loadWeather(true);
+            }
+          };
+        }
+        return;
+      }
+      if (!force) {
+        const cached = await getCachedWeather(city);
+        if (cached) {
+          renderWeather(cached);
+          return;
+        }
+      }
+      const data = await fetchWeather(city);
+      // 尝试标准化常见结构（兼容 60s 文档结构与 vvhan 常见返回）
+      const normalized = (() => {
+        if (!data) return null;
+        // 60s 文档示例：
+        // { code, message, data: { location: { name/city }, weather: { condition, temperature, ... }, air_quality, sunrise, life_indices } }
+        if (typeof data.code === 'number' && data.data && typeof data.data === 'object') {
+          const loc = data.data.location || {};
+          const w = data.data.weather || {};
+          // 优先使用更精确的地点：name（通常含省市区/县），其次 city，再次 county
+          const name = loc.name || loc.city || loc.county || city;
+          const temp = w.temperature ?? '';
+          const desc = w.condition ?? '';
+          return { city: name, temp: String(temp).replace(/[^\d-]/g, ''), desc, tips: '' };
+        }
+        // vvhan 常见包装
+        if (data.data && (data.data.type || data.data.temp || data.data.high || data.data.low)) {
+          return {
+            city: data.city || city,
+            desc: data.data.type,
+            temp: String(data.data.temp || '').replace(/[^\d-]/g, '') || '',
+            tips: data.data.tip || ''
+          };
+        }
+        // 已是拍平数据
+        if (data.city || data.location || data.name) return data;
+        return data;
+      })();
+      await setCachedWeather(city, normalized);
+      renderWeather(normalized);
+    } catch (err) {
+      console.warn('天气加载失败', err);
+      renderWeather(null);
+    }
+  }
 
   // 搜索跳转（默认 Google，可扩展）
   const engines = {
@@ -415,6 +820,8 @@
 
   await loadCategoryOrder();
   loadAndRenderBookmarks();
+  // 加载天气（根据设置决定是否显示）
+  loadWeather();
 
   // 书签搜索前缀解析（支持 # 与 ＃，空格可选）
   function parseBookmarkSearch(q) {

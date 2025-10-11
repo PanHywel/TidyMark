@@ -54,6 +54,20 @@ body {
   color: var(--fg);
   font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   overflow-x: hidden; /* 防止横向滚动 */
+  min-height: 100vh; /* 保证视口高度铺满 */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 小屏与移动端禁用 fixed，避免滚动时出现“变形/抖动” */
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+    background-size: cover;
+    background-position: center;
+  }
 }
 
 .page {
@@ -63,6 +77,7 @@ body {
   padding: 32px 24px 24px;
   min-width: 0;
   position: relative; /* 让右上角工具条基于页面定位 */
+  z-index: 1; /* 置于壁纸暗层之上 */
 }
 
 .header { text-align: center; margin-bottom: 28px; }
@@ -72,6 +87,9 @@ body {
   letter-spacing: 2px;
 }
 .subtitle { color: var(--muted); margin-top: 8px; }
+.time { text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.subtitle { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+.search-hint { text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
 .topbar { position: absolute; top: 12px; right: 24px; z-index: 2; }
 .theme-dropdown { position: relative; }
 .dropdown-menu {
@@ -130,6 +148,49 @@ body {
   text-align: center;
   margin-top: -12px; /* 与搜索框视觉贴近 */
 }
+
+/* 天气摘要条 */
+.weather-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: 8px; /* 与副标题保持间距 */
+  color: var(--fg);
+  cursor: pointer; /* 可点击指示 */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.weather-icon {
+  width: 20px;
+  height: 20px;
+}
+.weather-main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.weather-city {
+  font-weight: 600;
+}
+.weather-temp {
+  font-weight: 600;
+}
+.weather-desc {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weather-refresh {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.weather-refresh:hover { color: var(--accent); }
 
 .search {
   display: grid;
@@ -271,4 +332,6 @@ body {
   color: var(--muted);
 }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand img { width: 18px; height: 18px; }
+ .brand img { width: 18px; height: 18px; }
+
+/* 移除暗层，仅保留文字阴影以增强可读性 */

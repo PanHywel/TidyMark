@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.0 — 2025-10-11
+
+- New Tab: apply wallpaper to `body` for true fullscreen coverage with `background-size: cover`, center positioning, and mobile fallback (`background-attachment: scroll`) to avoid jitter.
+- Settings: add `wallpaperEnabled` switch in Options (default OFF), stored in `chrome.storage.sync`, consistent with Weather settings.
+- New Tab: remove the top-bar wallpaper toggle; the setting is now controlled exclusively via Options.
+- Readability: add subtle text shadows to time, subtitle, weather, and hint text; removed global overlay per feedback to keep page bright.
+- Perf: wallpaper cached for 6 hours; uses 60s Bing API.
+
+---
+
 ## v1.1.0 — 2025-10-11
 
 - Popup: add concise top hint “点击书签切换分类” for manual adjustments.
@@ -128,3 +138,12 @@
 - 交互：预览列表中的书签项鼠标样式改为指针，提升可发现性。
 - 国际化：补充预览选择相关键值，精简 `preview.clickHint` 文案。
 - 文档：更新 README，新增手动切换分类的说明。
+---
+
+## v1.2.0 — 2025-10-11（中文）
+
+- 新标签页：将壁纸应用到 `body` 实现真正的全屏铺满，采用 `background-size: cover` 与居中显示；在小屏/移动端禁用 `background-attachment: fixed`，避免滚动抖动。
+- 设置页：新增 `wallpaperEnabled` 开关（默认关闭），使用 `chrome.storage.sync` 持久化，与天气设置保持一致。
+- 新标签页：移除顶部壁纸切换按钮，统一由设置页控制。
+- 可读性：为时间、副标题、天气与提示文字增加轻微 `text-shadow`；根据反馈移除了全局暗层，保持页面更明亮。
+- 性能：壁纸缓存 6 小时，来源为 60s Bing API。
