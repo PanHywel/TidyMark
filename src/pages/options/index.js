@@ -719,21 +719,39 @@ class OptionsManager {
   }
 
   // 检查URL可达性（带超时与回退）
-  async checkUrlAlive(url, { timeoutMs = 8000 } = {}) {
+  async checkUrlAlive(url, { timeoutMs = 8000, avoidPopups = true } = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { method: 'HEAD', mode: 'cors', redirect: 'follow', cache: 'no-store', signal: controller.signal });
+      const opts = avoidPopups
+        ? { method: 'HEAD', mode: 'cors', redirect: 'manual', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: controller.signal }
+        : { method: 'HEAD', mode: 'cors', redirect: 'follow', cache: 'no-store', signal: controller.signal };
+      const res = await fetch(url, opts);
       clearTimeout(timer);
+      // 如果不跟随重定向，出现 opaqueredirect 视为站点可达（避免跳转到登录页）
+      if (res.type === 'opaqueredirect') return { ok: true, status: 0, statusText: 'redirect' };
       if (res.ok) return { ok: true, status: res.status, statusText: String(res.status) };
-      // 某些站点不支持HEAD，回退GET
-      return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+      // 在安全模式下，不回退到 GET，避免页面执行或弹窗；非安全模式才尝试 GET
+      if (!avoidPopups) {
+        return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+      }
+      return { ok: false, status: res.status, statusText: String(res.status || '不可访问') };
     } catch (e) {
       clearTimeout(timer);
-      // 网络错误或超时，尝试GET作为回退
+      // 在安全模式下尝试 no-cors 的 HEAD 以获得不透明响应，若成功则视为可达
+      if (avoidPopups) {
+        try {
+          const res2 = await fetch(url, { method: 'HEAD', mode: 'no-cors', redirect: 'manual', credentials: 'omit', cache: 'no-store' });
+          // 成功返回即视为可达（opaque 无法读状态，但不触发弹窗）
+          return { ok: true, status: 0, statusText: 'opaque' };
+        } catch (e2) {
+          return { ok: false, status: 0, statusText: '网络错误或超时' };
+        }
+      }
+      // 非安全模式：作为回退 GET
       try {
         return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
-      } catch (e2) {
+      } catch (e3) {
         return { ok: false, status: 0, statusText: '网络错误或超时' };
       }
     }
