@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.1 — 2025-10-11
+
+- New Tab: enable Bing wallpaper by default; honors stored preference if present.
+- Resilience: add multiple fallback instances for 60s digest and Bing wallpaper API.
+- Fallback: wallpaper uses Bing official `HPImageArchive` when all 60s instances fail.
+- Options: default `wallpaperEnabled=true` so checkbox is checked on fresh installs.
+- Install: background initializes `wallpaperEnabled=true` only when unset.
+- Docs: README updated to reflect wallpaper default enabled and configurable items.
+
+---
+
 ## v1.2.0 — 2025-10-11
 
 - New Tab: apply wallpaper to `body` for true fullscreen coverage with `background-size: cover`, center positioning, and mobile fallback (`background-attachment: scroll`) to avoid jitter.
