@@ -36,6 +36,8 @@ async function initializeExtension() {
       maxTokens: 8192,
       classificationLanguage: 'auto',
       maxCategories: 10,
+      // 新标签页相关默认：首次安装默认开启壁纸
+      wallpaperEnabled: true,
       searchEnabled: true,
       showStats: true,
       lastBackupTime: null,
