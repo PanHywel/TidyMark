@@ -273,6 +273,30 @@
         <div class="data-management-grid">
           <div class="info-card">
             <div class="card-header">
+              <h3>🔎 失效书签检测</h3>
+            </div>
+            <div class="card-content">
+              <p class="setting-desc">检测不可访问的书签，选择后批量删除</p>
+              <div class="scan-actions">
+                <button class="btn btn-primary" id="deadScanBtn">开始检测</button>
+                <span id="deadScanProgress" class="inline-hint" aria-live="polite"></span>
+              </div>
+              <div class="dead-results" id="deadResults" hidden>
+                <div class="dead-toolbar">
+                  <label class="setting-label">
+                    <input type="checkbox" id="deadSelectAll">
+                    <span class="checkmark"></span>
+                    <span>全选</span>
+                  </label>
+                  <button class="btn btn-outline btn-danger" id="deadDeleteBtn">删除选中</button>
+                </div>
+                <ul class="list" id="deadResultsList"></ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="card-header">
               <h3 data-i18n="help.import.header">📥 导入书签</h3>
             </div>
             <div class="card-content">

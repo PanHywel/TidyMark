@@ -738,6 +738,17 @@ select:focus {
   100% { transform: rotate(360deg); }
 }
 
+/* 失效书签检测样式 */
+.dead-results { margin-top: 12px; }
+.dead-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+#deadScanProgress { margin-left: 12px; color: #64748b; }
+#deadResultsList { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+#deadResultsList .list-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+#deadResultsList .list-item:last-child { border-bottom: none; }
+#deadResultsList .title { font-weight: 600; color: #1e293b; }
+#deadResultsList .url { font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#deadResultsList .status { font-size: 12px; color: #64748b; }
+
 /* 弹框样式 */
 .modal-overlay {
   position: fixed;

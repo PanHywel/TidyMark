@@ -10,6 +10,9 @@
     "downloads",
     "activeTab"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   
   "action": {
     "default_popup": "src/pages/popup/index.html",

@@ -361,6 +361,67 @@ class OptionsManager {
         this.resetSettings();
       });
     }
+
+    // 失效书签检测事件绑定
+    const deadScanBtn = document.getElementById('deadScanBtn');
+    const deadScanProgress = document.getElementById('deadScanProgress');
+    const deadResults = document.getElementById('deadResults');
+    const deadResultsList = document.getElementById('deadResultsList');
+    const deadSelectAll = document.getElementById('deadSelectAll');
+    const deadDeleteBtn = document.getElementById('deadDeleteBtn');
+
+    if (deadScanBtn) {
+      deadScanBtn.addEventListener('click', async () => {
+        await this.scanDeadBookmarks({
+          progressEl: deadScanProgress,
+          listEl: deadResultsList,
+          containerEl: deadResults,
+          scanBtn: deadScanBtn
+        });
+      });
+    }
+
+    if (deadSelectAll && deadResultsList) {
+      deadSelectAll.addEventListener('change', () => {
+        deadResultsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.checked = !!deadSelectAll.checked;
+        });
+      });
+    }
+
+    if (deadDeleteBtn && deadResultsList) {
+      deadDeleteBtn.addEventListener('click', async () => {
+        const checked = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]'))
+          .filter(cb => cb.checked)
+          .map(cb => cb.dataset.id);
+        if (checked.length === 0) {
+          this.showMessage('请选择需要删除的书签', 'error');
+          return;
+        }
+        deadDeleteBtn.disabled = true;
+        const originalText = deadDeleteBtn.textContent;
+        deadDeleteBtn.textContent = '删除中...';
+        try {
+          if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+            for (const id of checked) {
+              try { await chrome.bookmarks.remove(id); } catch (e) { console.warn('删除失败', id, e); }
+            }
+          }
+          // 从列表中移除对应项
+          checked.forEach(id => {
+            const item = deadResultsList.querySelector(`li[data-id="${id}"]`);
+            if (item) item.remove();
+          });
+          this.showMessage(`已删除 ${checked.length} 条失效书签`, 'success');
+        } catch (e) {
+          console.error('删除失效书签出错', e);
+          this.showMessage('删除失败，请稍后再试', 'error');
+        } finally {
+          deadDeleteBtn.disabled = false;
+          deadDeleteBtn.textContent = originalText;
+        }
+      });
+    }
   }
 
   // 切换标签
@@ -554,6 +615,147 @@ class OptionsManager {
       { category: '云服务与DevOps', keywords: ['aws', 'azure', 'gcp', 'cloud', 'kubernetes', 'k8s', 'docker', 'ci', 'cd', 'devops', 'terraform', 'cloudflare', 'vercel', 'netlify', 'digitalocean', 'heroku', 'render', 'linode', 'railway'] },
       { category: '数据库与数据', keywords: ['mysql', 'postgres', 'mongodb', 'redis', 'sqlite', 'elasticsearch', 'clickhouse', 'snowflake', 'data', '数据库', 'mariadb', 'oracle', 'sql server', 'mssql', 'dynamodb', 'bigquery', 'firestore', 'cassandra'] }
     ];
+  }
+
+  // 扫描失效书签
+  async scanDeadBookmarks({ progressEl, listEl, containerEl, scanBtn }) {
+    try {
+      if (!listEl || !containerEl || !scanBtn) return;
+      containerEl.hidden = true;
+      listEl.innerHTML = '';
+      scanBtn.disabled = true;
+      const originalText = scanBtn.textContent;
+      scanBtn.innerHTML = '<span class="loading"></span> 正在检测...';
+
+      // 获取所有书签
+      const bookmarks = await this.getAllBookmarks();
+      const targets = bookmarks.filter(b => this.isHttpUrl(b.url));
+      const total = targets.length;
+      let done = 0;
+      const dead = [];
+      if (progressEl) progressEl.textContent = `0 / ${total}`;
+
+      const concurrency = 6;
+      let idx = 0;
+      const worker = async () => {
+        while (idx < total) {
+          const current = idx++;
+          const b = targets[current];
+          try {
+            const status = await this.checkUrlAlive(b.url);
+            if (!status.ok) {
+              dead.push({ id: b.id, title: b.title, url: b.url, status: status.statusText });
+            }
+          } catch (e) {
+            dead.push({ id: b.id, title: b.title, url: b.url, status: '网络错误' });
+          } finally {
+            done++;
+            if (progressEl) progressEl.textContent = `${done} / ${total}`;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
+
+      // 渲染结果
+      if (dead.length === 0) {
+        containerEl.hidden = false;
+        listEl.innerHTML = '<li class="list-item"><span class="title">没有发现失效书签</span></li>';
+      } else {
+        containerEl.hidden = false;
+        listEl.innerHTML = dead.map(d => `
+          <li class="list-item" data-id="${d.id}">
+            <input type="checkbox" data-id="${d.id}" aria-label="选择">
+            <div class="info">
+              <div class="title">${this.escapeHtml(d.title || d.url)}</div>
+              <div class="url">${this.escapeHtml(d.url)}</div>
+            </div>
+            <div class="status">${this.escapeHtml(d.status || '不可访问')}</div>
+          </li>
+        `).join('');
+      }
+    } catch (e) {
+      console.error('扫描失效书签失败', e);
+      this.showMessage('扫描失败，请稍后再试', 'error');
+    } finally {
+      if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.textContent = '开始检测';
+      }
+    }
+  }
+
+  // 工具：获取全部书签（扁平化）
+  async getAllBookmarks() {
+    const list = [];
+    try {
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        const tree = await chrome.bookmarks.getTree();
+        const stack = [...tree];
+        while (stack.length) {
+          const node = stack.pop();
+          if (!node) continue;
+          if (node.children && Array.isArray(node.children)) {
+            stack.push(...node.children);
+          }
+          if (node.url) {
+            list.push({ id: node.id, title: node.title, url: node.url });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('获取书签失败', e);
+    }
+    return list;
+  }
+
+  // 工具：是否 http/https URL
+  isHttpUrl(url) {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
+  // 检查URL可达性（带超时与回退）
+  async checkUrlAlive(url, { timeoutMs = 8000 } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { method: 'HEAD', mode: 'cors', redirect: 'follow', cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok) return { ok: true, status: res.status, statusText: String(res.status) };
+      // 某些站点不支持HEAD，回退GET
+      return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+    } catch (e) {
+      clearTimeout(timer);
+      // 网络错误或超时，尝试GET作为回退
+      try {
+        return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+      } catch (e2) {
+        return { ok: false, status: 0, statusText: '网络错误或超时' };
+      }
+    }
+  }
+
+  async checkUrlAliveGet(url, { timeoutMs = 5000 } = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow', cache: 'no-store', signal: controller.signal });
+      clearTimeout(timer);
+      return { ok: res.ok, status: res.status, statusText: String(res.status) };
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text ?? '';
+    return div.innerHTML;
   }
 
   
