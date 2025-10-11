@@ -7,6 +7,7 @@
 - New Tab: remove the top-bar wallpaper toggle; the setting is now controlled exclusively via Options.
 - Readability: add subtle text shadows to time, subtitle, weather, and hint text; removed global overlay per feedback to keep page bright.
 - Perf: wallpaper cached for 6 hours; uses 60s Bing API.
+- Docs: add Weather feature description to README (Options toggle and inline summary).
 
 ---
 
@@ -147,3 +148,4 @@
 - 新标签页：移除顶部壁纸切换按钮，统一由设置页控制。
 - 可读性：为时间、副标题、天气与提示文字增加轻微 `text-shadow`；根据反馈移除了全局暗层，保持页面更明亮。
 - 性能：壁纸缓存 6 小时，来源为 60s Bing API。
+- 文档：补充 README 的天气功能说明（选项页开关与导航页摘要）。
