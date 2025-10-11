@@ -24,7 +24,8 @@
     </div>
     <header class="header">
       <div class="time" id="current-time">--:--</div>
-      <div class="subtitle">愿你高效、专注地浏览每一天
+      <div class="subtitle">
+        <span id="subtitle-main">愿你高效、专注地浏览每一天</span>
         <span id="weather-bar" class="weather-inline" aria-live="polite" hidden>
           <!-- 天气信息由脚本填充 -->
         </span>
@@ -42,6 +43,22 @@
         <input id="search-input" type="text" placeholder="搜索或输入网址（“#”开头进行书签搜索）" aria-label="搜索" />
         <button type="submit" title="搜索">搜索</button>
       </form>
+      
+      <!-- 60s 读懂世界（可配置开关） -->
+      <section class="section" id="sixty-seconds" hidden aria-live="polite">
+        <div class="section-header">
+          <div class="section-head-left">
+            <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+            <div class="section-title">60s 读懂世界</div>
+          </div>
+          <div class="section-head-right">
+            <div class="section-count" id="sixty-date">--</div>
+          </div>
+        </div>
+        <div class="sixty-body" id="sixty-body">
+          <!-- 由脚本渲染：封面、新闻列表 -->
+        </div>
+      </section>
       
 
       <section class="bookmarks" id="bookmark-sections" aria-live="polite">

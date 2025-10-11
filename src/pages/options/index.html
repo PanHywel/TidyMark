@@ -92,6 +92,17 @@
         </div>
 
         <div class="setting-item">
+          <div class="toggle-row">
+            <label class="setting-label">
+              <input type="checkbox" id="sixtySecondsEnabled">
+              <span class="checkmark"></span>
+              <span>显示 60s 读懂世界</span>
+            </label>
+            <p class="setting-desc inline-hint">开启后，在新标签页显示每日「60s读懂世界」新闻摘要</p>
+          </div>
+        </div>
+
+        <div class="setting-item">
           <label>非聚焦透明度（导航页框）</label>
           <div class="settings-grid">
             <div class="setting-item">
@@ -103,6 +114,11 @@
               <label for="bookmarksUnfocusedOpacity">书签框透明度</label>
               <input type="range" id="bookmarksUnfocusedOpacity" min="0.6" max="1" step="0.02">
               <p class="setting-desc">未悬停时：当前 <span id="bookmarksUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+            </div>
+            <div class="setting-item">
+              <label for="sixtyUnfocusedOpacity">60s 栏目透明度</label>
+              <input type="range" id="sixtyUnfocusedOpacity" min="0.6" max="1" step="0.02">
+              <p class="setting-desc">未悬停时：当前 <span id="sixtyUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
           </div>
         </div>

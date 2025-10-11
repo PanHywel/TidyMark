@@ -15,6 +15,8 @@
   /* 非聚焦时透明度（分离：搜索框、书签列表） */
   --search-unfocused-opacity: 0.86;
   --bookmarks-unfocused-opacity: 0.86;
+  /* 非聚焦时透明度（新增：60s栏目） */
+  --sixty-unfocused-opacity: 0.86;
 }
 
 @media (prefers-color-scheme: light) {
@@ -159,6 +161,7 @@ body {
 
 .main { display: grid; gap: 24px; min-width: 0; }
 
+
 /* 外部搜索提示已移除 */
 
 /* 天气摘要条 */
@@ -235,6 +238,10 @@ body {
 .search:not(:hover):not(:focus-within) { opacity: var(--search-unfocused-opacity); }
 .bookmarks { transition: opacity 160ms ease; }
 .bookmarks:not(:hover) { opacity: var(--bookmarks-unfocused-opacity); }
+
+/* 60s 栏目非悬停时的透明度（可配置） */
+#sixty-seconds { transition: opacity 160ms ease; }
+#sixty-seconds:not(:hover) { opacity: var(--sixty-unfocused-opacity); }
 .engine-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
 .search input {
   appearance: none;
@@ -248,15 +255,77 @@ body {
 .search input::placeholder { color: var(--muted); }
 .search button {
   appearance: none;
-  border: none;
+  border: 1px solid var(--border);
   cursor: pointer;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  padding: 10px 16px;
-  border-radius: 10px;
+  background: var(--card);
+  color: var(--fg);
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
   font-weight: 600;
 }
-.search button:hover { filter: brightness(1.05); }
+.search button:hover { filter: brightness(1.05); border-color: var(--accent); }
+.search button:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
+
+/* 副标题中的 60s 提示（与天气并排） */
+/* 副标题主文案可被 60s 提示替换 */
+#subtitle-main { display: block; }
+
+/* 60s 读懂世界样式 */
+.sixty-body {
+  display: grid;
+  grid-template-columns: 200px 1fr; /* 封面更大 + 内容 */
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+/* 整体作为链接时的统一悬浮效果 */
+.sixty-body.is-link { cursor: pointer; }
+.sixty-body.is-link:hover { filter: brightness(1.05); }
+.sixty-body.is-link:hover .sixty-news span:nth-child(2) { text-decoration: underline; }
+.sixty-cover {
+  width: 100%;
+  height: 140px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.sixty-content { display: grid; gap: 8px; }
+.sixty-meta { color: var(--muted); font-size: 12px; }
+.sixty-tip { color: var(--muted); font-size: 12px; }
+.sixty-news {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.sixty-news-link {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 8px;
+  align-items: start;
+  text-decoration: none;
+  color: inherit;
+}
+.sixty-news-link:hover { filter: brightness(1.08); }
+.sixty-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 7px;
+}
+.sixty-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+.section-head-right { display: flex; align-items: center; gap: 10px; }
+/* 原文按钮已移除，保留日期右对齐容器 */
+
+@media (max-width: 900px) {
+  .sixty-body { grid-template-columns: 1fr; }
+  .sixty-cover { height: 160px; }
+}
 
 .bookmarks { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; width: 100%; min-width: 0; }
 @media (max-width: 900px) { .bookmarks { grid-template-columns: 1fr; } }

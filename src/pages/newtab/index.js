@@ -11,9 +11,15 @@
   const elSections = document.getElementById('bookmark-sections');
   const elPage = document.querySelector('.page');
   const elWeather = document.getElementById('weather-bar');
+  const elSubtitleMain = document.getElementById('subtitle-main');
   const elWallpaperBtn = document.getElementById('wallpaper-toggle-btn');
   // 书签展示由配置控制；不再使用顶部按钮
   const elBookmarksPlaceholder = document.getElementById('bookmarks-placeholder');
+  // 60s 读懂世界
+  const elSixty = document.getElementById('sixty-seconds');
+  const elSixtyBody = document.getElementById('sixty-body');
+  const elSixtyDate = document.getElementById('sixty-date');
+  // 已移除单独的“查看原文”按钮
   
   // 壁纸：60s Bing 壁纸
   const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
@@ -187,6 +193,9 @@
       if (area === 'sync' && changes.showBookmarks) {
         applyShowBookmarks(!!changes.showBookmarks.newValue);
       }
+      if (area === 'sync' && changes.sixtySecondsEnabled) {
+        applySixtyEnabled(!!changes.sixtySecondsEnabled.newValue);
+      }
     });
   }
   // 监听本地存储变化（同源预览环境）
@@ -201,22 +210,36 @@
         applyShowBookmarks(val);
       } catch {}
     }
+    if (e.key === 'sixtySecondsEnabled') {
+      try {
+        const v = e.newValue;
+        let val = false;
+        if (v != null) {
+          try { val = !!JSON.parse(v); } catch { val = v === 'true'; }
+        }
+        applySixtyEnabled(val);
+      } catch {}
+    }
   });
 
   // 加载非聚焦透明度偏好并应用到页面（分离：搜索框与书签框）
   async function loadOpacityPreferences() {
     let sVal = 0.86;
     let bVal = 0.86;
+    let xVal = 0.86; // 60s栏目透明度
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
-        const { searchUnfocusedOpacity, bookmarksUnfocusedOpacity } = await chrome.storage.sync.get(['searchUnfocusedOpacity','bookmarksUnfocusedOpacity']);
+        const { searchUnfocusedOpacity, bookmarksUnfocusedOpacity, sixtyUnfocusedOpacity } = await chrome.storage.sync.get(['searchUnfocusedOpacity','bookmarksUnfocusedOpacity','sixtyUnfocusedOpacity']);
         const sNum = typeof searchUnfocusedOpacity === 'string' ? parseFloat(searchUnfocusedOpacity) : searchUnfocusedOpacity;
         const bNum = typeof bookmarksUnfocusedOpacity === 'string' ? parseFloat(bookmarksUnfocusedOpacity) : bookmarksUnfocusedOpacity;
+        const xNum = typeof sixtyUnfocusedOpacity === 'string' ? parseFloat(sixtyUnfocusedOpacity) : sixtyUnfocusedOpacity;
         if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
         if (Number.isFinite(bNum) && bNum >= 0.6 && bNum <= 1) bVal = bNum;
+        if (Number.isFinite(xNum) && xNum >= 0.6 && xNum <= 1) xVal = xNum;
       } else if (typeof localStorage !== 'undefined') {
         const sRaw = localStorage.getItem('searchUnfocusedOpacity');
         const bRaw = localStorage.getItem('bookmarksUnfocusedOpacity');
+        const xRaw = localStorage.getItem('sixtyUnfocusedOpacity');
         if (sRaw) {
           const sNum = parseFloat(sRaw.replace(/^"|"$/g, ''));
           if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
@@ -225,12 +248,204 @@
           const bNum = parseFloat(bRaw.replace(/^"|"$/g, ''));
           if (Number.isFinite(bNum) && bNum >= 0.6 && bNum <= 1) bVal = bNum;
         }
+        if (xRaw) {
+          const xNum = parseFloat(xRaw.replace(/^"|"$/g, ''));
+          if (Number.isFinite(xNum) && xNum >= 0.6 && xNum <= 1) xVal = xNum;
+        }
       }
     } catch {}
     document.documentElement.style.setProperty('--search-unfocused-opacity', String(sVal));
     document.documentElement.style.setProperty('--bookmarks-unfocused-opacity', String(bVal));
+    document.documentElement.style.setProperty('--sixty-unfocused-opacity', String(xVal));
   }
   await loadOpacityPreferences();
+
+  // 60s 读懂世界：配置与渲染
+  const SIXTY_TTL = 30 * 60 * 1000; // 30分钟缓存
+  const SIXTY_CACHE_KEY = 'sixty_seconds_cache_v1';
+  const DEFAULT_SUBTITLE = '愿你高效、专注地浏览每一天';
+  let currentSixtyTip = '';
+
+  async function getCachedSixty() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([SIXTY_CACHE_KEY]);
+        const payload = obj[SIXTY_CACHE_KEY];
+        if (payload && payload.timestamp && (Date.now() - payload.timestamp) < SIXTY_TTL) {
+          return payload.data;
+        }
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(SIXTY_CACHE_KEY);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload && payload.timestamp && (Date.now() - payload.timestamp) < SIXTY_TTL) {
+            return payload.data;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  async function setCachedSixty(data) {
+    const payload = { timestamp: Date.now(), data };
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [SIXTY_CACHE_KEY]: payload });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(SIXTY_CACHE_KEY, JSON.stringify(payload));
+      }
+    } catch {}
+  }
+
+  async function fetchSixtyData(signal) {
+    const url = 'https://60s.viki.moe/v2/60s';
+    const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+    if (!resp.ok) throw new Error(`60s 服务返回状态 ${resp.status}`);
+    const json = await resp.json();
+    if (!json || typeof json !== 'object') throw new Error('60s 响应非JSON');
+    if (json.code !== 200) throw new Error(`60s 服务错误码 ${json.code}`);
+    const d = json.data || {};
+    if (!Array.isArray(d.news)) d.news = [];
+    return d;
+  }
+
+  function renderSixty(data) {
+    if (!elSixty || !elSixtyBody || !elSixtyDate) return;
+    try {
+      const dateText = [data.date, data.day_of_week, data.lunar_date].filter(Boolean).join(' · ');
+      elSixtyDate.textContent = dateText || '--';
+      const cover = data.cover || data.image || '';
+      const tip = data.tip || '';
+      const link = data.link || '';
+      const news = Array.isArray(data.news) ? data.news : [];
+      const newsItems = news.slice(0, 8).map(n => `
+        <li>
+          <span class="sixty-bullet" aria-hidden="true"></span>
+          <span>${n}</span>
+        </li>
+      `).join('');
+      elSixtyBody.innerHTML = `
+        <img class="sixty-cover" ${cover ? `src="${cover}"` : ''} alt="每日封面" onerror="this.style.display='none'" loading="lazy" />
+        <div class="sixty-content">
+          <ul class="sixty-news">${newsItems}</ul>
+        </div>
+      `;
+
+      // 整块区域作为一个链接进行交互（如果提供原文链接）
+      if (link) {
+        elSixtyBody.classList.add('is-link');
+        elSixtyBody.title = '查看原文';
+        elSixtyBody.setAttribute('role', 'link');
+        elSixtyBody.setAttribute('tabindex', '0');
+        elSixtyBody.onclick = (e) => {
+          // 避免与内部元素其他默认交互冲突
+          e.preventDefault();
+          window.open(link, '_blank', 'noopener');
+        };
+        elSixtyBody.onkeydown = (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            window.open(link, '_blank', 'noopener');
+          }
+        };
+      } else {
+        elSixtyBody.classList.remove('is-link');
+        elSixtyBody.removeAttribute('title');
+        elSixtyBody.removeAttribute('role');
+        elSixtyBody.removeAttribute('tabindex');
+        elSixtyBody.onclick = null;
+        elSixtyBody.onkeydown = null;
+      }
+
+      // 更新副标题为 60s 提示（如存在）
+      currentSixtyTip = tip || '';
+      renderSubtitle();
+    } catch {}
+  }
+
+  let sixtyEnabled = true;
+
+  function applySixtyEnabled(enabled) {
+    sixtyEnabled = !!enabled;
+    if (elSixty) elSixty.hidden = !sixtyEnabled;
+    // 根据开关与提示内容，更新副标题文本
+    renderSubtitle();
+    if (sixtyEnabled) {
+      // 若可见，确保已加载数据
+      if (elSixtyBody && !elSixtyBody.innerHTML) {
+        loadSixty();
+      }
+    }
+  }
+
+  async function loadSixtyPreference() {
+    let enabled = true;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const { sixtySecondsEnabled } = await chrome.storage.sync.get(['sixtySecondsEnabled']);
+        enabled = sixtySecondsEnabled !== undefined ? !!sixtySecondsEnabled : true;
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('sixtySecondsEnabled');
+        if (raw != null) {
+          try { enabled = !!JSON.parse(raw); } catch { enabled = raw === 'true'; }
+        } else {
+          enabled = true;
+        }
+      }
+    } catch {}
+    applySixtyEnabled(enabled);
+  }
+
+  async function loadSixty(force = false) {
+    if (!elSixty) return;
+    try {
+      if (!force) {
+        const cached = await getCachedSixty();
+        if (cached) {
+          renderSixty(cached);
+          return;
+        }
+      }
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 15000);
+      let data = null;
+      try {
+        data = await fetchSixtyData(ac.signal);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (data) {
+        await setCachedSixty(data);
+        renderSixty(data);
+      }
+    } catch (err) {
+      console.warn('加载 60s 栏目失败', err);
+      if (elSixtyBody) {
+        elSixtyBody.innerHTML = '<div class="sixty-tip">加载失败，请稍后重试</div>';
+      }
+      // 清空提示，回退到默认副标题
+      currentSixtyTip = '';
+      renderSubtitle();
+    }
+  }
+
+  await loadSixtyPreference();
+  if (!elSixty.hidden) {
+    await loadSixty();
+  }
+
+  function renderSubtitle() {
+    if (!elSubtitleMain) return;
+    const t = (currentSixtyTip || '').trim();
+    if (sixtyEnabled && t) {
+      elSubtitleMain.textContent = t;
+      elSubtitleMain.title = t;
+    } else {
+      elSubtitleMain.textContent = DEFAULT_SUBTITLE;
+      elSubtitleMain.removeAttribute('title');
+    }
+  }
 
   // 天气：获取设置与渲染
   const WEATHER_TTL = 15 * 60 * 1000; // 15分钟缓存
@@ -989,8 +1204,15 @@
 
     section.appendChild(header);
     section.appendChild(list);
-    if (elMain && elSections) {
+    if (elMain && elSixty) {
+      // 将搜索结果插入到 60s 栏目之前
+      elMain.insertBefore(section, elSixty);
+    } else if (elMain && elSections) {
+      // 兜底：插入到书签列表之前
       elMain.insertBefore(section, elSections);
+    } else if (elMain) {
+      // 最后兜底：插入到主区域最前面
+      elMain.prepend(section);
     } else {
       document.body.appendChild(section);
     }

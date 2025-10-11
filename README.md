@@ -52,6 +52,8 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 { "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" } }
 ```
 
+说明：本项目集成 60s 项目的公开 API，用于每日热点等展示；特此致谢 60s 项目与社区。
+
 ## 配置说明
 
 - AI 服务商：支持 `OpenAI` 与 `DeepSeek`（兼容 OpenAI HTTP 接口）
@@ -181,6 +183,8 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 ```json
 { "chrome_url_overrides": { "newtab": "src/pages/newtab/index.html" } }
 ```
+
+Note: This project integrates the public API from the 60s project to power the daily digest and related displays. Thanks to the 60s project/community.
 
 ## Configuration
 

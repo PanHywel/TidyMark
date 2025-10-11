@@ -35,9 +35,11 @@ class OptionsManager {
           'weatherEnabled',
           'weatherCity',
           'wallpaperEnabled',
+          'sixtySecondsEnabled',
           // 新增：分离透明度与书签栏默认收起
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
+          'sixtyUnfocusedOpacity',
           'showBookmarks'
         ]);
       } else {
@@ -55,8 +57,10 @@ class OptionsManager {
           'weatherEnabled',
           'weatherCity',
           'wallpaperEnabled',
+          'sixtySecondsEnabled',
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
+          'sixtyUnfocusedOpacity',
           'showBookmarks'
         ];
         
@@ -85,6 +89,7 @@ class OptionsManager {
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
         wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : false,
+        sixtySecondsEnabled: result.sixtySecondsEnabled !== undefined ? !!result.sixtySecondsEnabled : true,
         searchUnfocusedOpacity: (() => {
           const v = result.searchUnfocusedOpacity;
           const num = typeof v === 'string' ? parseFloat(v) : v;
@@ -114,6 +119,7 @@ class OptionsManager {
         maxTokens: 8192,
         classificationLanguage: 'auto',
         maxCategories: undefined,
+        sixtySecondsEnabled: true,
         searchUnfocusedOpacity: 0.86,
         bookmarksUnfocusedOpacity: 0.86,
         showBookmarks: false
@@ -261,7 +267,16 @@ class OptionsManager {
       });
     }
 
-    // 非聚焦透明度（分离：搜索框与书签框）
+    // 60s 读懂世界开关
+    const sixtySecondsEnabled = document.getElementById('sixtySecondsEnabled');
+    if (sixtySecondsEnabled) {
+      sixtySecondsEnabled.addEventListener('change', (e) => {
+        this.settings.sixtySecondsEnabled = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 非聚焦透明度（分离：搜索框、书签框、60s栏目）
     const searchOpacity = document.getElementById('searchUnfocusedOpacity');
     const searchOpacityValue = document.getElementById('searchUnfocusedOpacityValue');
     if (searchOpacity) {
@@ -287,6 +302,21 @@ class OptionsManager {
         if (Number.isFinite(val)) {
           this.settings.bookmarksUnfocusedOpacity = Math.max(0.6, Math.min(1, val));
           syncBookmarksView(this.settings.bookmarksUnfocusedOpacity);
+          this.saveSettings();
+        }
+      });
+    }
+
+    const sixtyOpacity = document.getElementById('sixtyUnfocusedOpacity');
+    const sixtyOpacityValue = document.getElementById('sixtyUnfocusedOpacityValue');
+    if (sixtyOpacity) {
+      const syncSixtyView = (val) => { if (sixtyOpacityValue) sixtyOpacityValue.textContent = Number(val).toFixed(2); };
+      syncSixtyView(this.settings.sixtyUnfocusedOpacity || 0.86);
+      sixtyOpacity.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (Number.isFinite(val)) {
+          this.settings.sixtyUnfocusedOpacity = Math.max(0.6, Math.min(1, val));
+          syncSixtyView(this.settings.sixtyUnfocusedOpacity);
           this.saveSettings();
         }
       });
@@ -480,6 +510,8 @@ class OptionsManager {
     if (weatherCity) weatherCity.value = this.settings.weatherCity || '';
     const wallpaperEnabled = document.getElementById('wallpaperEnabled');
     if (wallpaperEnabled) wallpaperEnabled.checked = !!this.settings.wallpaperEnabled;
+    const sixtySecondsEnabled = document.getElementById('sixtySecondsEnabled');
+    if (sixtySecondsEnabled) sixtySecondsEnabled.checked = !!this.settings.sixtySecondsEnabled;
 
     // 非聚焦透明度回显（分离）
     const searchOpacity = document.getElementById('searchUnfocusedOpacity');
@@ -491,6 +523,11 @@ class OptionsManager {
     const bookmarksOpacityValue = document.getElementById('bookmarksUnfocusedOpacityValue');
     if (bookmarksOpacity) bookmarksOpacity.value = String(this.settings.bookmarksUnfocusedOpacity || 0.86);
     if (bookmarksOpacityValue) bookmarksOpacityValue.textContent = Number(this.settings.bookmarksUnfocusedOpacity || 0.86).toFixed(2);
+
+    const sixtyOpacity = document.getElementById('sixtyUnfocusedOpacity');
+    const sixtyOpacityValue = document.getElementById('sixtyUnfocusedOpacityValue');
+    if (sixtyOpacity) sixtyOpacity.value = String(this.settings.sixtyUnfocusedOpacity || 0.86);
+    if (sixtyOpacityValue) sixtyOpacityValue.textContent = Number(this.settings.sixtyUnfocusedOpacity || 0.86).toFixed(2);
 
     // 书签列表是否展示回显
     const showBookmarks = document.getElementById('showBookmarks');
