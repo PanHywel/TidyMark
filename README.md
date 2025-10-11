@@ -10,6 +10,9 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 - 自动分类：基于关键词规则，一键整理书签到对应类别。
 - AI 辅助整理：支持 OpenAI/DeepSeek，提升分类准确度与覆盖面。
 - 导航功能：覆盖新标签页，数据来自浏览器书签；需关闭时删除 `manifest.json` 中 `chrome_url_overrides.newtab` 配置。
+ - 清理功能：
+   - 自动整理：在“分类规则管理”页点击“⚡ 自动整理”，按当前规则与（可选）AI 优化直接执行整理。
+   - 失效书签：在“失效书签检测”页扫描不可访问链接，支持全选、批量删除或移动到“失效书签”文件夹。
  - 壁纸背景（可选）：在“选项”页开启“显示 Bing 壁纸背景”，默认关闭；壁纸全屏铺满且不拉伸，小屏自动禁用 `fixed` 避免抖动；标题、副标题、天气与提示文字使用轻微阴影增强可读性。
   - 天气摘要（可选）：在“选项”页开启“显示天气”并设置城市；导航页副标题右侧显示天气城市/温度/描述；数据缓存 15 分钟，使用 `chrome.storage.sync` 持久化。
 
@@ -166,6 +169,9 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 - Auto categorize: keyword rules to organize bookmarks with one click.
 - AI-assisted organizing: supports OpenAI/DeepSeek to improve accuracy and coverage.
 - Navigation: overrides New Tab, data from browser bookmarks; to disable remove `chrome_url_overrides.newtab` in `manifest.json`.
+ - Cleanup:
+   - Auto Organize: on the “Classification Rules” tab, click “⚡ Auto Organize” to apply current rules and optional AI refinement.
+   - Dead Links: scan unreachable bookmarks on the “Dead Links” tab, then bulk delete or move them into a dedicated folder.
 
 ## Installation
 

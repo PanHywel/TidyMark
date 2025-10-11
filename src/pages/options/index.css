@@ -356,6 +356,19 @@ select:focus {
   background: #e2e8f0;
 }
 
+/* 特殊强调按钮样式 */
+.btn-accent {
+  background: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
+}
+
+.btn-accent:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
+}
+
 /* 规则管理样式 */
 .section-actions {
   display: flex;
@@ -739,15 +752,29 @@ select:focus {
 }
 
 /* 失效书签检测样式 */
-.dead-results { margin-top: 12px; }
-.dead-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
-#deadScanProgress { margin-left: 12px; color: #64748b; }
-#deadResultsList { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
-#deadResultsList .list-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+.scan-actions { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin: 8px 0 12px; }
+.scan-actions .setting-label { margin: 0 !important; }
+.scan-actions .inline-hint { margin: 0; color: #64748b; }
+.dead-results { margin-top: 16px; }
+.dead-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+#deadScanProgress { margin-left: 8px; color: #64748b; }
+#deadResultsList { list-style: none; padding: 0; margin: 0; max-height: 380px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; }
+#deadResultsList .list-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; cursor: pointer; }
 #deadResultsList .list-item:last-child { border-bottom: none; }
+#deadResultsList .list-item:hover { background: #f8fafc; }
+#deadResultsList .info { display: flex; flex-direction: column; gap: 2px; }
 #deadResultsList .title { font-weight: 600; color: #1e293b; }
 #deadResultsList .url { font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#deadResultsList .status { font-size: 12px; color: #64748b; }
+#deadResultsList .status { font-size: 12px; color: #475569; background: #f1f5f9; padding: 4px 8px; border-radius: 10px; line-height: 1.2; }
+#deadResultsList input[type="checkbox"] { transform: translateY(1px); }
+
+@media (max-width: 768px) {
+  .scan-actions { gap: 8px 12px; }
+  .dead-toolbar { gap: 8px 12px; }
+  #deadResultsList { max-height: none; }
+  #deadResultsList .list-item { grid-template-columns: auto 1fr; }
+  #deadResultsList .status { justify-self: start; margin-top: 4px; }
+}
 
 /* 弹框样式 */
 .modal-overlay {

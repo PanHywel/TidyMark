@@ -34,6 +34,9 @@ async function initializeExtension() {
       aiApiUrl: '',
       aiModel: 'gpt-3.5-turbo',
       maxTokens: 8192,
+      // AI 请求优化参数（提升默认值）
+      aiBatchSize: 120,
+      aiConcurrency: 3,
       classificationLanguage: 'auto',
       maxCategories: 10,
       // 新标签页相关默认：首次安装默认开启壁纸
@@ -780,7 +783,7 @@ function salvageReassignedItemsFromText(text) {
   };
 }
 async function refinePreviewWithAI(preview) {
-  const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','maxCategories']);
+  const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','maxCategories','aiBatchSize','aiConcurrency']);
   if (!settings.enableAI) {
     return preview;
   }
@@ -805,27 +808,38 @@ async function refinePreviewWithAI(preview) {
   const items = preview.details.map(d => ({ id: d.bookmark.id, title: d.bookmark.title || '', url: d.bookmark.url || '', from_key: d.category }));
   const language = settings.classificationLanguage || 'auto';
 
-  const prompt = buildOptimizationPrompt({ language, categories, items });
+  // 分批与并发参数（带默认值）
+  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 50;
+  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2;
 
-  // 请求AI
-  const aiResult = await requestAI({
-    provider: settings.aiProvider || 'openai',
-    apiUrl: settings.aiApiUrl || '',
-    apiKey: settings.aiApiKey,
-    model: settings.aiModel || 'gpt-3.5-turbo',
-    maxTokens: settings.maxTokens || 8192,
-    prompt
+  // 将 items 分批构造任务
+  const chunks = chunkArray(items, batchSize);
+  const tasks = chunks.map((chunk, idx) => async () => {
+    const prompt = buildOptimizationPrompt({ language, categories, items: chunk });
+    const aiResult = await requestAIWithRetry({
+      provider: settings.aiProvider || 'openai',
+      apiUrl: settings.aiApiUrl || '',
+      apiKey: settings.aiApiKey,
+      model: settings.aiModel || 'gpt-3.5-turbo',
+      maxTokens: settings.maxTokens || 8192,
+      prompt
+    }, { retries: 2, baseDelayMs: 1200, label: `batch-${idx+1}/${chunks.length}` });
+    const parsed = parseAiJsonContent(aiResult);
+    return parsed;
   });
 
-  // 解析返回并应用到预览（兼容 markdown fenced JSON 与说明文本）
-  const parsed = parseAiJsonContent(aiResult);
-  if (!parsed) {
-    console.warn('[AI] 返回解析失败，使用原始预览');
-    return preview;
-  }
+  const results = await runPromisesWithConcurrency(tasks, concurrency);
 
-  if (!parsed || !Array.isArray(parsed.reassigned_items)) {
-    console.warn('[AI] 返回缺少 reassigned_items，使用原始预览');
+  // 合并分批结果
+  const merged = { reassigned_items: [], notes: { low_confidence_items: [] } };
+  for (const r of results) {
+    if (!r || !Array.isArray(r.reassigned_items)) continue;
+    merged.reassigned_items.push(...r.reassigned_items);
+    const lows = (r.notes && Array.isArray(r.notes.low_confidence_items)) ? r.notes.low_confidence_items : [];
+    merged.notes.low_confidence_items.push(...lows);
+  }
+  if (merged.reassigned_items.length === 0) {
+    console.warn('[AI] 分批返回缺少有效的 reassigned_items，使用原始预览');
     return preview;
   }
 
@@ -837,10 +851,10 @@ async function refinePreviewWithAI(preview) {
     idToDetail.set(d.bookmark.id, { bookmark: d.bookmark, category: d.category });
   }
   const allowedCategories = new Set(Object.keys(preview.categories));
-  const lowConfSet = new Set(Array.isArray(parsed.notes?.low_confidence_items) ? parsed.notes.low_confidence_items : []);
+  const lowConfSet = new Set(Array.isArray(merged.notes?.low_confidence_items) ? merged.notes.low_confidence_items : []);
   const movedItems = [];
   // 应用AI重分配
-  for (const item of parsed.reassigned_items) {
+  for (const item of merged.reassigned_items) {
     const d = idToDetail.get(item.id);
     if (!d) continue;
     // 跳过低置信度或未在允许分类中的目标
@@ -895,6 +909,55 @@ async function refinePreviewWithAI(preview) {
   }
 
   return newPreview;
+}
+
+// 将数组按固定大小切片
+function chunkArray(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+// 并发执行 Promise 任务，限制最大并发数
+async function runPromisesWithConcurrency(tasks, limit = 2) {
+  const results = new Array(tasks.length);
+  let idx = 0;
+  let running = 0;
+  return new Promise((resolve, reject) => {
+    const next = () => {
+      if (idx >= tasks.length && running === 0) return resolve(results);
+      while (running < limit && idx < tasks.length) {
+        const cur = idx++;
+        running++;
+        Promise.resolve()
+          .then(() => tasks[cur]())
+          .then(res => { results[cur] = res; })
+          .catch(err => { results[cur] = null; console.warn('[AI] 分批任务失败:', err?.message || err); })
+          .finally(() => { running--; next(); });
+      }
+    };
+    next();
+  });
+}
+
+// 封装带重试与退避的 AI 请求
+async function requestAIWithRetry(params, { retries = 2, baseDelayMs = 1000, label = '' } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await requestAI(params);
+    } catch (e) {
+      const msg = String(e?.message || e || '');
+      const isRateLimit = msg.includes('429');
+      if (attempt >= retries) throw e;
+      const delay = Math.round(baseDelayMs * Math.pow(2, attempt));
+      console.warn(`[AI] 请求失败${label ? ' ['+label+']' : ''}，${isRateLimit ? '速率限制' : '错误'}，${delay}ms 后重试 (第 ${attempt+1}/${retries} 次)`);
+      await new Promise(r => setTimeout(r, delay));
+      attempt++;
+    }
+  }
 }
 
 // 构建AI提示词（隐藏在代码中）

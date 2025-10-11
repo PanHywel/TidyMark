@@ -30,6 +30,8 @@ class OptionsManager {
           'aiApiUrl',
           'aiModel',
           'maxTokens',
+          'aiBatchSize',
+          'aiConcurrency',
           'classificationLanguage',
           'maxCategories',
           'weatherEnabled',
@@ -40,7 +42,9 @@ class OptionsManager {
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
           'sixtyUnfocusedOpacity',
-          'showBookmarks'
+          'showBookmarks',
+          // 失效检测严格模式
+          'deadStrictMode'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -52,6 +56,8 @@ class OptionsManager {
           'aiApiUrl',
           'aiModel',
           'maxTokens',
+          'aiBatchSize',
+          'aiConcurrency',
           'classificationLanguage',
           'maxCategories',
           'weatherEnabled',
@@ -61,7 +67,8 @@ class OptionsManager {
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
           'sixtyUnfocusedOpacity',
-          'showBookmarks'
+          'showBookmarks',
+          'deadStrictMode'
         ];
         
         keys.forEach(key => {
@@ -102,7 +109,8 @@ class OptionsManager {
           if (Number.isFinite(num) && num >= 0.6 && num <= 1) return num;
           return 0.86;
         })(),
-        showBookmarks: result.showBookmarks !== undefined ? !!result.showBookmarks : false
+        showBookmarks: result.showBookmarks !== undefined ? !!result.showBookmarks : false,
+        deadStrictMode: result.deadStrictMode !== undefined ? !!result.deadStrictMode : false
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -221,6 +229,28 @@ class OptionsManager {
       });
     }
 
+    const aiBatchSizeInput = document.getElementById('aiBatchSize');
+    if (aiBatchSizeInput) {
+      aiBatchSizeInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        const num = Number.isFinite(val) && val >= 20 ? val : 120; // 合理默认
+        this.settings.aiBatchSize = num;
+        this.saveSettings();
+      });
+    }
+
+    const aiConcurrencyInput = document.getElementById('aiConcurrency');
+    if (aiConcurrencyInput) {
+      aiConcurrencyInput.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        let num = Number.isFinite(val) ? val : 3;
+        if (num < 1) num = 1;
+        if (num > 5) num = 5;
+        this.settings.aiConcurrency = num;
+        this.saveSettings();
+      });
+    }
+
     const classificationLanguage = document.getElementById('classificationLanguage');
     if (classificationLanguage) {
       classificationLanguage.addEventListener('change', (e) => {
@@ -238,6 +268,14 @@ class OptionsManager {
         this.settings.enableAI = !!e.target.checked;
         this.saveSettings();
         this.updateAiConfig();
+      });
+    }
+
+    // 设置页直接执行自动整理
+    const organizeBtn = document.getElementById('organizeFromSettings');
+    if (organizeBtn) {
+      organizeBtn.addEventListener('click', () => {
+        this.organizeFromSettings();
       });
     }
 
@@ -332,6 +370,16 @@ class OptionsManager {
       });
     }
 
+    // 失效检测严格模式开关
+    const deadStrictMode = document.getElementById('deadStrictMode');
+    if (deadStrictMode) {
+      deadStrictMode.checked = !!this.settings.deadStrictMode;
+      deadStrictMode.addEventListener('change', (e) => {
+        this.settings.deadStrictMode = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
 
     // 按钮事件
     const testAiConnection = document.getElementById('testAiConnection');
@@ -369,6 +417,7 @@ class OptionsManager {
     const deadResultsList = document.getElementById('deadResultsList');
     const deadSelectAll = document.getElementById('deadSelectAll');
     const deadDeleteBtn = document.getElementById('deadDeleteBtn');
+    const deadMoveBtn = document.getElementById('deadMoveBtn');
 
     if (deadScanBtn) {
       deadScanBtn.addEventListener('click', async () => {
@@ -395,12 +444,12 @@ class OptionsManager {
           .filter(cb => cb.checked)
           .map(cb => cb.dataset.id);
         if (checked.length === 0) {
-          this.showMessage('请选择需要删除的书签', 'error');
+          this.showMessage(window.I18n.t('dead.delete.noSelection'), 'error');
           return;
         }
         deadDeleteBtn.disabled = true;
         const originalText = deadDeleteBtn.textContent;
-        deadDeleteBtn.textContent = '删除中...';
+        deadDeleteBtn.textContent = window.I18n.t('dead.delete.processing');
         try {
           if (typeof chrome !== 'undefined' && chrome.bookmarks) {
             for (const id of checked) {
@@ -412,15 +461,149 @@ class OptionsManager {
             const item = deadResultsList.querySelector(`li[data-id="${id}"]`);
             if (item) item.remove();
           });
-          this.showMessage(`已删除 ${checked.length} 条失效书签`, 'success');
+          this.showMessage(window.I18n.tf('dead.delete.success', { count: checked.length }), 'success');
         } catch (e) {
           console.error('删除失效书签出错', e);
-          this.showMessage('删除失败，请稍后再试', 'error');
+          this.showMessage(window.I18n.t('dead.delete.fail'), 'error');
         } finally {
           deadDeleteBtn.disabled = false;
           deadDeleteBtn.textContent = originalText;
         }
       });
+    }
+
+    // 将选中的失效书签移动到“失效书签”文件夹
+    if (deadMoveBtn && deadResultsList) {
+      deadMoveBtn.addEventListener('click', async () => {
+        const checked = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]'))
+          .filter(cb => cb.checked)
+          .map(cb => cb.dataset.id);
+        if (checked.length === 0) {
+          this.showMessage(window.I18n.t('dead.delete.noSelection'), 'error');
+          return;
+        }
+        // 非扩展环境保护
+        if (typeof chrome === 'undefined' || !chrome.bookmarks) {
+          this.showMessage(window.I18n.t('dead.move.fail'), 'error');
+          return;
+        }
+        deadMoveBtn.disabled = true;
+        const originalText = deadMoveBtn.textContent;
+        deadMoveBtn.textContent = window.I18n.t('dead.move.processing');
+        try {
+          const folder = await this.findOrCreateDeadFolder();
+          const folderName = folder?.title || window.I18n.t('dead.folder');
+          for (const id of checked) {
+            try {
+              await chrome.bookmarks.move(id, { parentId: folder.id });
+            } catch (e) {
+              console.warn('移动失败', id, e);
+            }
+          }
+          // 从列表中移除对应项
+          checked.forEach(id => {
+            const item = deadResultsList.querySelector(`li[data-id="${id}"]`);
+            if (item) item.remove();
+          });
+          this.showMessage(window.I18n.tf('dead.move.success', { count: checked.length, folder: folderName }), 'success');
+        } catch (e) {
+          console.error('移动到失效文件夹出错', e);
+          this.showMessage(window.I18n.t('dead.move.fail'), 'error');
+        } finally {
+          deadMoveBtn.disabled = false;
+          deadMoveBtn.textContent = originalText;
+        }
+      });
+    }
+
+    // 列表项点击打开页面验证（仅点击标题/URL区域触发，避开复选框与删除按钮）
+    if (deadResultsList) {
+      deadResultsList.addEventListener('click', (e) => {
+        const target = e.target;
+        // 忽略勾选行为
+        if (target.closest('input[type="checkbox"]')) return;
+        const li = target.closest('li.list-item');
+        if (!li) return;
+        const infoArea = target.closest('.info') || target.closest('.title') || target.closest('.url');
+        if (!infoArea) return;
+        const urlEl = li.querySelector('.url');
+        const url = (urlEl && urlEl.textContent || '').trim();
+        if (url && this.isHttpUrl(url)) {
+          try {
+            window.open(url, '_blank', 'noopener,noreferrer');
+          } catch (err) {
+            console.warn('打开页面失败', err);
+          }
+        }
+      });
+    }
+  }
+
+  // 从设置页触发自动整理（含预览、AI优化与确认）
+  async organizeFromSettings() {
+    const btn = document.getElementById('organizeFromSettings');
+    const statusEl = document.getElementById('organizeStatus');
+    const original = btn ? btn.innerHTML : '';
+    const setStatus = (text, ok = false) => {
+      if (!statusEl) return;
+      statusEl.textContent = text || '';
+      statusEl.style.color = ok ? '#059669' : '#64748b';
+    };
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> 整理中...';
+      }
+      setStatus('准备预览...');
+      let previewResponse;
+      if (typeof chrome !== 'undefined' && chrome?.runtime) {
+        previewResponse = await chrome.runtime.sendMessage({ action: 'previewOrganize' });
+      } else {
+        throw new Error('当前不在扩展环境，无法执行');
+      }
+      if (!previewResponse?.success) throw new Error(previewResponse?.error || '生成预览失败');
+      let plan = previewResponse.data;
+
+      // 若启用 AI 且已配置，调用后台 AI 优化
+      setStatus('AI 优化中...');
+      const useAI = !!this.settings.enableAI && !!this.settings.aiApiKey;
+      if (useAI && typeof chrome !== 'undefined' && chrome?.runtime) {
+        const aiResp = await chrome.runtime.sendMessage({ action: 'refineOrganizeWithAI', preview: plan });
+        if (aiResp?.success && aiResp.data) {
+          plan = aiResp.data;
+        }
+      }
+
+      // 简要确认
+      const total = plan?.total ?? 0;
+      const classified = plan?.classified ?? 0;
+      const confirmText = `将按预览执行整理\n总书签：${total}，拟分类：${classified}。\n是否继续？`;
+      const ok = window.confirm(confirmText);
+      if (!ok) {
+        setStatus('已取消');
+        return;
+      }
+
+      // 执行整理：AI 计划或直接整理
+      setStatus('执行整理中...');
+      let runResponse = { success: true };
+      if (typeof chrome !== 'undefined' && chrome?.runtime) {
+        if (useAI) {
+          runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan });
+        } else {
+          runResponse = await chrome.runtime.sendMessage({ action: 'organizeBookmarks' });
+        }
+      }
+      if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
+      setStatus('整理完成', true);
+    } catch (e) {
+      console.error('[Options] organizeFromSettings 失败:', e);
+      setStatus(`失败：${e?.message || e}`);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
     }
   }
 
@@ -537,6 +720,8 @@ class OptionsManager {
     const aiApiUrl = document.getElementById('apiEndpoint');
     const aiModel = document.getElementById('aiModel');
     const maxTokensInput = document.getElementById('maxTokens');
+    const aiBatchSizeInput = document.getElementById('aiBatchSize');
+    const aiConcurrencyInput = document.getElementById('aiConcurrency');
     const classificationLanguage = document.getElementById('classificationLanguage');
     const enableAI = document.getElementById('enableAI');
 
@@ -552,6 +737,8 @@ class OptionsManager {
     }
     if (aiModel) aiModel.value = this.settings.aiModel || '';
     if (maxTokensInput) maxTokensInput.value = (this.settings.maxTokens ?? 8192);
+    if (aiBatchSizeInput) aiBatchSizeInput.value = (this.settings.aiBatchSize ?? 120);
+    if (aiConcurrencyInput) aiConcurrencyInput.value = (this.settings.aiConcurrency ?? 3);
     if (classificationLanguage) classificationLanguage.value = this.settings.classificationLanguage || 'auto';
     if (enableAI) enableAI.checked = !!this.settings.enableAI;
 
@@ -625,7 +812,7 @@ class OptionsManager {
       listEl.innerHTML = '';
       scanBtn.disabled = true;
       const originalText = scanBtn.textContent;
-      scanBtn.innerHTML = '<span class="loading"></span> 正在检测...';
+      scanBtn.innerHTML = `<span class="loading"></span> ${window.I18n.t('dead.scan.running')}`;
 
       // 获取所有书签
       const bookmarks = await this.getAllBookmarks();
@@ -642,7 +829,7 @@ class OptionsManager {
           const current = idx++;
           const b = targets[current];
           try {
-            const status = await this.checkUrlAlive(b.url);
+            const status = await this.checkUrlAlive(b.url, { strict: !!this.settings.deadStrictMode, timeoutMs: 8000, avoidPopups: true });
             if (!status.ok) {
               dead.push({ id: b.id, title: b.title, url: b.url, status: status.statusText });
             }
@@ -659,29 +846,60 @@ class OptionsManager {
       // 渲染结果
       if (dead.length === 0) {
         containerEl.hidden = false;
-        listEl.innerHTML = '<li class="list-item"><span class="title">没有发现失效书签</span></li>';
+        listEl.innerHTML = `<li class="list-item"><span class="title">${window.I18n.t('dead.none')}</span></li>`;
       } else {
         containerEl.hidden = false;
         listEl.innerHTML = dead.map(d => `
           <li class="list-item" data-id="${d.id}">
-            <input type="checkbox" data-id="${d.id}" aria-label="选择">
+            <input type="checkbox" data-id="${d.id}" aria-label="${window.I18n.t('dead.checkbox')}">
             <div class="info">
               <div class="title">${this.escapeHtml(d.title || d.url)}</div>
               <div class="url">${this.escapeHtml(d.url)}</div>
             </div>
-            <div class="status">${this.escapeHtml(d.status || '不可访问')}</div>
+            <div class="status">${this.escapeHtml(d.status || window.I18n.t('dead.status.unreachable'))}</div>
           </li>
         `).join('');
       }
     } catch (e) {
       console.error('扫描失效书签失败', e);
-      this.showMessage('扫描失败，请稍后再试', 'error');
+      this.showMessage(window.I18n.t('dead.scan.fail'), 'error');
     } finally {
       if (scanBtn) {
         scanBtn.disabled = false;
-        scanBtn.textContent = '开始检测';
+        scanBtn.textContent = window.I18n.t('dead.scan.start');
       }
     }
+  }
+
+  // 查找或创建“失效书签”文件夹（跨语言名称）
+  async findOrCreateDeadFolder() {
+    const names = this.getDeadFolderNames();
+    // 优先使用当前语言名称
+    const preferred = window.I18n ? window.I18n.t('dead.folder') : names[0];
+    const candidates = Array.from(new Set([preferred, ...names]));
+    // 搜索现有文件夹
+    for (const title of candidates) {
+      try {
+        // API为字符串查询；返回标题或URL包含该字符串的节点
+        const results = await chrome.bookmarks.search(String(title));
+        const folder = results.find(item => !item.url && item.title === title);
+        if (folder) return folder;
+      } catch {}
+    }
+    // 未找到则创建到书签栏（默认 parentId= '1'）
+    try {
+      const folder = await chrome.bookmarks.create({ title: preferred, parentId: '1' });
+      return folder;
+    } catch (e) {
+      // 创建失败，尝试无 parentId（浏览器默认位置）
+      const folder = await chrome.bookmarks.create({ title: preferred });
+      return folder;
+    }
+  }
+
+  // 提供跨语言的候选名称，避免语言切换后找不到原文件夹
+  getDeadFolderNames() {
+    return ['失效书签', '失效書籤', 'Dead Links', 'Недействительные ссылки'];
   }
 
   // 工具：获取全部书签（扁平化）
@@ -719,7 +937,7 @@ class OptionsManager {
   }
 
   // 检查URL可达性（带超时与回退）
-  async checkUrlAlive(url, { timeoutMs = 8000, avoidPopups = true } = {}) {
+  async checkUrlAlive(url, { timeoutMs = 8000, avoidPopups = true, strict = false } = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -731,6 +949,29 @@ class OptionsManager {
       // 如果不跟随重定向，出现 opaqueredirect 视为站点可达（避免跳转到登录页）
       if (res.type === 'opaqueredirect') return { ok: true, status: 0, statusText: 'redirect' };
       if (res.ok) return { ok: true, status: res.status, statusText: String(res.status) };
+      // 认证类状态码视为“可达但受限”
+      if (res.status === 401 || res.status === 403) {
+        return { ok: true, status: res.status, statusText: String(res.status) };
+      }
+      // 速率限制在严格模式下也视为可达（暂不判定为死链）
+      if (strict && res.status === 429) {
+        return { ok: true, status: res.status, statusText: String(res.status) };
+      }
+      // 方法不允许/未实现：可能阻断 HEAD，回退到 GET（no-cors）以确认网络连通
+      if (res.status === 405 || res.status === 501) {
+        try {
+          const resNc = await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
+          // 成功返回即视为可达；opaque 无法读状态但说明网络连通
+          return { ok: true, status: 0, statusText: 'opaque' };
+        } catch {}
+      }
+      // 严格模式：对非明确 404/410/5xx 的非OK结果再做一次 no-cors GET 以降低误报
+      if (strict && res.status !== 404 && res.status !== 410 && !(res.status >= 500)) {
+        try {
+          await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
+          return { ok: true, status: 0, statusText: 'opaque' };
+        } catch {}
+      }
       // 在安全模式下，不回退到 GET，避免页面执行或弹窗；非安全模式才尝试 GET
       if (!avoidPopups) {
         return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
@@ -745,6 +986,11 @@ class OptionsManager {
           // 成功返回即视为可达（opaque 无法读状态，但不触发弹窗）
           return { ok: true, status: 0, statusText: 'opaque' };
         } catch (e2) {
+          // 尝试 GET no-cors 作为进一步连通性确认
+          try {
+            await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
+            return { ok: true, status: 0, statusText: 'opaque' };
+          } catch (e3) {}
           return { ok: false, status: 0, statusText: '网络错误或超时' };
         }
       }
@@ -761,12 +1007,22 @@ class OptionsManager {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow', cache: 'no-store', signal: controller.signal });
+      const res = await fetch(url, { method: 'GET', mode: 'cors', redirect: 'follow', credentials: 'omit', cache: 'no-store', signal: controller.signal });
       clearTimeout(timer);
-      return { ok: res.ok, status: res.status, statusText: String(res.status) };
+      // 认证类状态码视为“可达但受限”
+      if (res.ok || res.status === 401 || res.status === 403) {
+        return { ok: true, status: res.status, statusText: String(res.status) };
+      }
+      return { ok: false, status: res.status, statusText: String(res.status) };
     } catch (e) {
       clearTimeout(timer);
-      throw e;
+      // 回退到 no-cors：成功返回即视为可达（opaque）
+      try {
+        await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
+        return { ok: true, status: 0, statusText: 'opaque' };
+      } catch (e2) {
+        throw e2;
+      }
     }
   }
 

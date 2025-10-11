@@ -32,6 +32,7 @@
       <button class="tab-btn active" data-tab="general" data-i18n="tabs.general">关于</button>
       <button class="tab-btn" data-tab="categories" data-i18n="tabs.categories">分类规则</button>
       <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 配置</button>
+      <button class="tab-btn" data-tab="deadlinks" data-i18n="tabs.dead">失效书签</button>
       <button class="tab-btn" data-tab="backup" data-i18n="tabs.help">帮助</button>
     </nav>
 
@@ -142,6 +143,8 @@
         <div class="section-header">
           <h2 data-i18n="rules.header">分类规则管理</h2>
           <div class="section-actions">
+            <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
+            <span class="action-status" id="organizeStatus" style="font-size:13px;color:#64748b;"></span>
             <button class="btn btn-primary" id="addRule" data-i18n="rules.add">添加规则</button>
             <button class="btn btn-secondary" id="resetRules" data-i18n="rules.reset">重置为默认</button>
           </div>
@@ -214,6 +217,17 @@
             <input type="number" id="maxTokens" min="1" step="1" placeholder="8192">
             <p class="setting-desc" data-i18n="ai.maxTokens.desc">控制 AI 响应长度，数值越大成本越高</p>
           </div>
+          <div class="setting-item">
+            <label for="aiBatchSize" data-i18n="ai.batchSize.label">分批大小</label>
+            <input type="number" id="aiBatchSize" min="20" step="10" placeholder="120">
+            <p class="setting-desc" data-i18n="ai.batchSize.desc">每次发送给 AI 的条目数量，适当增大可减少请求次数</p>
+          </div>
+
+          <div class="setting-item">
+            <label for="aiConcurrency" data-i18n="ai.concurrency.label">并发请求数</label>
+            <input type="number" id="aiConcurrency" min="1" max="5" step="1" placeholder="3">
+            <p class="setting-desc" data-i18n="ai.concurrency.desc">同时进行的 AI 请求数，受服务速率限制影响（建议 ≤ 5）</p>
+          </div>
         </div>
 
         <div class="setting-item">
@@ -239,6 +253,8 @@
         </div>
 
         
+
+        
       </div>
 
       <div class="section">
@@ -260,6 +276,40 @@
       </div>
     </section>
 
+    <!-- 失效书签检测（独立标签页） -->
+    <section class="tab-content" id="deadlinks">
+      <div class="section">
+        <div class="section-header">
+          <h2 data-i18n="dead.header">🔎 失效书签检测</h2>
+          <div class="section-description">
+            <p data-i18n="dead.desc">检测不可访问的书签，点击项目可打开页面确认，支持批量删除</p>
+          </div>
+        </div>
+        <div class="scan-actions">
+          <label class="setting-label" style="margin-bottom: 8px; display: inline-flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="deadStrictMode">
+            <span class="checkmark"></span>
+            <span data-i18n="dead.strict.label">严格检测模式</span>
+          </label>
+          <p class="setting-desc inline-hint" data-i18n="dead.strict.desc">更严格：需多重验证均失败才判定失效，误报更少</p>
+          <button class="btn btn-primary" id="deadScanBtn" data-i18n="dead.scan.start">开始检测</button>
+          <span id="deadScanProgress" class="inline-hint" aria-live="polite"></span>
+        </div>
+        <div class="dead-results" id="deadResults" hidden>
+          <div class="dead-toolbar">
+            <label class="setting-label">
+              <input type="checkbox" id="deadSelectAll">
+              <span class="checkmark"></span>
+              <span data-i18n="dead.selectAll">全选</span>
+            </label>
+            <button class="btn btn-outline" id="deadMoveBtn" data-i18n="dead.moveSelected">挪到“失效”文件夹</button>
+            <button class="btn btn-outline btn-danger" id="deadDeleteBtn" data-i18n="dead.deleteSelected">删除选中</button>
+          </div>
+          <ul class="list" id="deadResultsList"></ul>
+        </div>
+      </div>
+    </section>
+
     <!-- 帮助与提示 -->
     <section class="tab-content" id="backup">
       <div class="section">
@@ -271,29 +321,7 @@
         </div>
         
         <div class="data-management-grid">
-          <div class="info-card">
-            <div class="card-header">
-              <h3>🔎 失效书签检测</h3>
-            </div>
-            <div class="card-content">
-              <p class="setting-desc">检测不可访问的书签，选择后批量删除</p>
-              <div class="scan-actions">
-                <button class="btn btn-primary" id="deadScanBtn">开始检测</button>
-                <span id="deadScanProgress" class="inline-hint" aria-live="polite"></span>
-              </div>
-              <div class="dead-results" id="deadResults" hidden>
-                <div class="dead-toolbar">
-                  <label class="setting-label">
-                    <input type="checkbox" id="deadSelectAll">
-                    <span class="checkmark"></span>
-                    <span>全选</span>
-                  </label>
-                  <button class="btn btn-outline btn-danger" id="deadDeleteBtn">删除选中</button>
-                </div>
-                <ul class="list" id="deadResultsList"></ul>
-              </div>
-            </div>
-          </div>
+          
 
           <div class="info-card">
             <div class="card-header">
