@@ -54,6 +54,8 @@ TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自�
 
 说明：本项目集成 60s 项目的公开 API，用于每日热点等展示；特此致谢 60s 项目与社区。
 
+重要说明：除“自动整理书签”外，“新标签页导航”也是本项目的主要功能之一。
+
 ## 配置说明
 
 - AI 服务商：支持 `OpenAI` 与 `DeepSeek`（兼容 OpenAI HTTP 接口）
@@ -185,6 +187,8 @@ TidyMark is a lightweight browser extension that helps you back up, organize, an
 ```
 
 Note: This project integrates the public API from the 60s project to power the daily digest and related displays. Thanks to the 60s project/community.
+
+Major feature: besides automatic bookmark organization, the New Tab navigation is a primary capability of this project.
 
 ## Configuration
 
