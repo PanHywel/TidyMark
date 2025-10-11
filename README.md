@@ -2,7 +2,7 @@
 
 中文说明 | [English](#tidymark--smart-bookmark-organizer-chromeedge-extension)
 
-TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自动整理和高效管理书签。支持 OpenAI/DeepSeek 兼容的 AI 能力，并基于 Manifest V3 原生实现。
+TidyMark 是一个轻量的 Chrome/Edge 浏览器扩展，帮助你备份、自动整理和高效管理书签。除自动整理书签外，内置“新标签页导航”也是主要功能之一。支持 OpenAI/DeepSeek 兼容的 AI 能力，并基于 Manifest V3 原生实现。
 
 ## 功能特性
 
@@ -139,7 +139,7 @@ TidyMark/
 
 English | [中文说明](#tidymark--智能书签整理扩展)
 
-TidyMark is a lightweight browser extension that helps you back up, organize, and manage bookmarks intelligently. It supports OpenAI- and DeepSeek-compatible AI assistance and works out of the box with Manifest V3.
+TidyMark is a lightweight browser extension that helps you back up, organize, and manage bookmarks intelligently. Besides automatic bookmark organizing, a rich New Tab navigation is a primary feature of this project. It supports OpenAI- and DeepSeek-compatible AI assistance and works out of the box with Manifest V3.
 
 ## Features
 
