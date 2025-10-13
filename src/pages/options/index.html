@@ -30,17 +30,22 @@
     <!-- 导航标签 -->
     <nav class="tabs">
       <button class="tab-btn active" data-tab="organize">整理</button>
-      <button class="tab-btn" data-tab="categories" data-i18n="tabs.categories">分类规则</button>
-      <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 配置</button>
       <button class="tab-btn" data-tab="deadlinks" data-i18n="tabs.dead">失效书签</button>
-      <button class="tab-btn" data-tab="general">导航</button>
+      <button class="tab-btn" data-tab="nav">导航设置</button>
+      <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 分类助手</button>
+      <button class="tab-btn" data-tab="rules" data-i18n="rules.header">分类规则管理</button>
       <button class="tab-btn" data-tab="backup" data-i18n="tabs.help">帮助</button>
     </nav>
 
-    <!-- 常规设置 -->
-    <section class="tab-content" id="general">
+    <!-- 导航设置（独立页签） -->
+    <section class="tab-content" id="nav">
       <div class="section">
-        <h2>导航</h2>
+        <div class="section-header">
+          <h2>🧭 导航设置</h2>
+          <div class="section-description">
+            <p>配置新标签页显示模块与透明度等外观偏好</p>
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -121,8 +126,88 @@
       </div>
     </section>
 
-    <!-- 分类规则 -->
-    <section class="tab-content" id="categories">
+    <!-- AI 分类助手（独立页签） -->
+    <section class="tab-content" id="ai">
+      <div class="section">
+        <div class="section-header">
+          <h2 data-i18n="ai.header">🤖 AI 分类助手</h2>
+          <div class="section-description">
+            <p data-i18n="ai.desc">使用人工智能为您的书签提供智能分类建议，让书签管理更加高效</p>
+          </div>
+        </div>
+        
+        <div class="setting-item">
+          <div class="toggle-row">
+            <label class="setting-label">
+              <input type="checkbox" id="enableAI">
+              <span class="checkmark"></span>
+              <span data-i18n="ai.enable">启用 AI 分类建议</span>
+            </label>
+            <p class="setting-desc inline-hint" data-i18n="ai.enable.desc">开启后，系统将使用 AI 为未分类的书签提供智能分类建议</p>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            <h3 data-i18n="ai.service.header">⚙️ 服务配置</h3>
+          </div>
+          
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label for="aiProvider" data-i18n="ai.provider.label">AI 服务商</label>
+              <select id="aiProvider">
+                <option value="openai">OpenAI</option>
+                <option value="deepseek">DeepSeek</option>
+              </select>
+              <p class="setting-desc" data-i18n="ai.provider.desc">选择您偏好的 AI 服务提供商</p>
+            </div>
+
+            <div class="setting-item">
+              <label for="aiModel" data-i18n="ai.model.label">模型选择</label>
+              <select id="aiModel">
+                <option value="" disabled selected>请选择模型</option>
+              </select>
+              <p class="setting-desc" data-i18n="ai.model.desc">不同模型的准确性和成本不同</p>
+            </div>
+
+            <div class="setting-item">
+              <label for="maxTokens" data-i18n="ai.maxTokens.label">最大 Token 数</label>
+              <input type="number" id="maxTokens" min="1" step="1" placeholder="8192">
+              <p class="setting-desc" data-i18n="ai.maxTokens.desc">建议根据模型上限和用量设置合适的最大值</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label for="apiEndpoint" data-i18n="ai.apiEndpoint.label">API 地址</label>
+              <input type="url" id="apiEndpoint" data-i18n-placeholder="ai.apiEndpoint.placeholder">
+              <p class="setting-desc" data-i18n="ai.apiEndpoint.desc">根据服务商填写，留空使用默认</p>
+            </div>
+
+            <div class="setting-item">
+              <label for="apiKey" data-i18n="ai.apiKey.label">API Key</label>
+              <input type="password" id="apiKey" data-i18n-placeholder="ai.apiKey.placeholder">
+              <p class="setting-desc" data-i18n="ai.apiKey.desc">用于调用 AI 服务，请妥善保管</p>
+            </div>
+
+            <div class="setting-item">
+              <label for="classificationLanguage" data-i18n="pref.language.label">分类语言</label>
+              <select id="classificationLanguage">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+                <option value="auto" data-i18n="pref.language.auto">自动检测</option>
+              </select>
+              <p class="setting-desc" data-i18n="pref.language.desc">AI 生成分类名称的语言</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 分类规则管理（独立页签） -->
+    <section class="tab-content" id="rules">
       <div class="section">
         <div class="section-header">
           <h2 data-i18n="rules.header">分类规则管理</h2>
@@ -162,6 +247,16 @@
     </div>
     <div class="section-description">
       <p data-i18n="organize.desc">在此执行书签整理操作：生成预览、AI 优化与确认移动。</p>
+      <div class="hint-grid" aria-label="整理方式说明">
+        <div class="hint-card">
+          <div class="hint-title">⚡ 自动整理</div>
+          <p>依「分类规则」生成预览并移动，不用 AI，快速且可控。</p>
+        </div>
+        <div class="hint-card">
+          <div class="hint-title">🤖 AI 全量归类</div>
+          <p>对全部书签做 AI 推理给出建议，需先配置模型，更智能但可能耗时。</p>
+        </div>
+      </div>
     </div>
     
 
@@ -170,114 +265,7 @@
   </div>
 </section>
 
-    <!-- AI 配置 -->
-    <section class="tab-content" id="ai">
-      <div class="section">
-        <div class="section-header">
-          <h2 data-i18n="ai.header">🤖 AI 分类助手</h2>
-          <div class="section-description">
-            <p data-i18n="ai.desc">使用人工智能为您的书签提供智能分类建议，让书签管理更加高效</p>
-          </div>
-        </div>
-        
-        <div class="setting-item">
-          <div class="toggle-row">
-            <label class="setting-label">
-              <input type="checkbox" id="enableAI">
-              <span class="checkmark"></span>
-              <span data-i18n="ai.enable">启用 AI 分类建议</span>
-            </label>
-            <p class="setting-desc inline-hint" data-i18n="ai.enable.desc">开启后，系统将使用 AI 为未分类的书签提供智能分类建议</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <h3 data-i18n="ai.service.header">⚙️ 服务配置</h3>
-        </div>
-        
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label for="aiProvider" data-i18n="ai.provider.label">AI 服务商</label>
-            <select id="aiProvider">
-              <option value="openai">OpenAI</option>
-              <option value="deepseek">DeepSeek</option>
-            </select>
-            <p class="setting-desc" data-i18n="ai.provider.desc">选择您偏好的 AI 服务提供商</p>
-          </div>
-
-          <div class="setting-item">
-            <label for="aiModel" data-i18n="ai.model.label">模型选择</label>
-            <select id="aiModel">
-              <option value="" disabled selected>请选择模型</option>
-            </select>
-            <p class="setting-desc" data-i18n="ai.model.desc">不同模型的准确性和成本不同</p>
-          </div>
-
-          <div class="setting-item">
-            <label for="maxTokens" data-i18n="ai.maxTokens.label">最大 Token 数</label>
-            <input type="number" id="maxTokens" min="1" step="1" placeholder="8192">
-            <p class="setting-desc" data-i18n="ai.maxTokens.desc">控制 AI 响应长度，数值越大成本越高</p>
-          </div>
-          <div class="setting-item">
-            <label for="aiBatchSize" data-i18n="ai.batchSize.label">分批大小</label>
-            <input type="number" id="aiBatchSize" min="20" step="10" placeholder="120">
-            <p class="setting-desc" data-i18n="ai.batchSize.desc">每次发送给 AI 的条目数量，适当增大可减少请求次数</p>
-          </div>
-
-          <div class="setting-item">
-            <label for="aiConcurrency" data-i18n="ai.concurrency.label">并发请求数</label>
-            <input type="number" id="aiConcurrency" min="1" max="5" step="1" placeholder="3">
-            <p class="setting-desc" data-i18n="ai.concurrency.desc">同时进行的 AI 请求数，受服务速率限制影响（建议 ≤ 5）</p>
-          </div>
-        </div>
-
-        <div class="setting-item">
-          <label for="apiKey" data-i18n="ai.apiKey.label">API Key</label>
-          <input type="password" id="apiKey" placeholder="请输入您的 API Key" data-i18n-placeholder="ai.apiKey.placeholder">
-          <p class="setting-desc" data-i18n="ai.apiKey.desc">🔒 您的 API Key 将安全存储在本地，不会上传到任何服务器</p>
-        </div>
-
-        <div class="setting-item">
-          <label for="apiEndpoint" data-i18n="ai.apiEndpoint.label">API 端点</label>
-          <input type="url" id="apiEndpoint" required placeholder="请输入实际 API 端点（如代理地址）" data-i18n-placeholder="ai.apiEndpoint.placeholder">
-          <p class="setting-desc" data-i18n="ai.apiEndpoint.desc">必填：请输入实际 API 端点地址</p>
-        </div>
-
-        <div class="setting-item">
-          <div class="test-connection">
-            <button class="btn btn-secondary" id="testAiConnection" data-i18n="ai.test.btn">
-              <span class="loading" style="display: none;"></span>
-              🔗 测试连接
-            </button>
-            <span class="test-result" id="testResult"></span>
-          </div>
-        </div>
-
-        
-
-        
-      </div>
-
-      <div class="section">
-        <div class="section-header">
-          <h3 data-i18n="pref.header">🎯 分类偏好</h3>
-        </div>
-        
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label for="classificationLanguage" data-i18n="pref.language.label">分类语言</label>
-            <select id="classificationLanguage">
-              <option value="zh">中文</option>
-              <option value="en">English</option>
-              <option value="auto" data-i18n="pref.language.auto">自动检测</option>
-            </select>
-            <p class="setting-desc" data-i18n="pref.language.desc">AI 生成分类名称的语言</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    
 
     <!-- 失效书签检测（独立标签页） -->
     <section class="tab-content" id="deadlinks">
@@ -295,6 +283,32 @@
             <span data-i18n="dead.strict.label">严格检测模式</span>
           </label>
           <p class="setting-desc inline-hint" data-i18n="dead.strict.desc">更严格：需多重验证均失败才判定失效，误报更少</p>
+          <div class="scan-inline-controls">
+            <label for="deadTimeoutMs" class="setting-label">
+              <span>超时</span>
+              <input type="range" id="deadTimeoutMs" min="1" max="60" step="1">
+              <span class="value" id="deadTimeoutMsValue">—</span>
+            </label>
+            <label class="setting-label">
+              <span>限定文件夹</span>
+              <select id="deadFolderScope">
+                <option value="">全部书签</option>
+              </select>
+            </label>
+            <label class="setting-label">
+              <input type="checkbox" id="deadIgnorePrivateIp">
+              <span class="checkmark"></span>
+              <span>忽略内网/本地地址</span>
+            </label>
+            <label class="setting-label">
+              <input type="checkbox" id="deadScanDuplicates">
+              <span class="checkmark"></span>
+              <span>扫描重复书签</span>
+            </label>
+          </div>
+          <p class="setting-desc inline-hint">请求最大等待时间，范围 1–60 秒</p>
+          <p class="setting-desc inline-hint">跳过如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x</p>
+          <p class="setting-desc inline-hint">扫描重复书签：按 URL 分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走</p>
           <button class="btn btn-primary" id="deadScanBtn" data-i18n="dead.scan.start">开始检测</button>
           <span id="deadScanProgress" class="inline-hint" aria-live="polite"></span>
         </div>

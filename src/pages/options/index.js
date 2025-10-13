@@ -6,6 +6,10 @@ class OptionsManager {
     this.settings = {};
     this.classificationRules = [];
     this.organizePreviewPlan = null;
+    // 失效检测：缓存与主机级节流
+    this._urlCheckCache = new Map();
+    this._hostLastTime = Object.create(null);
+    this._hostSpacingMs = 200; // 每个主机最小请求间隔，降低被限流概率
     // 由 DOMContentLoaded 中的显式调用触发一次初始化，避免重复绑定事件
   }
 
@@ -14,7 +18,7 @@ class OptionsManager {
     if (this._initialized) return;
     this._initialized = true;
     await this.loadSettings();
-    this.bindEvents();
+    await this.bindEvents();
     this.renderUI();
     this.setVersionTexts();
   }
@@ -48,7 +52,12 @@ class OptionsManager {
           'sixtyUnfocusedOpacity',
           'showBookmarks',
           // 失效检测严格模式
-          'deadStrictMode'
+          'deadStrictMode',
+          // 失效扫描新增配置
+          'deadTimeoutMs',
+          'deadIgnorePrivateIp',
+          'deadScanDuplicates',
+          'deadScanFolderId'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -72,7 +81,11 @@ class OptionsManager {
           'bookmarksUnfocusedOpacity',
           'sixtyUnfocusedOpacity',
           'showBookmarks',
-          'deadStrictMode'
+          'deadStrictMode',
+          'deadTimeoutMs',
+          'deadIgnorePrivateIp',
+          'deadScanDuplicates',
+          'deadScanFolderId'
         ];
         
         keys.forEach(key => {
@@ -114,7 +127,15 @@ class OptionsManager {
           return 0.86;
         })(),
         showBookmarks: result.showBookmarks !== undefined ? !!result.showBookmarks : false,
-        deadStrictMode: result.deadStrictMode !== undefined ? !!result.deadStrictMode : false
+        deadStrictMode: result.deadStrictMode !== undefined ? !!result.deadStrictMode : false,
+        deadTimeoutMs: (() => {
+          const v = result.deadTimeoutMs;
+          const num = typeof v === 'string' ? parseInt(v, 10) : v;
+          if (Number.isFinite(num) && num >= 1000 && num <= 60000) return num;
+          return 8000;
+        })(),
+        deadIgnorePrivateIp: result.deadIgnorePrivateIp !== undefined ? !!result.deadIgnorePrivateIp : false,
+        deadScanDuplicates: result.deadScanDuplicates !== undefined ? !!result.deadScanDuplicates : false
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -135,7 +156,11 @@ class OptionsManager {
         sixtySecondsEnabled: true,
         searchUnfocusedOpacity: 0.86,
         bookmarksUnfocusedOpacity: 0.86,
-        showBookmarks: false
+        showBookmarks: false,
+        deadTimeoutMs: 8000,
+        deadIgnorePrivateIp: false,
+        deadScanDuplicates: false,
+        deadScanFolderId: null
       };
       this.classificationRules = this.settings.classificationRules;
     }
@@ -161,7 +186,7 @@ class OptionsManager {
   }
 
   // 绑定事件
-  bindEvents() {
+  async bindEvents() {
     // 标签切换
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -392,6 +417,68 @@ class OptionsManager {
       });
     }
 
+    // 失效检测超时设置（毫秒）
+    const deadTimeoutMs = document.getElementById('deadTimeoutMs');
+    const deadTimeoutMsValue = document.getElementById('deadTimeoutMsValue');
+    if (deadTimeoutMs) {
+      const secsInit = Math.round((this.settings.deadTimeoutMs || 8000) / 1000);
+      deadTimeoutMs.value = String(Math.max(1, Math.min(60, secsInit)));
+      const updateSecs = (secs) => {
+        if (deadTimeoutMsValue) deadTimeoutMsValue.textContent = `${secs} s`;
+      };
+      updateSecs(parseInt(deadTimeoutMs.value, 10));
+      deadTimeoutMs.addEventListener('input', (e) => {
+        const secs = parseInt(String(e.target.value).trim(), 10);
+        if (Number.isFinite(secs)) {
+          const clamped = Math.max(1, Math.min(60, secs));
+          this.settings.deadTimeoutMs = clamped * 1000;
+          updateSecs(clamped);
+          this.saveSettings();
+        }
+      });
+    }
+
+    // 失效检测是否忽略内网 IP
+    const deadIgnorePrivateIp = document.getElementById('deadIgnorePrivateIp');
+    if (deadIgnorePrivateIp) {
+      deadIgnorePrivateIp.checked = !!this.settings.deadIgnorePrivateIp;
+      deadIgnorePrivateIp.addEventListener('change', (e) => {
+        this.settings.deadIgnorePrivateIp = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 失效检测：扫描重复书签
+    const deadScanDuplicates = document.getElementById('deadScanDuplicates');
+    if (deadScanDuplicates) {
+      deadScanDuplicates.checked = !!this.settings.deadScanDuplicates;
+      deadScanDuplicates.addEventListener('change', (e) => {
+        this.settings.deadScanDuplicates = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 失效检测：限定文件夹
+    const deadFolderScope = document.getElementById('deadFolderScope');
+    if (deadFolderScope) {
+      try {
+        const folders = await this.getAllFolderPaths();
+        // 清空并填充选项
+        deadFolderScope.innerHTML = '<option value="">全部书签</option>' +
+          folders.map(f => `<option value="${this.escapeHtml(String(f.id))}">${this.escapeHtml(f.path)}</option>`).join('');
+        // 初始化为当前设置值
+        const initVal = this.settings.deadScanFolderId ? String(this.settings.deadScanFolderId) : '';
+        deadFolderScope.value = initVal;
+      } catch (e) {
+        console.warn('加载文件夹列表失败', e);
+      }
+      deadFolderScope.addEventListener('change', (e) => {
+        const val = String(e.target.value || '').trim();
+        this.settings.deadScanFolderId = val || null;
+        this.saveSettings();
+      });
+    }
+
 
     // 按钮事件
     const quickBackupBtn = document.getElementById('quickBackupBtn');
@@ -458,10 +545,19 @@ class OptionsManager {
 
     if (deadDeleteBtn && deadResultsList) {
       deadDeleteBtn.addEventListener('click', async () => {
-        const checked = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]'))
-          .filter(cb => cb.checked)
-          .map(cb => cb.dataset.id);
-        if (checked.length === 0) {
+        const checkedCbs = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+        const checked = [];
+        checkedCbs.forEach(cb => {
+          const multi = (cb.dataset.ids || '').trim();
+          if (multi) {
+            multi.split(',').forEach(id => { if (id) checked.push(id); });
+          } else if (cb.dataset.id) {
+            checked.push(cb.dataset.id);
+          }
+        });
+        // 去重
+        const uniqueChecked = Array.from(new Set(checked));
+        if (uniqueChecked.length === 0) {
           this.showMessage(window.I18n.t('dead.delete.noSelection'), 'error');
           return;
         }
@@ -470,12 +566,12 @@ class OptionsManager {
         deadDeleteBtn.textContent = window.I18n.t('dead.delete.processing');
         try {
           if (typeof chrome !== 'undefined' && chrome.bookmarks) {
-            for (const id of checked) {
+            for (const id of uniqueChecked) {
               try { await chrome.bookmarks.remove(id); } catch (e) { console.warn('删除失败', id, e); }
             }
           }
           // 从列表中移除对应项
-          checked.forEach(id => {
+          uniqueChecked.forEach(id => {
             const item = deadResultsList.querySelector(`li[data-id="${id}"]`);
             if (item) item.remove();
           });
@@ -493,10 +589,18 @@ class OptionsManager {
     // 将选中的失效书签移动到“失效书签”文件夹
     if (deadMoveBtn && deadResultsList) {
       deadMoveBtn.addEventListener('click', async () => {
-        const checked = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]'))
-          .filter(cb => cb.checked)
-          .map(cb => cb.dataset.id);
-        if (checked.length === 0) {
+        const checkedCbs = Array.from(deadResultsList.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+        const checked = [];
+        checkedCbs.forEach(cb => {
+          const multi = (cb.dataset.ids || '').trim();
+          if (multi) {
+            multi.split(',').forEach(id => { if (id) checked.push(id); });
+          } else if (cb.dataset.id) {
+            checked.push(cb.dataset.id);
+          }
+        });
+        const uniqueChecked = Array.from(new Set(checked));
+        if (uniqueChecked.length === 0) {
           this.showMessage(window.I18n.t('dead.delete.noSelection'), 'error');
           return;
         }
@@ -511,7 +615,7 @@ class OptionsManager {
         try {
           const folder = await this.findOrCreateDeadFolder();
           const folderName = folder?.title || window.I18n.t('dead.folder');
-          for (const id of checked) {
+          for (const id of uniqueChecked) {
             try {
               await chrome.bookmarks.move(id, { parentId: folder.id });
             } catch (e) {
@@ -519,7 +623,7 @@ class OptionsManager {
             }
           }
           // 从列表中移除对应项
-          checked.forEach(id => {
+          uniqueChecked.forEach(id => {
             const item = deadResultsList.querySelector(`li[data-id="${id}"]`);
             if (item) item.remove();
           });
@@ -1439,11 +1543,41 @@ class OptionsManager {
       scanBtn.innerHTML = `<span class="loading"></span> ${window.I18n.t('dead.scan.running')}`;
 
       // 获取所有书签
-      const bookmarks = await this.getAllBookmarks();
-      const targets = bookmarks.filter(b => this.isHttpUrl(b.url));
+      const bookmarks = this.settings.deadScanFolderId
+        ? await this.getBookmarksInFolder(this.settings.deadScanFolderId)
+        : await this.getAllBookmarks();
+      const targets = bookmarks.filter(b => {
+        if (!this.isHttpUrl(b.url)) return false;
+        if (this.settings.deadIgnorePrivateIp && this._isPrivateOrLocalHost(b.url)) return false;
+        return true;
+      });
       const total = targets.length;
       let done = 0;
       const dead = [];
+      // 计算重复项（按 URL 简化规则分组）
+      let duplicateGroups = [];
+      if (this.settings.deadScanDuplicates) {
+        const normalize = (u) => {
+          try {
+            const urlObj = new URL(u);
+            let href = urlObj.href.trim();
+            // 去除 http(s) 结尾斜杠
+            if (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') {
+              if (href.endsWith('/')) href = href.slice(0, -1);
+            }
+            return href;
+          } catch { return (u || '').trim(); }
+        };
+        const map = new Map();
+        for (const b of bookmarks) {
+          const key = normalize(b.url);
+          if (!key) continue;
+          const arr = map.get(key) || [];
+          arr.push(b);
+          map.set(key, arr);
+        }
+        duplicateGroups = Array.from(map.values()).filter(arr => arr.length > 1);
+      }
       if (progressEl) progressEl.textContent = `0 / ${total}`;
 
       const concurrency = 6;
@@ -1453,7 +1587,11 @@ class OptionsManager {
           const current = idx++;
           const b = targets[current];
           try {
-            const status = await this.checkUrlAlive(b.url, { strict: !!this.settings.deadStrictMode, timeoutMs: 8000, avoidPopups: true });
+            const status = await this.checkUrlAlive(b.url, {
+              strict: !!this.settings.deadStrictMode,
+              timeoutMs: this.settings.deadTimeoutMs || 8000,
+              avoidPopups: true
+            });
             if (!status.ok) {
               dead.push({ id: b.id, title: b.title, url: b.url, status: status.statusText });
             }
@@ -1467,6 +1605,15 @@ class OptionsManager {
       };
       await Promise.all(Array.from({ length: Math.min(concurrency, total) }, () => worker()));
 
+      // 将重复项加入结果（仅展示一条代表项，批量携带所有ID）
+      if (this.settings.deadScanDuplicates && duplicateGroups.length > 0) {
+        for (const group of duplicateGroups) {
+          const rep = group[0];
+          const ids = group.map(x => x.id);
+          dead.push({ id: rep.id, title: rep.title, url: rep.url, status: `重复 ${ids.length}`, ids });
+        }
+      }
+
       // 渲染结果
       if (dead.length === 0) {
         containerEl.hidden = false;
@@ -1475,12 +1622,12 @@ class OptionsManager {
         containerEl.hidden = false;
         listEl.innerHTML = dead.map(d => `
           <li class="list-item" data-id="${d.id}">
-            <input type="checkbox" data-id="${d.id}" aria-label="${window.I18n.t('dead.checkbox')}">
+            <input type="checkbox" data-id="${d.id}" ${d.ids ? `data-ids="${d.ids.join(',')}"` : ''} aria-label="${window.I18n ? window.I18n.t('dead.checkbox') : '选择'}">
             <div class="info">
               <div class="title">${this.escapeHtml(d.title || d.url)}</div>
               <div class="url">${this.escapeHtml(d.url)}</div>
             </div>
-            <div class="status">${this.escapeHtml(d.status || window.I18n.t('dead.status.unreachable'))}</div>
+            <div class="status">${this.escapeHtml(d.status || (window.I18n ? window.I18n.t('dead.status.unreachable') : '不可达'))}</div>
           </li>
         `).join('');
       }
@@ -1550,6 +1697,65 @@ class OptionsManager {
     return list;
   }
 
+  // 工具：获取指定文件夹下的书签（扁平化）
+  async getBookmarksInFolder(folderId) {
+    const list = [];
+    if (!folderId) return this.getAllBookmarks();
+    try {
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        const subtrees = await chrome.bookmarks.getSubTree(String(folderId));
+        const stack = [...subtrees];
+        while (stack.length) {
+          const node = stack.pop();
+          if (!node) continue;
+          if (node.children && Array.isArray(node.children)) {
+            stack.push(...node.children);
+          }
+          if (node.url) {
+            list.push({ id: node.id, title: node.title, url: node.url });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('获取指定文件夹书签失败', e);
+    }
+    return list;
+  }
+
+  // 工具：获取全部文件夹路径列表（用于下拉选择）
+  async getAllFolderPaths() {
+    const folders = [];
+    try {
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        const tree = await chrome.bookmarks.getTree();
+        const stack = tree.map(n => ({ node: n, path: '' }));
+        while (stack.length) {
+          const { node, path } = stack.pop();
+          if (!node) continue;
+          const children = node.children || [];
+          for (const child of children) {
+            const childPath = child.title ? (path ? `${path}/${child.title}` : child.title) : path;
+            // 如果是文件夹（无URL），收集为候选
+            if (!child.url) {
+              if (child.title) {
+                folders.push({ id: child.id, title: child.title, path: childPath });
+              }
+            }
+            // 继续遍历其子节点
+            if (child.children && Array.isArray(child.children)) {
+              stack.push({ node: child, path: childPath });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('获取文件夹路径失败', e);
+    }
+    // 排序：按路径字典序
+    folders.sort((a, b) => a.path.localeCompare(b.path));
+    return folders;
+  }
+
   // 工具：是否 http/https URL
   isHttpUrl(url) {
     try {
@@ -1560,8 +1766,50 @@ class OptionsManager {
     }
   }
 
+  // 工具：是否私有或本地主机地址（用于忽略内网 IP）
+  _isPrivateOrLocalHost(url) {
+    try {
+      const u = new URL(url);
+      const host = (u.hostname || '').toLowerCase();
+      if (!host) return false;
+      if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.local')) return true;
+      // IPv4 私有与保留网段
+      const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+      if (m) {
+        const a = parseInt(m[1], 10);
+        const b = parseInt(m[2], 10);
+        // 10.0.0.0/8
+        if (a === 10) return true;
+        // 172.16.0.0/12
+        if (a === 172 && b >= 16 && b <= 31) return true;
+        // 192.168.0.0/16
+        if (a === 192 && b === 168) return true;
+        // 127.0.0.0/8 loopback
+        if (a === 127) return true;
+        // 169.254.0.0/16 link-local
+        if (a === 169 && b === 254) return true;
+        // 100.64.0.0/10 carrier-grade NAT
+        if (a === 100 && b >= 64 && b <= 127) return true;
+      }
+      // IPv6 ULA fc00::/7、链路本地 fe80::/10
+      if (host.includes(':')) {
+        if (host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80') || host === '::1') return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   // 检查URL可达性（带超时与回退）
   async checkUrlAlive(url, { timeoutMs = 8000, avoidPopups = true, strict = false } = {}) {
+    // 缓存：相同 URL 重复检测时直接返回
+    if (this._urlCheckCache && this._urlCheckCache.has(url)) {
+      return this._urlCheckCache.get(url);
+    }
+    // 主机级节流：降低并发对同一域名的压力
+    await this._throttleHost(url);
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -1571,36 +1819,57 @@ class OptionsManager {
       const res = await fetch(url, opts);
       clearTimeout(timer);
       // 如果不跟随重定向，出现 opaqueredirect 视为站点可达（避免跳转到登录页）
-      if (res.type === 'opaqueredirect') return { ok: true, status: 0, statusText: 'redirect' };
-      if (res.ok) return { ok: true, status: res.status, statusText: String(res.status) };
+      if (res.type === 'opaqueredirect') {
+        const result = { ok: true, status: 0, statusText: 'redirect' };
+        this._urlCheckCache.set(url, result);
+        return result;
+      }
+      if (res.ok) {
+        const result = { ok: true, status: res.status, statusText: String(res.status) };
+        this._urlCheckCache.set(url, result);
+        return result;
+      }
       // 认证类状态码视为“可达但受限”
       if (res.status === 401 || res.status === 403) {
-        return { ok: true, status: res.status, statusText: String(res.status) };
+        const result = { ok: true, status: res.status, statusText: String(res.status) };
+        this._urlCheckCache.set(url, result);
+        return result;
       }
-      // 速率限制在严格模式下也视为可达（暂不判定为死链）
-      if (strict && res.status === 429) {
-        return { ok: true, status: res.status, statusText: String(res.status) };
+      // 常见瞬时错误统一视为可达以降低误报（与 LazyCat 的“尽量避免误判”思路一致）
+      const transientStatuses = new Set([408, 425, 429, 502, 503, 504, 520, 522, 524]);
+      if (transientStatuses.has(res.status)) {
+        const result = { ok: true, status: res.status, statusText: String(res.status) };
+        this._urlCheckCache.set(url, result);
+        return result;
       }
       // 方法不允许/未实现：可能阻断 HEAD，回退到 GET（no-cors）以确认网络连通
       if (res.status === 405 || res.status === 501) {
         try {
           const resNc = await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
           // 成功返回即视为可达；opaque 无法读状态但说明网络连通
-          return { ok: true, status: 0, statusText: 'opaque' };
+          const result = { ok: true, status: 0, statusText: 'opaque' };
+          this._urlCheckCache.set(url, result);
+          return result;
         } catch {}
       }
       // 严格模式：对非明确 404/410/5xx 的非OK结果再做一次 no-cors GET 以降低误报
       if (strict && res.status !== 404 && res.status !== 410 && !(res.status >= 500)) {
         try {
           await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
-          return { ok: true, status: 0, statusText: 'opaque' };
+          const result = { ok: true, status: 0, statusText: 'opaque' };
+          this._urlCheckCache.set(url, result);
+          return result;
         } catch {}
       }
       // 在安全模式下，不回退到 GET，避免页面执行或弹窗；非安全模式才尝试 GET
       if (!avoidPopups) {
-        return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+        const result = await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+        this._urlCheckCache.set(url, result);
+        return result;
       }
-      return { ok: false, status: res.status, statusText: String(res.status || '不可访问') };
+      const result = { ok: false, status: res.status, statusText: String(res.status || '不可访问') };
+      this._urlCheckCache.set(url, result);
+      return result;
     } catch (e) {
       clearTimeout(timer);
       // 在安全模式下尝试 no-cors 的 HEAD 以获得不透明响应，若成功则视为可达
@@ -1608,21 +1877,31 @@ class OptionsManager {
         try {
           const res2 = await fetch(url, { method: 'HEAD', mode: 'no-cors', redirect: 'manual', credentials: 'omit', cache: 'no-store' });
           // 成功返回即视为可达（opaque 无法读状态，但不触发弹窗）
-          return { ok: true, status: 0, statusText: 'opaque' };
+          const result = { ok: true, status: 0, statusText: 'opaque' };
+          this._urlCheckCache.set(url, result);
+          return result;
         } catch (e2) {
           // 尝试 GET no-cors 作为进一步连通性确认
           try {
             await fetch(url, { method: 'GET', mode: 'no-cors', redirect: 'follow', credentials: 'omit', cache: 'no-store' });
-            return { ok: true, status: 0, statusText: 'opaque' };
+            const result = { ok: true, status: 0, statusText: 'opaque' };
+            this._urlCheckCache.set(url, result);
+            return result;
           } catch (e3) {}
-          return { ok: false, status: 0, statusText: '网络错误或超时' };
+          const result = { ok: false, status: 0, statusText: '网络错误或超时' };
+          this._urlCheckCache.set(url, result);
+          return result;
         }
       }
       // 非安全模式：作为回退 GET
       try {
-        return await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+        const result = await this.checkUrlAliveGet(url, { timeoutMs: Math.max(4000, timeoutMs - 2000) });
+        this._urlCheckCache.set(url, result);
+        return result;
       } catch (e3) {
-        return { ok: false, status: 0, statusText: '网络错误或超时' };
+        const result = { ok: false, status: 0, statusText: '网络错误或超时' };
+        this._urlCheckCache.set(url, result);
+        return result;
       }
     }
   }
@@ -1648,6 +1927,20 @@ class OptionsManager {
         throw e2;
       }
     }
+  }
+
+  // 主机级简单节流：同一 host 的请求至少间隔 _hostSpacingMs 毫秒
+  async _throttleHost(url) {
+    try {
+      const host = new URL(url).host;
+      const now = Date.now();
+      const last = this._hostLastTime[host] || 0;
+      const wait = Math.max(this._hostSpacingMs - (now - last), 0);
+      if (wait > 0) {
+        await new Promise(r => setTimeout(r, wait));
+      }
+      this._hostLastTime[host] = Date.now();
+    } catch {}
   }
 
   escapeHtml(text) {
