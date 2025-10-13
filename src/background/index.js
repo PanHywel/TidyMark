@@ -19,6 +19,21 @@ chrome.runtime.onStartup.addListener(async () => {
   await checkAndBackupBookmarks();
 });
 
+// 点击扩展图标直接打开设置页面（移除 popup 后启用）
+chrome.action.onClicked.addListener(() => {
+  if (chrome.runtime.openOptionsPage) {
+    try {
+      chrome.runtime.openOptionsPage();
+    } catch (e) {
+      const url = chrome.runtime.getURL('src/pages/options/index.html');
+      chrome.tabs.create({ url });
+    }
+  } else {
+    const url = chrome.runtime.getURL('src/pages/options/index.html');
+    chrome.tabs.create({ url });
+  }
+});
+
 // 初始化扩展
 async function initializeExtension() {
   try {
@@ -166,6 +181,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'organizeByPlan':
       handleOrganizeByPlan(request.plan, sendResponse);
       break;
+    case 'organizeByAiInference':
+      handleOrganizeByAiInference(sendResponse);
+      break;
     default:
       sendResponse({ success: false, error: '未知操作' });
   }
@@ -258,6 +276,17 @@ async function handleOrganizeByPlan(plan, sendResponse) {
     sendResponse({ success: true, data: result });
   } catch (error) {
     console.error('按计划整理失败:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// 基于 AI 推理生成全量整理计划（不提供预置分类）
+async function handleOrganizeByAiInference(sendResponse) {
+  try {
+    const plan = await organizePlanByAiInference();
+    sendResponse({ success: true, data: plan });
+  } catch (error) {
+    console.error('AI 推理归类失败:', error);
     sendResponse({ success: false, error: error.message });
   }
 }
@@ -1012,7 +1041,47 @@ Output Format (strict JSON, no extra text):
 }
 
 Output Requirement:
+Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+  );
+}
 
+// 构建 AI 推理提示词（不预设分类，仅提供书签条目）
+function buildInferencePrompt({ language, items }) {
+  const its = Array.isArray(items) ? items : [];
+  const itemsJson = JSON.stringify(its, null, 2);
+  return (
+`
+You are a world-class Information Architecture and Taxonomy Expert.
+Your task is to infer a clean, human-understandable category taxonomy from bookmarks, without any preset categories.
+
+Input Description:
+- Current language: ${language}
+- Bookmarks (array): ${itemsJson}
+
+Objective:
+- Infer appropriate, concise category names that best group the bookmarks.
+- Assign every bookmark to exactly one inferred category.
+- Use the given language (${language}) for category naming when applicable.
+
+Rules & Principles:
+- Do not return any commentary outside JSON.
+- Keep category names short (1–3 words) and meaningful.
+- Prefer semantic grouping by title first, URL second.
+- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+
+Output Format (strict JSON, no extra text):
+{
+  "categories": ["string"],
+  "assignments": [
+    { "id": "string", "to_key": "string", "confidence": 0.0 }
+  ],
+  "notes": {
+    "low_confidence_items": ["id"],
+    "followups": ["string"]
+  }
+}
+
+Output Requirement:
 Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
   );
 }
@@ -1127,6 +1196,104 @@ async function organizeByPlan(plan) {
   }
 
   return results;
+}
+
+// 生成 AI 推理的整理计划（返回与预览一致的结构）
+async function organizePlanByAiInference() {
+  // 读取设置以获取 AI 参数和语言
+  const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
+  if (!settings.enableAI) {
+    throw new Error('AI 未启用');
+  }
+  if (!settings.aiApiKey) {
+    throw new Error('AI API Key 未配置');
+  }
+
+  // 拉取并扁平化书签
+  let bookmarksTree;
+  try {
+    bookmarksTree = await chrome.bookmarks.getTree();
+  } catch (e) {
+    throw new Error('无法读取书签');
+  }
+  const flat = flattenBookmarks(bookmarksTree).filter(b => b.url);
+
+  const items = flat.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
+  const language = settings.classificationLanguage || 'auto';
+
+  // 分批与并发（避免一次请求过大）
+  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 120;
+  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3;
+  const chunks = chunkArray(items, batchSize);
+
+  const tasks = chunks.map((chunk, idx) => async () => {
+    const prompt = buildInferencePrompt({ language, items: chunk });
+    const aiResult = await requestAIWithRetry({
+      provider: settings.aiProvider || 'openai',
+      apiUrl: settings.aiApiUrl || '',
+      apiKey: settings.aiApiKey,
+      model: settings.aiModel || 'gpt-3.5-turbo',
+      maxTokens: settings.maxTokens || 8192,
+      prompt
+    }, { retries: 2, baseDelayMs: 1200, label: `infer-${idx+1}/${chunks.length}` });
+    const parsed = parseAiJsonContent(aiResult);
+    return parsed;
+  });
+
+  const results = await runPromisesWithConcurrency(tasks, concurrency);
+
+  // 合并分类与分配
+  const allCategories = new Set();
+  const assignments = [];
+  const lowIds = new Set();
+  for (const r of results) {
+    if (!r || !Array.isArray(r.assignments)) continue;
+    if (Array.isArray(r.categories)) {
+      r.categories.forEach(c => { if (c && typeof c === 'string') allCategories.add(c); });
+    }
+    for (const a of r.assignments) {
+      if (!a || !a.id || !a.to_key) continue;
+      assignments.push(a);
+      if (typeof a.confidence === 'number' && a.confidence < 0.5) lowIds.add(a.id);
+    }
+    const lows = (r.notes && Array.isArray(r.notes.low_confidence_items)) ? r.notes.low_confidence_items : [];
+    lows.forEach(id => lowIds.add(id));
+  }
+
+  if (assignments.length === 0 || allCategories.size === 0) {
+    throw new Error('AI 推理结果为空或无有效分类');
+  }
+
+  // 构建计划结构
+  const plan = { total: flat.length, classified: 0, categories: {}, details: [] };
+  // 先为推理出的类别建占位
+  for (const name of allCategories) {
+    plan.categories[name] = { count: 0, bookmarks: [] };
+  }
+
+  const idToBookmark = new Map(flat.map(b => [b.id, b]));
+  for (const a of assignments) {
+    const b = idToBookmark.get(a.id);
+    if (!b) continue;
+    const isLow = lowIds.has(a.id);
+    const target = isLow ? '其他' : a.to_key;
+    if (!plan.categories[target]) plan.categories[target] = { count: 0, bookmarks: [] };
+    plan.details.push({ bookmark: b, category: target });
+    plan.categories[target].count++;
+    plan.categories[target].bookmarks.push(b);
+  }
+  // 对于未出现在 assignments 的书签，归入 “其他”
+  const assignedIds = new Set(assignments.map(a => a.id));
+  for (const b of flat) {
+    if (assignedIds.has(b.id)) continue;
+    if (!plan.categories['其他']) plan.categories['其他'] = { count: 0, bookmarks: [] };
+    plan.details.push({ bookmark: b, category: '其他' });
+    plan.categories['其他'].count++;
+    plan.categories['其他'].bookmarks.push(b);
+  }
+
+  plan.classified = Object.keys(plan.categories).reduce((sum, k) => sum + (k !== '其他' ? plan.categories[k].count : 0), 0);
+  return plan;
 }
 
 // 删除指定ID集合中已变为空的书签目录（避开系统目录）

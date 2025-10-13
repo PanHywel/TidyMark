@@ -2,13 +2,17 @@
 
 class OptionsManager {
   constructor() {
-    this.currentTab = 'general';
+    this.currentTab = 'organize';
     this.settings = {};
     this.classificationRules = [];
-    this.init();
+    this.organizePreviewPlan = null;
+    // 由 DOMContentLoaded 中的显式调用触发一次初始化，避免重复绑定事件
   }
 
   async init() {
+    // 防止重复初始化导致事件绑定执行两次
+    if (this._initialized) return;
+    this._initialized = true;
     await this.loadSettings();
     this.bindEvents();
     this.renderUI();
@@ -279,6 +283,14 @@ class OptionsManager {
       });
     }
 
+    // AI 全量归类
+    const aiInferBtn = document.getElementById('aiInferOrganizeBtn');
+    if (aiInferBtn) {
+      aiInferBtn.addEventListener('click', () => {
+        this.organizeByAiInference();
+      });
+    }
+
     // 天气组件开关
     const weatherEnabled = document.getElementById('weatherEnabled');
     if (weatherEnabled) {
@@ -382,6 +394,12 @@ class OptionsManager {
 
 
     // 按钮事件
+    const quickBackupBtn = document.getElementById('quickBackupBtn');
+    if (quickBackupBtn) {
+      quickBackupBtn.addEventListener('click', async () => {
+        await this.backupBookmarks();
+      });
+    }
     const testAiConnection = document.getElementById('testAiConnection');
     if (testAiConnection) {
       testAiConnection.addEventListener('click', () => {
@@ -542,19 +560,16 @@ class OptionsManager {
   // 从设置页触发自动整理（含预览、AI优化与确认）
   async organizeFromSettings() {
     const btn = document.getElementById('organizeFromSettings');
-    const statusEl = document.getElementById('organizeStatus');
     const original = btn ? btn.innerHTML : '';
-    const setStatus = (text, ok = false) => {
-      if (!statusEl) return;
-      statusEl.textContent = text || '';
-      statusEl.style.color = ok ? '#059669' : '#64748b';
+    const setStatus = (text, type = 'success') => {
+      this.showMessage(text, type);
     };
     try {
       if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> 整理中...';
       }
-      setStatus('准备预览...');
+      setStatus('准备预览...', 'success');
       let previewResponse;
       if (typeof chrome !== 'undefined' && chrome?.runtime) {
         previewResponse = await chrome.runtime.sendMessage({ action: 'previewOrganize' });
@@ -565,7 +580,7 @@ class OptionsManager {
       let plan = previewResponse.data;
 
       // 若启用 AI 且已配置，调用后台 AI 优化
-      setStatus('AI 优化中...');
+      setStatus('AI 优化中...', 'success');
       const useAI = !!this.settings.enableAI && !!this.settings.aiApiKey;
       if (useAI && typeof chrome !== 'undefined' && chrome?.runtime) {
         const aiResp = await chrome.runtime.sendMessage({ action: 'refineOrganizeWithAI', preview: plan });
@@ -574,37 +589,646 @@ class OptionsManager {
         }
       }
 
-      // 简要确认
-      const total = plan?.total ?? 0;
-      const classified = plan?.classified ?? 0;
-      const confirmText = `将按预览执行整理\n总书签：${total}，拟分类：${classified}。\n是否继续？`;
-      const ok = window.confirm(confirmText);
-      if (!ok) {
-        setStatus('已取消');
-        return;
-      }
-
-      // 执行整理：AI 计划或直接整理
-      setStatus('执行整理中...');
-      let runResponse = { success: true };
-      if (typeof chrome !== 'undefined' && chrome?.runtime) {
-        if (useAI) {
-          runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan });
-        } else {
-          runResponse = await chrome.runtime.sendMessage({ action: 'organizeBookmarks' });
-        }
-      }
-      if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
-      setStatus('整理完成', true);
+      // 将预览内嵌到“整理”标签，不再使用弹窗
+      this.organizePreviewPlan = plan;
+      this.renderOrganizePreview(plan);
+      this.showMessage('预览已生成，请在下方确认', 'success');
+      // inline status banner removed; rely on global message only
     } catch (e) {
       console.error('[Options] organizeFromSettings 失败:', e);
-      setStatus(`失败：${e?.message || e}`);
+      setStatus(`失败：${e?.message || e}`, 'error');
     } finally {
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = original;
       }
     }
+  }
+
+  // 仅由 AI 推理新分类，并执行前用户确认
+  async organizeByAiInference() {
+    const btn = document.getElementById('aiInferOrganizeBtn');
+    const original = btn ? btn.innerHTML : '';
+    const setStatus = (text, type = 'info') => {
+      this.showMessage(text, type);
+    };
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> AI 归类中...';
+      }
+      setStatus('准备 AI 归类预览...', 'info');
+      if (typeof chrome === 'undefined' || !chrome?.runtime) {
+        throw new Error('当前不在扩展环境，无法执行');
+      }
+      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference' });
+      if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
+      const plan = resp.data;
+      // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
+      this.organizePreviewPlan = plan;
+      this.renderOrganizePreview(plan);
+      this.showMessage(window.I18n ? (window.I18n.t('help.aiFull.globalTip') || 'AI 归类预览已生成，请在下方调整后点击确认执行') : 'AI 归类预览已生成，请在下方调整后点击确认执行', 'info');
+      // inline status banner removed; rely on global message only
+    } catch (e) {
+      console.error('[AI 全量归类] 失败:', e);
+      this.showMessage(e?.message || 'AI 归类失败', 'error');
+      // inline status banner removed; rely on global message only
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
+  }
+
+  // 展示整理预览并进行二次确认（移植自插件弹窗，适配设置页）
+  async showOrganizePreviewDialog(preview) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      const summaryText = window.I18n && window.I18n.tf
+        ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
+        : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
+      const expandText = window.I18n ? (window.I18n.t('preview.expand') || '展开全部') : '展开全部';
+      const collapseText = window.I18n ? (window.I18n.t('preview.collapse') || '收起') : '收起';
+      const clickHint = window.I18n ? (window.I18n.t('preview.clickHint') || '点击书签切换分类') : '点击书签切换分类';
+      let categoryNames = Object.keys(preview.categories || {});
+
+      const categoriesHtml = Object.entries(preview.categories || {})
+        .filter(([, data]) => data && data.count > 0)
+        .map(([name, data]) => {
+          const threshold = 10;
+          const collapsedClass = (data.bookmarks || []).length > threshold ? 'collapsed' : '';
+          const displayName = (window.I18n && window.I18n.translateCategoryByName)
+            ? window.I18n.translateCategoryByName(name)
+            : name;
+          const listItems = (data.bookmarks || []).map(b => {
+            const safeTitle = this.escapeHtml(b.title || b.url || '');
+            const safeUrl = this.escapeHtml(b.url || '#');
+            return `<li class="list-item" data-id="${this.escapeHtml(String(b.id))}" data-current="${this.escapeHtml(name)}"><a href="${safeUrl}">${safeTitle}</a></li>`;
+          }).join('');
+          return `
+            <div class="category-block" data-cat-name="${this.escapeHtml(name)}">
+              <div class="category-header">
+                <span class="category-name">${displayName}</span>
+                <div class="header-actions">
+                  <button class="btn btn-sm btn-outline toggle-btn" data-state="${collapsedClass ? 'collapsed' : 'expanded'}">${collapsedClass ? expandText : collapseText}</button>
+                  <span class="category-count">(${data.count})</span>
+                </div>
+              </div>
+              <ul class="list ${collapsedClass}" style="margin-top:8px;">${listItems}</ul>
+            </div>
+          `;
+        }).join('');
+
+      modal.innerHTML = `
+        <div class="modal-dialog">
+          <div class="modal-header">
+            <h3 class="modal-title">${window.I18n ? (window.I18n.t('preview.title') || '整理预览与确认') : '整理预览与确认'}</h3>
+            <button class="modal-close" id="previewClose">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="preview-summary">${summaryText}</div>
+            <div class="info-banner">${clickHint}</div>
+            <div id="previewCategories" class="preview-categories">${categoriesHtml}</div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" id="previewCancel">${window.I18n ? (window.I18n.t('preview.cancel') || '取消') : '取消'}</button>
+            <button class="btn btn-primary" id="previewConfirm">${window.I18n ? (window.I18n.t('preview.confirm') || '确认整理') : '确认整理'}</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+
+      // 显示弹窗（与统一确认弹窗保持一致）
+      modal.style.display = 'flex';
+      // 选项页CSS默认对.modal-overlay设置了opacity:0/visibility:hidden，需要添加show类
+      setTimeout(() => modal.classList.add('show'), 10);
+
+      // 绑定展开/收起事件
+      const updateToggleText = (btn, isCollapsed) => {
+        btn.textContent = isCollapsed ? expandText : collapseText;
+        btn.dataset.state = isCollapsed ? 'collapsed' : 'expanded';
+      };
+      // 使用事件委托，避免个别按钮未成功绑定
+      modal.addEventListener('click', (e) => {
+        const btn = e.target.closest('.toggle-btn');
+        if (!btn) return;
+        const block = btn.closest('.category-block');
+        const list = block && block.querySelector('.list');
+        if (!list) return;
+        const isCollapsed = list.classList.toggle('collapsed');
+        updateToggleText(btn, isCollapsed);
+      });
+
+      // 分类选择器：点击书签打开选择框，切换分类而不是跳转
+      const categoriesContainer = modal.querySelector('#previewCategories');
+      const rebuildSummary = () => {
+        const summaryEl = modal.querySelector('.preview-summary');
+        if (summaryEl) {
+          const text = window.I18n
+            ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
+            : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
+          summaryEl.textContent = text;
+        }
+      };
+      const updateBadge = (catName) => {
+        const count = (preview.categories[catName]?.count || 0);
+        const el = categoriesContainer.querySelector(`.category-block[data-cat-name="${CSS.escape(catName)}"] .category-count`);
+        if (el) el.textContent = `(${count})`;
+      };
+      const ensureCategorySection = (catName) => {
+        if (categoriesContainer.querySelector(`.category-block[data-cat-name="${CSS.escape(catName)}"]`)) return;
+        const translatedName = window.I18n && window.I18n.translateCategoryByName ? window.I18n.translateCategoryByName(catName) : catName;
+        const div = document.createElement('div');
+        div.className = 'category-block';
+        div.setAttribute('data-cat-name', catName);
+        div.innerHTML = `
+          <div class="category-header">
+            <span class="category-name">${this.escapeHtml(translatedName)}</span>
+            <div class="header-actions">
+              <button class="btn btn-sm btn-outline toggle-btn" data-state="expanded">${collapseText}</button>
+              <span class="category-count">(0)</span>
+            </div>
+          </div>
+          <ul class="list"></ul>
+        `;
+        categoriesContainer.appendChild(div);
+      };
+      const openPicker = (li) => {
+        const id = li.getAttribute('data-id');
+        const oldCat = li.getAttribute('data-current');
+        const rect = li.getBoundingClientRect();
+        const pop = document.createElement('div');
+        pop.className = 'picker-dialog';
+        const width = 300;
+        const top = Math.min(window.innerHeight - 200, rect.bottom + 8);
+        const left = Math.min(window.innerWidth - width - 16, rect.left);
+        const optionsHtml = categoryNames
+          .map(cat => {
+            const tname = window.I18n && window.I18n.translateCategoryByName ? window.I18n.translateCategoryByName(cat) : cat;
+            return `<option value="${this.escapeHtml(cat)}" ${cat === oldCat ? 'selected' : ''}>${this.escapeHtml(tname)}</option>`;
+          })
+          .join('') + `<option value="__new__">${window.I18n ? (window.I18n.t('preview.addCategory') || '新增分类…') : '新增分类…'}</option>`;
+        pop.innerHTML = `
+          <div class="modal-header" style="padding: 10px 12px;">
+            <h3 class="modal-title" style="font-size:14px;">${window.I18n ? (window.I18n.t('preview.pickCategory') || '选择分类') : '选择分类'}</h3>
+            <button class="modal-close picker-close">×</button>
+          </div>
+          <div class="modal-body" style="padding: 10px 12px;">
+            <select class="picker-select" style="width: 100%;">${optionsHtml}</select>
+          </div>
+          <div class="modal-footer" style="padding: 10px 12px;">
+            <button class="btn btn-outline picker-cancel">${window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'}</button>
+            <button class="btn btn-primary picker-ok">${window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定'}</button>
+          </div>
+        `;
+        pop.style.position = 'fixed';
+        pop.style.top = `${top}px`;
+        pop.style.left = `${left}px`;
+        pop.style.width = `${width}px`;
+        pop.style.zIndex = '10001';
+        document.body.appendChild(pop);
+
+        const cleanup = () => { if (pop && pop.parentNode) pop.parentNode.removeChild(pop); };
+        pop.querySelector('.picker-close')?.addEventListener('click', cleanup);
+        pop.querySelector('.picker-cancel')?.addEventListener('click', cleanup);
+        pop.querySelector('.picker-ok')?.addEventListener('click', () => {
+          const sel = pop.querySelector('.picker-select');
+          let newCat = sel ? sel.value : oldCat;
+          if (newCat === '__new__') {
+            const input = window.prompt(window.I18n ? (window.I18n.t('preview.newCategoryName') || '请输入新分类名') : '请输入新分类名');
+            if (!input) { cleanup(); return; }
+            newCat = input.trim();
+          }
+          if (!newCat) { cleanup(); return; }
+          if (!preview.categories[newCat]) {
+            preview.categories[newCat] = { count: 0, bookmarks: [] };
+            categoryNames.push(newCat);
+            ensureCategorySection(newCat);
+          }
+          const detail = (preview.details || []).find(d => String(d.bookmark?.id) === String(id));
+          if (!detail) { cleanup(); return; }
+          const bookmark = detail.bookmark;
+          detail.category = newCat;
+          // 更新旧分类
+          if (preview.categories[oldCat]) {
+            preview.categories[oldCat].bookmarks = (preview.categories[oldCat].bookmarks || []).filter(b => String(b.id) !== String(id));
+            preview.categories[oldCat].count = Math.max(0, (preview.categories[oldCat].count || 1) - 1);
+          }
+          // 更新新分类
+          preview.categories[newCat].bookmarks.push(bookmark);
+          preview.categories[newCat].count = (preview.categories[newCat].count || 0) + 1;
+          // 移动DOM元素
+          const oldSection = categoriesContainer.querySelector(`.category-block[data-cat-name="${CSS.escape(oldCat)}"] .list`);
+          const newSection = categoriesContainer.querySelector(`.category-block[data-cat-name="${CSS.escape(newCat)}"] .list`);
+          if (newSection) newSection.appendChild(li);
+          li.setAttribute('data-current', newCat);
+          updateBadge(oldCat);
+          updateBadge(newCat);
+          // 更新摘要：其他<->其他之间的移动影响"拟分类"计数
+          const otherName = '其他';
+          if (oldCat === otherName && newCat !== otherName) {
+            preview.classified = (preview.classified || 0) + 1;
+          } else if (oldCat !== otherName && newCat === otherName) {
+            preview.classified = Math.max(0, (preview.classified || 0) - 1);
+          }
+          rebuildSummary();
+          cleanup();
+        });
+      };
+      // 拦截书签点击，打开选择器
+      modal.addEventListener('click', (e) => {
+        const a = e.target.closest('.list-item a');
+        if (!a) return;
+        e.preventDefault();
+        const li = a.closest('.list-item');
+        if (!li) return;
+        openPicker(li);
+      });
+
+      const cleanup = () => {
+        modal.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => {
+          if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+        }, 200);
+      };
+
+      modal.querySelector('#previewCancel').addEventListener('click', () => { cleanup(); resolve(false); });
+      modal.querySelector('#previewClose').addEventListener('click', () => { cleanup(); resolve(false); });
+      modal.querySelector('#previewConfirm').addEventListener('click', () => { cleanup(); resolve(true); });
+    });
+  }
+
+  // 在“整理”标签内渲染预览内容（替代弹窗）
+  renderOrganizePreview(preview) {
+    const container = document.getElementById('organizePreview');
+    if (!container) return;
+
+    const DEBUG_OPTIONS_PREVIEW = true;
+    const debug = (...args) => { if (DEBUG_OPTIONS_PREVIEW) console.log('[OptionsPreview]', ...args); };
+
+    const summaryText = window.I18n && window.I18n.tf
+      ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
+      : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
+    const expandText = window.I18n ? (window.I18n.t('preview.expand') || '展开全部') : '展开全部';
+    const collapseText = window.I18n ? (window.I18n.t('preview.collapse') || '收起') : '收起';
+    const clickHint = window.I18n ? (window.I18n.t('preview.clickHint') || '点击书签切换分类') : '点击书签切换分类';
+    const confirmText = window.I18n ? (window.I18n.t('preview.confirm') || '确认整理') : '确认整理';
+    const cancelText = window.I18n ? (window.I18n.t('preview.cancel') || '取消') : '取消';
+
+    const categoryNames = Object.keys(preview.categories || {});
+    const categoriesHtml = Object.entries(preview.categories || {})
+      .filter(([, data]) => data && data.count > 0)
+      .map(([name, data]) => {
+        const displayName = (window.I18n && window.I18n.translateCategoryByName)
+          ? window.I18n.translateCategoryByName(name)
+          : name;
+        const listItems = (data.bookmarks || []).map(b => {
+          const safeTitle = this.escapeHtml(b.title || b.url || '');
+          const safeUrl = this.escapeHtml(b.url || '#');
+          return `<li class="list-item" data-id="${this.escapeHtml(String(b.id))}" data-current="${this.escapeHtml(name)}"><a href="${safeUrl}">${safeTitle}</a></li>`;
+        }).join('');
+        return `
+          <div class="category-block" data-cat-name="${this.escapeHtml(name)}">
+            <div class="category-header">
+              <span class="category-name">${displayName}</span>
+              <div class="header-actions">
+                <span class="category-count">(${data.count})</span>
+              </div>
+            </div>
+            <ul class="list" style="margin-top:8px;">${listItems}</ul>
+          </div>
+        `;
+      }).join('');
+
+    container.innerHTML = `
+      <div class="preview-summary">${summaryText}</div>
+      <div class="info-banner">${clickHint}</div>
+      <div id="previewCategories" class="preview-categories">${categoriesHtml}</div>
+      <div class="inline-actions" style="margin-top:12px; display:flex; gap:8px;">
+        <button class="btn btn-outline" id="inlineCancel">${cancelText}</button>
+        <button class="btn btn-primary" id="inlineConfirm">${confirmText}</button>
+      </div>
+    `;
+
+    // 选择器 + 确认/取消：事件委托（只绑定一次，避免重复）
+    if (!container.dataset.bound) {
+      container.addEventListener('click', (e) => {
+        // 拦截书签点击，打开选择器
+        const a = e.target.closest('.list-item a');
+        if (a) {
+          e.preventDefault();
+          const li = a.closest('.list-item');
+          if (li) openPicker(li);
+          return;
+        }
+        // Inline 取消
+        const cancelBtn = e.target.closest('#inlineCancel');
+        if (cancelBtn) {
+          container.innerHTML = '';
+          this.organizePreviewPlan = null;
+          return;
+        }
+        // Inline 确认
+        const confirmBtn = e.target.closest('#inlineConfirm');
+        if (confirmBtn) {
+          (async () => {
+            const setStatus = (text, type = 'success') => {
+              this.showMessage(text, type);
+            };
+            try {
+              // 整理前进行一次备份确认
+              const backupFirst = await this.showBackupConfirmDialog();
+              if (backupFirst) {
+                await this.backupBookmarks();
+                // 给予下载对话框时间弹出
+                await new Promise(resolve => setTimeout(resolve, 800));
+              }
+              setStatus('执行整理中...', 'success');
+              const runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan: preview });
+              if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
+              setStatus('整理完成', 'success');
+              container.innerHTML = '';
+              this.organizePreviewPlan = null;
+            } catch (err) {
+              console.error('[InlineConfirm] 整理失败:', err);
+              setStatus(`失败：${err?.message || err}`, 'error');
+            }
+          })();
+          return;
+        }
+      });
+      container.dataset.bound = '1';
+    }
+
+    // 分类选择：点击书签打开选择器（避免捕获过期容器引用，始终获取当前容器）
+    const getCategoriesContainer = () => container.querySelector('#previewCategories');
+    const rebuildSummary = () => {
+      const summaryEl = container.querySelector('.preview-summary');
+      if (summaryEl) {
+        const text = window.I18n
+          ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
+          : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
+        summaryEl.textContent = text;
+      }
+    };
+    const esc = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : String(s).replace(/["'\\]/g, '\\$&'));
+    const updateBadge = (catName) => {
+      const cc = getCategoriesContainer();
+      if (!cc) { debug('updateBadge skipped, container missing:', catName); return; }
+      const count = (preview.categories[catName]?.count || 0);
+      const el = cc.querySelector(`.category-block[data-cat-name="${esc(catName)}"] .category-count`);
+      if (el) el.textContent = `(${count})`;
+      debug('updateBadge:', catName, '=>', count);
+    };
+    const ensureCategorySection = (catName) => {
+      const cc = getCategoriesContainer();
+      if (!cc) { debug('ensureCategorySection skipped, container missing:', catName); return; }
+      if (cc.querySelector(`.category-block[data-cat-name="${esc(catName)}"]`)) { debug('ensureCategorySection exists:', catName); return; }
+      const translatedName = window.I18n && window.I18n.translateCategoryByName ? window.I18n.translateCategoryByName(catName) : catName;
+      const div = document.createElement('div');
+      div.className = 'category-block';
+      div.setAttribute('data-cat-name', catName);
+      div.innerHTML = `
+        <div class="category-header">
+          <span class="category-name">${this.escapeHtml(translatedName)}</span>
+          <div class="header-actions">
+            <span class="category-count">(0)</span>
+          </div>
+        </div>
+        <ul class="list"></ul>
+      `;
+      cc.appendChild(div);
+      debug('ensureCategorySection created:', catName);
+    };
+    const findBookmarkInPreview = (id) => {
+      for (const [cat, data] of Object.entries(preview.categories || {})) {
+        const list = data?.bookmarks || [];
+        const bm = list.find(b => String(b.id) === String(id));
+        if (bm) return { bookmark: bm, cat };
+      }
+      return null;
+    };
+    const openPicker = (li) => {
+      const id = li.getAttribute('data-id');
+      const oldCat = li.getAttribute('data-current');
+      debug('openPicker for id:', id, 'oldCat:', oldCat);
+      const rect = li.getBoundingClientRect();
+      const pop = document.createElement('div');
+      pop.className = 'picker-dialog';
+      const width = 300;
+      const top = Math.min(window.innerHeight - 200, rect.bottom + 8);
+      const left = Math.min(window.innerWidth - width - 16, rect.left);
+      const optionsHtml = categoryNames
+        .map(cat => {
+          const tname = window.I18n && window.I18n.translateCategoryByName ? window.I18n.translateCategoryByName(cat) : cat;
+          return `<option value="${this.escapeHtml(cat)}" ${cat === oldCat ? 'selected' : ''}>${this.escapeHtml(tname)}</option>`;
+        })
+        .join('') + `<option value="__new__">${window.I18n ? (window.I18n.t('preview.addCategory') || '新增分类…') : '新增分类…'}</option>`;
+      pop.innerHTML = `
+        <div class="modal-header" style="padding: 10px 12px;">
+          <h3 class="modal-title" style="font-size:14px;">${window.I18n ? (window.I18n.t('preview.pickCategory') || '选择分类') : '选择分类'}</h3>
+          <button class="modal-close picker-close">×</button>
+        </div>
+        <div class="modal-body" style="padding: 10px 12px;">
+          <select class="picker-select" style="width: 100%;">${optionsHtml}</select>
+        </div>
+        <div class="modal-footer" style="padding: 10px 12px;">
+          <button class="btn btn-outline picker-cancel">${cancelText}</button>
+          <button class="btn btn-primary picker-ok">${confirmText}</button>
+        </div>
+      `;
+      pop.style.position = 'fixed';
+      pop.style.top = `${top}px`;
+      pop.style.left = `${left}px`;
+      pop.style.width = `${width}px`;
+      pop.style.zIndex = '10001';
+      document.body.appendChild(pop);
+
+      const cleanup = () => { if (pop && pop.parentNode) pop.parentNode.removeChild(pop); };
+      pop.querySelector('.picker-close')?.addEventListener('click', cleanup);
+      pop.querySelector('.picker-cancel')?.addEventListener('click', cleanup);
+      pop.querySelector('.picker-ok')?.addEventListener('click', () => {
+        const sel = pop.querySelector('.picker-select');
+        let newCat = sel ? sel.value : oldCat;
+        debug('apply click, selected newCat:', newCat);
+        if (newCat === '__new__') {
+          const input = window.prompt(window.I18n ? (window.I18n.t('preview.newCategoryName') || '请输入新分类名') : '请输入新分类名');
+          if (!input) { cleanup(); return; }
+          newCat = input.trim();
+        }
+        if (!newCat) { cleanup(); return; }
+        if (newCat === oldCat) { cleanup(); return; }
+        if (!preview.categories[newCat]) {
+          preview.categories[newCat] = { count: 0, bookmarks: [] };
+          categoryNames.push(newCat);
+          ensureCategorySection(newCat);
+          debug('new category created in data:', newCat);
+        }
+        let bookmark = null;
+        let originCat = oldCat;
+        const detail = (preview.details || []).find(d => String(d.bookmark?.id) === String(id));
+        debug('detail found:', !!detail, 'detail.category:', detail?.category);
+        if (detail && detail.bookmark) {
+          bookmark = detail.bookmark;
+          originCat = detail.category || oldCat;
+          detail.category = newCat;
+        } else {
+          const found = findBookmarkInPreview(id);
+          debug('findBookmarkInPreview result:', found ? { cat: found.cat } : null);
+          if (!found) { cleanup(); return; }
+          bookmark = found.bookmark;
+          originCat = found.cat || oldCat;
+        }
+        debug('originCat:', originCat, '-> newCat:', newCat);
+        // 更新旧分类
+        const beforeOld = preview.categories[originCat]?.count || 0;
+        const beforeNew = preview.categories[newCat]?.count || 0;
+        if (preview.categories[originCat]) {
+          preview.categories[originCat].bookmarks = (preview.categories[originCat].bookmarks || []).filter(b => String(b.id) !== String(id));
+          preview.categories[originCat].count = Math.max(0, (preview.categories[originCat].count || 1) - 1);
+        }
+        // 更新新分类
+        preview.categories[newCat].bookmarks.push(bookmark);
+        preview.categories[newCat].count = (preview.categories[newCat].count || 0) + 1;
+        debug('counts changed:', originCat, beforeOld, '->', preview.categories[originCat]?.count || 0, '|', newCat, beforeNew, '->', preview.categories[newCat]?.count || 0);
+        // 移动DOM元素（使用最新容器，避免在重新渲染后追加到过期节点）
+        const cc = getCategoriesContainer();
+        if (!cc) { debug('move skipped, container missing'); cleanup(); return; }
+        // 如果目标分类区块不存在（可能因初始渲染过滤 count=0），先创建
+        if (!cc.querySelector(`.category-block[data-cat-name="${esc(newCat)}"]`)) {
+          ensureCategorySection(newCat);
+        }
+        const oldSection = cc.querySelector(`.category-block[data-cat-name="${esc(originCat)}"] .list`);
+        const newSection = cc.querySelector(`.category-block[data-cat-name="${esc(newCat)}"] .list`);
+        debug('sections exist:', { old: !!oldSection, new: !!newSection });
+        if (newSection) newSection.appendChild(li);
+        li.setAttribute('data-current', newCat);
+        debug('li moved and data-current set to:', newCat);
+        updateBadge(originCat);
+        updateBadge(newCat);
+        // 若旧分类计数为0，与初始渲染规则保持一致，移除该分类区块
+        const originItem = cc.querySelector(`.category-block[data-cat-name="${esc(originCat)}"]`);
+        if (originItem && ((preview.categories[originCat]?.count || 0) === 0)) {
+          originItem.parentNode && originItem.parentNode.removeChild(originItem);
+          debug('origin category section removed due to zero count:', originCat);
+        }
+        // 更新摘要：其他<->其他之间的移动影响"拟分类"计数
+        const otherName = '其他';
+        if (originCat === otherName && newCat !== otherName) {
+          preview.classified = (preview.classified || 0) + 1;
+        } else if (originCat !== otherName && newCat === otherName) {
+          preview.classified = Math.max(0, (preview.classified || 0) - 1);
+        }
+        rebuildSummary();
+        debug('rebuildSummary classified:', preview.classified);
+        cleanup();
+      });
+    };
+    // 其余逻辑由事件委托处理
+  }
+
+  // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
+  async backupBookmarks() {
+    try {
+      const btn = document.getElementById('quickBackupBtn');
+      const original = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> 备份中...';
+      }
+
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        const bookmarkTree = await chrome.bookmarks.getTree();
+        const htmlContent = this.generateChromeBookmarkHTML(bookmarkTree);
+        const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const filename = `bookmarks_${new Date().toISOString().split('T')[0].replace(/-/g, '')}.html`;
+        await chrome.downloads.download({ url, filename, saveAs: true });
+        URL.revokeObjectURL(url);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+
+      this.showMessage('备份导出成功', 'success');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    } catch (error) {
+      console.error('备份失败:', error);
+      this.showMessage('备份失败，请重试', 'error');
+      const btn = document.getElementById('quickBackupBtn');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '💾 备份书签';
+      }
+    }
+  }
+
+  generateChromeBookmarkHTML(bookmarkTree) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    let html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<!-- This is an automatically generated file.
+     It will be read and overwritten.
+     DO NOT EDIT! -->
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+
+<DL><p>
+`;
+
+    if (bookmarkTree && bookmarkTree.length > 0) {
+      const rootNode = bookmarkTree[0];
+      if (rootNode.children) {
+        for (const child of rootNode.children) {
+          html += this.processBookmarkNode(child, 1, timestamp);
+        }
+      }
+    }
+
+    html += `</DL><p>
+`;
+    return html;
+  }
+
+  processBookmarkNode(node, depth, defaultTimestamp) {
+    const indent = '    '.repeat(depth);
+    let html = '';
+
+    if (node.children) {
+      const addDate = node.dateAdded ? Math.floor(node.dateAdded / 1000) : defaultTimestamp;
+      const lastModified = node.dateGroupModified ? Math.floor(node.dateGroupModified / 1000) : defaultTimestamp;
+      html += `${indent}<DT><H3 ADD_DATE="${addDate}" LAST_MODIFIED="${lastModified}">${this.escapeHtml(node.title || '未命名文件夹')}</H3>\n`;
+      html += `${indent}<DL><p>\n`;
+      for (const child of node.children) {
+        html += this.processBookmarkNode(child, depth + 1, defaultTimestamp);
+      }
+      html += `${indent}</DL><p>\n`;
+    } else if (node.url) {
+      const addDate = node.dateAdded ? Math.floor(node.dateAdded / 1000) : defaultTimestamp;
+      const icon = node.icon || '';
+      html += `${indent}<DT><A HREF="${this.escapeHtml(node.url)}" ADD_DATE="${addDate}"`;
+      if (icon) {
+        html += ` ICON_URI="${this.escapeHtml(icon)}"`;
+      }
+      html += `>${this.escapeHtml(node.title || node.url)}</A>\n`;
+    }
+
+    return html;
+  }
+
+  // 二次备份确认对话框（统一弹窗样式）
+  async showBackupConfirmDialog() {
+    const title = window.I18n ? (window.I18n.t('organize.backup.title') || window.I18n.t('organize.before') || '开始整理前') : '开始整理前';
+    const message = window.I18n
+      ? (window.I18n.t('organize.backup.messageHtml') || window.I18n.t('organize.backup.message') || '建议在整理前先备份书签，以防数据丢失。<br>是否要先备份书签？')
+      : '建议在整理前先备份书签，以防数据丢失。<br>是否要先备份书签？';
+    const okText = window.I18n ? (window.I18n.t('organize.backup.ok') || window.I18n.t('modal.confirm') || '先备份') : '先备份';
+    const cancelText = window.I18n ? (window.I18n.t('organize.backup.skip') || window.I18n.t('modal.cancel') || '跳过备份') : '跳过备份';
+    const ok = await this.showConfirmDialog({ title, message, okText, cancelText });
+    return !!ok;
   }
 
   // 切换标签
@@ -1168,8 +1792,14 @@ class OptionsManager {
   }
 
   // 删除规则
-  deleteRule(index) {
-    if (confirm('确定要删除这个分类规则吗？')) {
+  async deleteRule(index) {
+    const ok = await this.showConfirmDialog({
+      title: '删除规则',
+      message: '确定要删除这个分类规则吗？',
+      okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
+      cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
+    });
+    if (ok) {
       this.classificationRules.splice(index, 1);
       this.settings.classificationRules = this.classificationRules;
       this.saveSettings();
@@ -1178,8 +1808,14 @@ class OptionsManager {
   }
 
   // 重置为默认规则
-  resetToDefaultRules() {
-    if (confirm('确定要重置为默认分类规则吗？这将覆盖所有现有规则。')) {
+  async resetToDefaultRules() {
+    const ok = await this.showConfirmDialog({
+      title: '重置规则',
+      message: '确定要重置为默认分类规则吗？这将覆盖所有现有规则。',
+      okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
+      cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
+    });
+    if (ok) {
       this.classificationRules = this.getDefaultRules();
       this.settings.classificationRules = this.classificationRules;
       this.saveSettings();
@@ -1311,7 +1947,13 @@ class OptionsManager {
           throw new Error('无效的备份文件格式');
         }
 
-        if (confirm('导入备份将覆盖当前所有书签和设置，确定要继续吗？')) {
+        const ok = await this.showConfirmDialog({
+          title: '导入备份',
+          message: '导入备份将覆盖当前所有书签和设置，确定要继续吗？',
+          okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
+          cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
+        });
+        if (ok) {
           // 这里应该实现实际的导入逻辑
           // 由于Chrome扩展API的限制，实际实现会更复杂
           this.showMessage('备份导入功能正在开发中', 'info');
@@ -1326,8 +1968,14 @@ class OptionsManager {
   }
 
   // 重置设置
-  resetSettings() {
-    if (confirm('确定要重置所有设置吗？这将恢复默认配置。')) {
+  async resetSettings() {
+    const ok = await this.showConfirmDialog({
+      title: '重置设置',
+      message: '确定要重置所有设置吗？这将恢复默认配置。',
+      okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
+      cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
+    });
+    if (ok) {
       chrome.storage.sync.clear(() => {
         location.reload();
       });
@@ -1374,6 +2022,63 @@ class OptionsManager {
         }
       }, 300);
     }, 3000);
+  }
+
+  // 统一确认弹窗（与插件样式一致）
+  showConfirmDialog({ title = '确认操作', message = '', okText = '确定', cancelText = '取消' } = {}) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById('confirmModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'confirmModal';
+        modal.className = 'modal-overlay';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+          <div class="modal-dialog">
+            <div class="modal-header">
+              <h3 class="modal-title" id="confirmTitle"></h3>
+              <button class="modal-close" id="confirmClose">&times;</button>
+            </div>
+            <div class="modal-body">
+              <div id="confirmMessage" style="color:#374151;line-height:1.6;"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-outline" id="confirmCancel"></button>
+              <button class="btn btn-primary" id="confirmOk"></button>
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+      }
+
+      const titleEl = modal.querySelector('#confirmTitle');
+      const msgEl = modal.querySelector('#confirmMessage');
+      const okBtn = modal.querySelector('#confirmOk');
+      const cancelBtn = modal.querySelector('#confirmCancel');
+      const closeBtn = modal.querySelector('#confirmClose');
+
+      titleEl.textContent = title;
+      msgEl.innerHTML = message;
+      okBtn.textContent = okText;
+      cancelBtn.textContent = cancelText;
+
+      const cleanup = () => {
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+        closeBtn.onclick = null;
+        modal.onclick = null;
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+      };
+
+      okBtn.onclick = () => { cleanup(); resolve(true); };
+      cancelBtn.onclick = () => { cleanup(); resolve(false); };
+      closeBtn.onclick = () => { cleanup(); resolve(false); };
+      modal.onclick = (e) => { if (e.target === modal) { cleanup(); resolve(false); } };
+
+      // 显示弹窗（需添加show类以触发CSS中的可见样式）
+      modal.style.display = 'flex';
+      setTimeout(() => modal.classList.add('show'), 10);
+    });
   }
 
   // 根据提供商更新模型选项
@@ -1548,3 +2253,4 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+// 预览样式已注入

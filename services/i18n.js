@@ -91,6 +91,7 @@
   const translations = {
     'tabs.general': { 'zh-CN': '关于', 'zh-TW': '關於', 'en': 'About', 'ru': 'О продукте' },
     'tabs.categories': { 'zh-CN': '分类规则', 'zh-TW': '分類規則', 'en': 'Category Rules', 'ru': 'Правила категорий' },
+    'tabs.organize': { 'zh-CN': '整理', 'zh-TW': '整理', 'en': 'Organize', 'ru': 'Упорядочить' },
     'tabs.ai': { 'zh-CN': 'AI 配置', 'zh-TW': 'AI 設定', 'en': 'AI Settings', 'ru': 'Настройки AI' },
     'tabs.help': { 'zh-CN': '帮助', 'zh-TW': '說明', 'en': 'Help', 'ru': 'Помощь' },
 
@@ -154,6 +155,7 @@
     'ai.concurrency.desc': { 'zh-CN': '同时进行的 AI 请求数，受服务速率限制影响（建议 ≤ 5）', 'zh-TW': '同時進行的 AI 請求數，受服務速率限制影響（建議 ≤ 5）', 'en': 'Concurrent AI requests; limited by provider rate (recommend ≤ 5)', 'ru': 'Число параллельных запросов; ограничено скоростью провайдера (рекомендуется ≤ 5)' },
     'ai.test.btn': { 'zh-CN': '🔗 测试连接', 'zh-TW': '🔗 測試連線', 'en': '🔗 Test Connection', 'ru': '🔗 Проверить соединение' },
     'ai.organize.btn': { 'zh-CN': '⚡ 自动整理', 'zh-TW': '⚡ 自動整理', 'en': '⚡ Auto Organize', 'ru': '⚡ Автосортировка' },
+    'ai.infer.btn': { 'zh-CN': '🤖 AI 全量归类', 'zh-TW': '🤖 AI 全量歸類', 'en': '🤖 AI Full Categorize', 'ru': '🤖 Полная категоризация AI' },
     'ai.organize.desc': { 'zh-CN': '基于当前配置直接执行自动整理（如启用 AI 将进行优化）', 'zh-TW': '基於目前設定直接執行自動整理（如啟用 AI 將進行優化）', 'en': 'Run auto organization with current settings (uses AI if enabled)', 'ru': 'Запустить автосортировку с текущими настройками (если включено, используется AI)' },
 
     // Preferences
@@ -165,6 +167,18 @@
     'pref.max.desc': { 'zh-CN': 'AI 建议的最大分类数量', 'zh-TW': 'AI 建議的最大分類數量', 'en': 'Max number of suggested categories', 'ru': 'Макс. число рекомендуемых категорий' },
 
     // Help content
+    'organize.header': { 'zh-CN': '🔧 整理操作', 'zh-TW': '🔧 整理操作', 'en': '🔧 Organize Actions', 'ru': '🔧 Действия упорядочивания' },
+    'organize.desc': { 'zh-CN': '在此执行书签整理操作：生成预览、AI 优化与确认移动。', 'zh-TW': '在此執行書籤整理：生成預覽、AI 優化與確認移動。', 'en': 'Run bookmark organizing: preview, AI optimization, and confirm moves.', 'ru': 'Организация закладок: предпросмотр, оптимизация AI и подтверждение.' },
+    'help.organize.header': { 'zh-CN': '🔧 使用整理功能', 'zh-TW': '🔧 使用整理功能', 'en': '🔧 Using Organize', 'ru': '🔧 Использование упорядочивания' },
+    'help.organize.desc': { 'zh-CN': '通过“整理”标签执行自动整理或 AI 全量归类，支持预览与确认。', 'zh-TW': '透過「整理」標籤執行自動整理或 AI 全量歸類，支援預覽與確認。', 'en': 'Use the Organize tab to run Auto Organize or AI Full Categorization with preview and confirmation.', 'ru': 'Во вкладке «Упорядочить» запускайте автосортировку или полную категоризацию AI с предпросмотром и подтверждением.' },
+    'help.organize.step1': { 'zh-CN': '点击“⚡ 自动整理”生成预览；如启用 AI，将进行二次优化。', 'zh-TW': '點擊「⚡ 自動整理」生成預覽；如啟用 AI，將進行二次優化。', 'en': 'Click “⚡ Auto Organize” to generate a preview; if AI is enabled, it refines results.', 'ru': 'Нажмите «⚡ Автосортировка» для предпросмотра; при включенном AI произойдет доработка.' },
+    'help.organize.step2': { 'zh-CN': '点击“🤖 AI 全量归类”推理新分类并预览，确认后执行移动。', 'zh-TW': '點擊「🤖 AI 全量歸類」推理新分類並預覽，確認後執行移動。', 'en': 'Click “🤖 AI Full Categorize” to infer categories and preview; confirm to move.', 'ru': 'Нажмите «🤖 Полная категоризация AI» для вывода категорий и предпросмотра; подтвердите перемещения.' },
+    'help.organize.step3': { 'zh-CN': '在确认弹窗中查看摘要与分类列表，确认后开始整理。', 'zh-TW': '在確認彈窗中查看摘要與分類列表，確認後開始整理。', 'en': 'Review summary and category list in the confirmation dialog, then proceed.', 'ru': 'Просмотрите сводку и список категорий в диалоге подтверждения, затем продолжите.' },
+    // AI Full Categorization global tips
+    'help.aiFull.header': { 'zh-CN': '🤖 AI 全量归类提示', 'zh-TW': '🤖 AI 全量歸類提示', 'en': '🤖 AI Full Categorization Tips', 'ru': '🤖 Подсказки полной категоризации AI' },
+    'help.aiFull.desc': { 'zh-CN': 'AI 全量归类会基于书签内容推理分类并生成预览，您可在预览中调整分类后确认执行移动。请先在「AI 分类助手」中配置服务与模型。', 'zh-TW': 'AI 全量歸類會依書籤內容推理分類並生成預覽，您可在預覽中調整分類後確認移動。請先於「AI 分類助理」設定服務與模型。', 'en': 'AI Full Categorization infers categories from bookmark content and generates a preview. Adjust categories in the preview, then confirm to move. Configure service and model under “AI Assistant”.', 'ru': 'Полная категоризация AI выводит категории по содержимому закладок и создаёт предпросмотр. Отредактируйте категории в нём, затем подтвердите перемещения. Настройте сервис и модель в «AI помощнике».' },
+    'help.aiFull.warn': { 'zh-CN': '建议在执行前先备份书签；该过程可能耗时，取决于书签数量与网络情况。', 'zh-TW': '建議在執行前先備份書籤；此過程可能耗時，取決於書籤數量與網路狀況。', 'en': 'Back up bookmarks before running. This may take time depending on bookmark count and network conditions.', 'ru': 'Рекомендуется сделать резервную копию перед запуском. Процесс может занять время, в зависимости от числа закладок и сети.' },
+    'help.aiFull.globalTip': { 'zh-CN': 'AI 归类预览已生成，请在下方调整后点击确认执行', 'zh-TW': 'AI 歸類預覽已生成，請於下方調整後點擊確認執行', 'en': 'AI preview generated. Adjust below and click Confirm to execute.', 'ru': 'Предпросмотр AI создан. Отредактируйте ниже и нажмите «Подтвердить» для выполнения.' },
     'help.import.header': { 'zh-CN': '📥 导入书签', 'zh-TW': '📥 匯入書籤', 'en': '📥 Import Bookmarks', 'ru': '📥 Импорт закладок' },
     'help.import.desc': { 'zh-CN': '如需恢复或导入书签，请使用浏览器自带的导入功能：', 'zh-TW': '如需恢復或匯入，請使用瀏覽器內建匯入功能：', 'en': 'To restore or import, use the browser’s import feature:', 'ru': 'Для восстановления или импорта используйте функцию браузера:' },
     'help.import.step1': { 'zh-CN': '打开 Chrome 设置 → 书签 → 导入书签和设置', 'zh-TW': '打開 Chrome 設定 → 書籤 → 匯入書籤與設定', 'en': 'Open Chrome Settings → Bookmarks → Import bookmarks and settings', 'ru': 'Откройте Настройки Chrome → Закладки → Импорт закладок и настроек' },
@@ -221,6 +235,13 @@
     'preview.clickHint': { 'zh-CN': '点击书签切换分类', 'zh-TW': '點擊書籤切換分類', 'en': 'Click bookmark to switch category', 'ru': 'Нажмите на закладку, чтобы сменить категорию' },
     'preview.cancel': { 'zh-CN': '取消', 'zh-TW': '取消', 'en': 'Cancel', 'ru': 'Отмена' },
     'preview.confirm': { 'zh-CN': '确认整理', 'zh-TW': '確認整理', 'en': 'Confirm Organize', 'ru': 'Подтвердить сортировку' },
+
+    // Organize backup confirm
+    'organize.backup.title': { 'zh-CN': '开始整理前', 'zh-TW': '開始整理前', 'en': 'Before organizing', 'ru': 'Перед упорядочиванием' },
+    'organize.backup.message': { 'zh-CN': '建议在整理前先备份书签，以防数据丢失。是否要先备份书签？', 'zh-TW': '建議在整理前先備份書籤，以防資料遺失。是否要先備份書籤？', 'en': 'We recommend backing up bookmarks before organizing to prevent data loss. Backup now?', 'ru': 'Рекомендуем сделать резервную копию закладок перед упорядочиванием, чтобы избежать потери данных. Сделать резервную копию сейчас?' },
+    'organize.backup.messageHtml': { 'zh-CN': '建议在整理前先备份书签，以防数据丢失。<br>是否要先备份书签？', 'zh-TW': '建議在整理前先備份書籤，以防資料遺失。<br>是否要先備份書籤？', 'en': 'We recommend backing up bookmarks before organizing to prevent data loss.<br>Backup now?', 'ru': 'Рекомендуем сделать резервную копию закладок перед упорядочиванием, чтобы избежать потери данных.<br>Сделать резервную копию сейчас?' },
+    'organize.backup.ok': { 'zh-CN': '先备份', 'zh-TW': '先備份', 'en': 'Backup first', 'ru': 'Сначала резервная копия' },
+    'organize.backup.skip': { 'zh-CN': '跳过备份', 'zh-TW': '跳過備份', 'en': 'Skip backup', 'ru': 'Пропустить резервирование' },
 
     // Picker modal
     'preview.pickCategory': { 'zh-CN': '选择分类', 'zh-TW': '選擇分類', 'en': 'Pick Category', 'ru': 'Выберите категорию' },

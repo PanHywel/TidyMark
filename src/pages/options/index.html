@@ -12,7 +12,7 @@
     <header class="header">
       <div class="logo">
         <img src="../../../icons/icon32.svg" alt="TidyMark">
-        <h1>TidyMark 设置</h1>
+        <h1>TidyMark</h1>
       </div>
       <div class="header-right">
         <div class="version">v1.0.0</div>
@@ -29,34 +29,18 @@
 
     <!-- 导航标签 -->
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="general" data-i18n="tabs.general">关于</button>
+      <button class="tab-btn active" data-tab="organize">整理</button>
       <button class="tab-btn" data-tab="categories" data-i18n="tabs.categories">分类规则</button>
       <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 配置</button>
       <button class="tab-btn" data-tab="deadlinks" data-i18n="tabs.dead">失效书签</button>
+      <button class="tab-btn" data-tab="general">导航</button>
       <button class="tab-btn" data-tab="backup" data-i18n="tabs.help">帮助</button>
     </nav>
 
     <!-- 常规设置 -->
-    <section class="tab-content active" id="general">
+    <section class="tab-content" id="general">
       <div class="section">
-        <h2 data-i18n="tabs.general">关于</h2>
-        <div class="about-content">
-          <p data-i18n="about.intro">TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。</p>
-          <div class="feature-list">
-            <div class="feature-item">
-              <h4 data-i18n="about.features.smart">🔄 智能整理</h4>
-              <p data-i18n="about.features.smart.desc">基于网站内容和用户习惯自动分类书签</p>
-            </div>
-            <div class="feature-item">
-              <h4 data-i18n="about.features.backup">💾 安全备份</h4>
-              <p data-i18n="about.features.backup.desc">支持一键备份，保护您的书签数据</p>
-            </div>
-            <div class="feature-item">
-              <h4 data-i18n="about.features.rules">🎯 自定义规则</h4>
-              <p data-i18n="about.features.rules.desc">创建个性化分类规则，满足不同需求</p>
-            </div>
-          </div>
-        </div>
+        <h2>导航</h2>
       </div>
 
       <div class="section">
@@ -143,8 +127,6 @@
         <div class="section-header">
           <h2 data-i18n="rules.header">分类规则管理</h2>
           <div class="section-actions">
-            <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
-            <span class="action-status" id="organizeStatus" style="font-size:13px;color:#64748b;"></span>
             <button class="btn btn-primary" id="addRule" data-i18n="rules.add">添加规则</button>
             <button class="btn btn-secondary" id="resetRules" data-i18n="rules.reset">重置为默认</button>
           </div>
@@ -166,6 +148,27 @@
         </div>
       </div>
     </section>
+
+    <!-- 整理操作 -->
+    <section class="tab-content active" id="organize">
+      <div class="section">
+        <div class="section-header">
+          <h2>🔧 整理操作</h2>
+      <div class="section-actions">
+        <button class="btn btn-outline" id="quickBackupBtn">💾 备份书签</button>
+        <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
+        <button class="btn btn-outline" id="aiInferOrganizeBtn" data-i18n="ai.infer.btn">🤖 AI 全量归类</button>
+      </div>
+    </div>
+    <div class="section-description">
+      <p data-i18n="organize.desc">在此执行书签整理操作：生成预览、AI 优化与确认移动。</p>
+    </div>
+    
+
+    <!-- 预览内容内嵌容器 -->
+    <div id="organizePreview" class="organize-preview" aria-live="polite"></div>
+  </div>
+</section>
 
     <!-- AI 配置 -->
     <section class="tab-content" id="ai">
@@ -321,7 +324,38 @@
         </div>
         
         <div class="data-management-grid">
-          
+          <div class="info-card">
+            <div class="card-header">
+              <h3 data-i18n="help.organize.header">🔧 使用整理功能</h3>
+            </div>
+            <div class="card-content">
+              
+              <div class="steps-list">
+                <div class="step-item">
+                  <span class="step-number">1</span>
+                  <span class="step-text" data-i18n="help.organize.step1">点击“⚡ 自动整理”生成预览；如启用 AI，将进行二次优化。</span>
+                </div>
+                <div class="step-item">
+                  <span class="step-number">2</span>
+                  <span class="step-text" data-i18n="help.organize.step2">点击“🤖 AI 全量归类”推理新分类并预览，确认后执行移动。</span>
+                </div>
+                <div class="step-item">
+                  <span class="step-number">3</span>
+                  <span class="step-text" data-i18n="help.organize.step3">在确认弹窗中查看摘要与分类列表，确认后开始整理。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="card-header">
+              <h3 data-i18n="help.aiFull.header">🤖 AI 全量归类提示</h3>
+            </div>
+            <div class="card-content">
+              <p data-i18n="help.aiFull.desc">AI 全量归类会基于书签内容推理分类并生成预览，您可在预览中调整分类后确认执行移动。请先在「AI 分类助手」中配置服务与模型。</p>
+              <p class="warning-text" data-i18n="help.aiFull.warn">建议在执行前先备份书签；该过程可能耗时，取决于书签数量与网络情况。</p>
+            </div>
+          </div>
 
           <div class="info-card">
             <div class="card-header">
@@ -369,6 +403,30 @@
               <div class="reset-actions">
                 <button class="btn btn-outline btn-danger" id="resetData" data-i18n="help.reset.btn">清除分类数据</button>
                 <p class="warning-text" data-i18n="help.reset.warn">⚠️ 这将清除所有自定义分类规则，但不会影响浏览器书签</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="info-card">
+          <div class="card-header">
+            <h3>📘 关于 TidyMark</h3>
+          </div>
+          <div class="card-content">
+            <div class="about-content">
+              <p>TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。</p>
+              <div class="feature-list">
+                <div class="feature-item">
+                  <h4>🔄 智能整理</h4>
+                  <p>基于网站内容和用户习惯自动分类书签</p>
+                </div>
+                <div class="feature-item">
+                  <h4>💾 安全备份</h4>
+                  <p>支持一键备份，保护您的书签数据</p>
+                </div>
+                <div class="feature-item">
+                  <h4>🎯 自定义规则</h4>
+                  <p>创建个性化分类规则，满足不同需求</p>
+                </div>
               </div>
             </div>
           </div>

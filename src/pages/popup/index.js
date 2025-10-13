@@ -640,6 +640,8 @@ class PopupManager {
   // 展示整理预览并进行二次确认（预留手动调整入口）
   async showOrganizePreviewDialog(preview) {
     return new Promise((resolve) => {
+      const DEBUG_PICKER = true; // 开启调试日志
+      const debug = (...args) => { if (DEBUG_PICKER) console.log('[PreviewPicker]', ...args); };
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       let categoryNames = Object.keys(preview.categories || {});
@@ -691,6 +693,7 @@ class PopupManager {
         </div>`;
 
       document.body.appendChild(modal);
+      debug('init modal, categories:', Object.fromEntries(Object.entries(preview.categories || {}).map(([n, d]) => [n, d?.count || 0])));
 
       const close = () => { document.body.removeChild(modal); };
       modal.querySelector('#previewClose').addEventListener('click', () => { close(); resolve(false); });
@@ -716,6 +719,7 @@ class PopupManager {
 
       // 点击书签弹出小选择框（事件委托）
       const categoriesContainer = modal.querySelector('#previewCategories');
+      const esc = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : String(s).replace(/["'\\]/g, '\\$&'));
       const rebuildSummary = () => {
         const summaryEl = modal.querySelector('.preview-summary');
         if (summaryEl) {
@@ -723,18 +727,20 @@ class PopupManager {
             ? window.I18n.tf('preview.summary', { total: preview.total, classified: preview.classified })
             : `共 ${preview.total} 个书签，拟分类 ${preview.classified} 个，其余将归入“其他”（如存在）。`;
           summaryEl.textContent = text;
+          debug('rebuildSummary classified:', preview.classified);
         }
       };
       const updateBadge = (catName) => {
-        const item = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${catName}"]`);
+        const item = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(catName)}"]`);
         const badge = item?.querySelector('.badge');
         if (badge) {
           const count = preview.categories[catName]?.count || 0;
           badge.textContent = `${count} 个`;
+          debug('updateBadge:', catName, '=>', count);
         }
       };
       const ensureCategorySection = (catName) => {
-        if (categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${catName}"]`)) return;
+        if (categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(catName)}"]`)) { debug('ensureCategorySection exists:', catName); return; }
         const translatedName = window.I18n ? window.I18n.translateCategoryByName(catName) : catName;
         const div = document.createElement('div');
         div.className = 'category-preview-item';
@@ -747,11 +753,23 @@ class PopupManager {
           <ul class="bookmark-list-preview"></ul>
         `;
         categoriesContainer.appendChild(div);
+        debug('ensureCategorySection created:', catName);
+      };
+
+      // 当 preview.details 缺失或不包含该书签时，回退到分类列表中查找
+      const findBookmarkInPreview = (id) => {
+        for (const [cat, data] of Object.entries(preview.categories || {})) {
+          const list = data?.bookmarks || [];
+          const bm = list.find(b => String(b.id) === String(id));
+          if (bm) return { bookmark: bm, cat };
+        }
+        return null;
       };
 
       const openPicker = (li) => {
         const id = li.getAttribute('data-id');
         const oldCat = li.getAttribute('data-current');
+        debug('openPicker for id:', id, 'oldCat:', oldCat);
         const rect = li.getBoundingClientRect();
         const pop = document.createElement('div');
         pop.className = 'picker-popover';
@@ -797,6 +815,7 @@ class PopupManager {
         pop.querySelector('.picker-apply').addEventListener('click', () => {
           const sel = pop.querySelector('.picker-select');
           let newCat = sel.value;
+          debug('apply click, selected newCat:', newCat);
           if (newCat === '__new__') {
             const inputName = window.prompt(window.I18n ? (window.I18n.t('preview.inputNewCategory') || '请输入新分类名') : '请输入新分类名');
             if (!inputName) return;
@@ -809,36 +828,66 @@ class PopupManager {
             if (!categoryNames.includes(newCat)) {
               categoryNames.push(newCat);
             }
+            debug('new category created via picker:', newCat);
           }
           if (newCat === oldCat) { cleanup(); return; }
 
+          // 优先使用 details；若缺失则回退到 categories 列表中查找
+          let bookmark = null;
+          let originCat = oldCat;
           const detail = (preview.details || []).find(d => String(d.bookmark?.id) === String(id));
-          if (!detail) { cleanup(); return; }
-          const bookmark = detail.bookmark;
-          detail.category = newCat;
+          debug('detail found:', !!detail, 'detail.category:', detail?.category);
+          if (detail && detail.bookmark) {
+            bookmark = detail.bookmark;
+            originCat = detail.category || oldCat;
+            detail.category = newCat;
+          } else {
+            const found = findBookmarkInPreview(id);
+            debug('findBookmarkInPreview result:', found ? { cat: found.cat } : null);
+            if (!found) { cleanup(); return; }
+            bookmark = found.bookmark;
+            originCat = found.cat || oldCat;
+          }
+          debug('originCat:', originCat, '-> newCat:', newCat);
 
-          if (preview.categories[oldCat]) {
-            preview.categories[oldCat].bookmarks = (preview.categories[oldCat].bookmarks || []).filter(b => String(b.id) !== String(id));
-            preview.categories[oldCat].count = Math.max(0, (preview.categories[oldCat].count || 1) - 1);
+          const beforeOld = preview.categories[originCat]?.count || 0;
+          const beforeNew = preview.categories[newCat]?.count || 0;
+          if (preview.categories[originCat]) {
+            preview.categories[originCat].bookmarks = (preview.categories[originCat].bookmarks || []).filter(b => String(b.id) !== String(id));
+            preview.categories[originCat].count = Math.max(0, (preview.categories[originCat].count || 1) - 1);
           }
           if (!preview.categories[newCat]) {
             preview.categories[newCat] = { count: 0, bookmarks: [] };
-            ensureCategorySection(newCat);
           }
           preview.categories[newCat].bookmarks.push(bookmark);
           preview.categories[newCat].count = (preview.categories[newCat].count || 0) + 1;
+          debug('counts changed:', originCat, beforeOld, '->', preview.categories[originCat]?.count || 0, '|', newCat, beforeNew, '->', preview.categories[newCat]?.count || 0);
 
-          const oldSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${oldCat}"] .bookmark-list-preview`);
-          const newSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${newCat}"] .bookmark-list-preview`);
+          // 确保新分类的DOM节点存在（即使该分类在初始渲染时count为0被过滤掉）
+          if (!categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(newCat)}"]`)) {
+            ensureCategorySection(newCat);
+          }
+
+          const oldSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(originCat)}"] .bookmark-list-preview`);
+          const newSection = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(newCat)}"] .bookmark-list-preview`);
+          debug('sections exist:', { old: !!oldSection, new: !!newSection });
           if (newSection) newSection.appendChild(li);
           li.setAttribute('data-current', newCat);
-          updateBadge(oldCat);
+          debug('li moved and data-current set to:', newCat);
+          updateBadge(originCat);
           updateBadge(newCat);
 
+          // 若旧分类计数为0，与初始预览的过滤规则保持一致，移除该分类区块
+          const originItem = categoriesContainer.querySelector(`.category-preview-item[data-cat-name="${esc(originCat)}"]`);
+          if (originItem && ((preview.categories[originCat]?.count || 0) === 0)) {
+            originItem.parentNode && originItem.parentNode.removeChild(originItem);
+            debug('origin category section removed due to zero count:', originCat);
+          }
+
           const otherName = '其他';
-          if (oldCat === otherName && newCat !== otherName) {
+          if (originCat === otherName && newCat !== otherName) {
             preview.classified = (preview.classified || 0) + 1;
-          } else if (oldCat !== otherName && newCat === otherName) {
+          } else if (originCat !== otherName && newCat === otherName) {
             preview.classified = Math.max(0, (preview.classified || 0) - 1);
           }
           rebuildSummary();
