@@ -21,8 +21,8 @@
 
 ## 界面截图
 
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="导航页" width="700"></a>
-<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="设置" width="400"></a>
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="导航页" width="900"></a>
+<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="设置" width="600"></a>
 
 — 仅保留核心信息，更多细节请参考源码与注释。
 
@@ -49,8 +49,8 @@ A lightweight Chrome/Edge extension for auto categorization, AI-assisted organiz
 
 ## Screenshots
 
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="700"></a>
-<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="400"></a>
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="900"></a>
+<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="600"></a>
 
 — Minimal info only. See source/comments for details.
 

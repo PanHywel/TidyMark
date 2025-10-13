@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.4 — 2025-10-13
+
+- New Tab: header glass overlay now follows content width with 8px side padding for better aesthetics and readability on wallpapers.
+- No functional changes; README unchanged.
+
 ## v1.4.3 — 2025-10-13
 
 - Options: restore AI connectivity “测试链接” button and inline result.
