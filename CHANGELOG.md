@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.3.7 — 2025-10-13
+## v1.4.3 — 2025-10-13
 
 - Options: restore AI connectivity “测试链接” button and inline result.
 - Options: change “🤖 AI 全量归类” to accent primary style for parity with “⚡ 自动整理”.
