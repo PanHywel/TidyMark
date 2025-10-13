@@ -43,6 +43,34 @@
     'https://60s.7se.cn'
   ];
 
+  // 60s 首选可用域名缓存键
+  const SIXTY_PREF_KEY = 'sixty_preferred_instance_v1';
+
+  async function getPreferredSixtyInstance() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([SIXTY_PREF_KEY]);
+        const v = obj[SIXTY_PREF_KEY];
+        if (typeof v === 'string' && v) return v;
+      } else if (typeof localStorage !== 'undefined') {
+        const v = localStorage.getItem(SIXTY_PREF_KEY);
+        if (typeof v === 'string' && v) return v;
+      }
+    } catch {}
+    return null;
+  }
+
+  async function setPreferredSixtyInstance(base) {
+    try {
+      if (!base || typeof base !== 'string') return;
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [SIXTY_PREF_KEY]: base });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(SIXTY_PREF_KEY, base);
+      }
+    } catch {}
+  }
+
   async function getCachedWallpaper() {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -369,7 +397,34 @@
 
   async function fetchSixtyData(signal) {
     let lastErr;
-    for (const base of SIXTY_INSTANCES) {
+    // 构造候选列表，优先尝试上次成功的实例
+    const candidates = [...SIXTY_INSTANCES];
+    try {
+      const preferred = await getPreferredSixtyInstance();
+      if (preferred && candidates.includes(preferred)) {
+        try {
+          const url = `${preferred}/v2/60s`;
+          const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+          if (!resp.ok) throw new Error(`60s 服务返回状态 ${resp.status}`);
+          const json = await resp.json();
+          if (!json || typeof json !== 'object') throw new Error('60s 响应非JSON');
+          if (json.code !== 200) throw new Error(`60s 服务错误码 ${json.code}`);
+          const d = json.data || {};
+          if (!Array.isArray(d.news)) d.news = [];
+          // 成功后维持首选实例
+          await setPreferredSixtyInstance(preferred);
+          return d;
+        } catch (e) {
+          lastErr = e;
+          // 失败则从候选中移除，继续尝试其它实例
+          const idx = candidates.indexOf(preferred);
+          if (idx >= 0) candidates.splice(idx, 1);
+        }
+      }
+    } catch {}
+
+    // 回退尝试其余实例
+    for (const base of candidates) {
       try {
         const url = `${base}/v2/60s`;
         const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
@@ -379,6 +434,8 @@
         if (json.code !== 200) throw new Error(`60s 服务错误码 ${json.code}`);
         const d = json.data || {};
         if (!Array.isArray(d.news)) d.news = [];
+        // 记录新的首选实例
+        await setPreferredSixtyInstance(base);
         return d;
       } catch (e) {
         lastErr = e;
