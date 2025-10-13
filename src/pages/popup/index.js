@@ -1218,13 +1218,13 @@ class PopupManager {
         const ver = chrome.runtime.getManifest().version;
         if (ver) return setText(ver);
       }
-      // 预览/非扩展环境：尝试读取本地 manifest.json
-      fetch('manifest.json')
+      // 预览/非扩展环境：从根路径读取 manifest.json
+      fetch('/manifest.json')
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(m => setText(m?.version || ''))
-        .catch(() => setText('1.0.0'));
+        .catch(() => setText(''));
     } catch (e) {
-      setText('1.0.0');
+      setText('');
     }
   }
 }

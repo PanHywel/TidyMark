@@ -223,7 +223,7 @@
     'help.reset.warn': { 'zh-CN': '⚠️ 这将清除所有自定义分类规则，但不会影响浏览器书签', 'zh-TW': '⚠️ 這將清除所有自訂分類規則，但不影響瀏覽器書籤', 'en': '⚠️ This clears custom rules but not browser bookmarks', 'ru': '⚠️ Удаляет правила, но не затрагивает закладки браузера' },
 
     // Footer
-    'footer.app': { 'zh-CN': 'TidyMark - 智能书签管理扩展 v1.0.0', 'zh-TW': 'TidyMark - 智慧書籤管理擴充 v1.0.0', 'en': 'TidyMark - Smart Bookmark Manager v1.0.0', 'ru': 'TidyMark — менеджер закладок v1.0.0' },
+    'footer.app': { 'zh-CN': 'TidyMark - 智能书签管理扩展', 'zh-TW': 'TidyMark - 智慧書籤管理擴充', 'en': 'TidyMark - Smart Bookmark Manager', 'ru': 'TidyMark — менеджер закладок' },
     'footer.autosave': { 'zh-CN': '设置会自动保存，无需手动操作', 'zh-TW': '設定會自動儲存，無需手動操作', 'en': 'Settings auto-save, no manual action needed', 'ru': 'Настройки сохраняются автоматически' },
 
     // Rule modal

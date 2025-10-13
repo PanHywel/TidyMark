@@ -2894,12 +2894,12 @@ class OptionsManager {
           setFooter(ver);
         })
         .catch(() => {
-          setHeader('1.0.0');
-          setFooter('1.0.0');
+          setHeader('');
+          setFooter('');
         });
     } catch (e) {
-      setHeader('1.0.0');
-      setFooter('1.0.0');
+      setHeader('');
+      setFooter('');
     }
   }
 }
