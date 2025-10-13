@@ -1,6 +1,12 @@
 // newtab.js - 简洁导航页逻辑
 
 (async function () {
+  // 访问统计与热门栏目配置
+  let visitStats = { byCategory: {}, byBookmark: {}, lastByBookmark: {} };
+  let navShowTopVisited = false;
+  let navTopVisitedCount = 10;
+  let categoriesMapCache = null;
+
   const elTime = document.getElementById('current-time');
   const elForm = document.getElementById('search-form');
   const elInput = document.getElementById('search-input');
@@ -15,6 +21,7 @@
   const elWallpaperBtn = document.getElementById('wallpaper-toggle-btn');
   // 书签展示由配置控制；不再使用顶部按钮
   const elBookmarksPlaceholder = document.getElementById('bookmarks-placeholder');
+  const elMain = document.querySelector('.main');
   // 60s 读懂世界
   const elSixty = document.getElementById('sixty-seconds');
   const elSixtyBody = document.getElementById('sixty-body');
@@ -200,6 +207,10 @@
   await loadWallpaperPreference();
   await loadWallpaper();
 
+  // 加载热门栏目配置与访问统计
+  await loadTopVisitedPreference();
+  await loadVisitStats();
+
   // 书签列表是否展示（默认不展示）
   function applyShowBookmarks(show) {
     const visible = !!show;
@@ -238,6 +249,10 @@
       if (area === 'sync' && changes.sixtySecondsEnabled) {
         applySixtyEnabled(!!changes.sixtySecondsEnabled.newValue);
       }
+      // 透明度变化：搜索框、书签框、60s、热门栏目
+      if (area === 'sync' && (changes.searchUnfocusedOpacity || changes.bookmarksUnfocusedOpacity || changes.sixtyUnfocusedOpacity || changes.topVisitedUnfocusedOpacity)) {
+        loadOpacityPreferences();
+      }
     });
   }
   // 监听本地存储变化（同源预览环境）
@@ -262,6 +277,9 @@
         applySixtyEnabled(val);
       } catch {}
     }
+    if (e.key === 'searchUnfocusedOpacity' || e.key === 'bookmarksUnfocusedOpacity' || e.key === 'sixtyUnfocusedOpacity' || e.key === 'topVisitedUnfocusedOpacity') {
+      loadOpacityPreferences();
+    }
   });
 
   // 加载非聚焦透明度偏好并应用到页面（分离：搜索框与书签框）
@@ -269,19 +287,23 @@
     let sVal = 0.86;
     let bVal = 0.86;
     let xVal = 0.86; // 60s栏目透明度
+    let tVal = 0.86; // 热门栏目透明度
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
-        const { searchUnfocusedOpacity, bookmarksUnfocusedOpacity, sixtyUnfocusedOpacity } = await chrome.storage.sync.get(['searchUnfocusedOpacity','bookmarksUnfocusedOpacity','sixtyUnfocusedOpacity']);
+        const { searchUnfocusedOpacity, bookmarksUnfocusedOpacity, sixtyUnfocusedOpacity, topVisitedUnfocusedOpacity } = await chrome.storage.sync.get(['searchUnfocusedOpacity','bookmarksUnfocusedOpacity','sixtyUnfocusedOpacity','topVisitedUnfocusedOpacity']);
         const sNum = typeof searchUnfocusedOpacity === 'string' ? parseFloat(searchUnfocusedOpacity) : searchUnfocusedOpacity;
         const bNum = typeof bookmarksUnfocusedOpacity === 'string' ? parseFloat(bookmarksUnfocusedOpacity) : bookmarksUnfocusedOpacity;
         const xNum = typeof sixtyUnfocusedOpacity === 'string' ? parseFloat(sixtyUnfocusedOpacity) : sixtyUnfocusedOpacity;
+        const tNum = typeof topVisitedUnfocusedOpacity === 'string' ? parseFloat(topVisitedUnfocusedOpacity) : topVisitedUnfocusedOpacity;
         if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
         if (Number.isFinite(bNum) && bNum >= 0.6 && bNum <= 1) bVal = bNum;
         if (Number.isFinite(xNum) && xNum >= 0.6 && xNum <= 1) xVal = xNum;
+        if (Number.isFinite(tNum) && tNum >= 0.6 && tNum <= 1) tVal = tNum;
       } else if (typeof localStorage !== 'undefined') {
         const sRaw = localStorage.getItem('searchUnfocusedOpacity');
         const bRaw = localStorage.getItem('bookmarksUnfocusedOpacity');
         const xRaw = localStorage.getItem('sixtyUnfocusedOpacity');
+        const tRaw = localStorage.getItem('topVisitedUnfocusedOpacity');
         if (sRaw) {
           const sNum = parseFloat(sRaw.replace(/^"|"$/g, ''));
           if (Number.isFinite(sNum) && sNum >= 0.6 && sNum <= 1) sVal = sNum;
@@ -294,11 +316,16 @@
           const xNum = parseFloat(xRaw.replace(/^"|"$/g, ''));
           if (Number.isFinite(xNum) && xNum >= 0.6 && xNum <= 1) xVal = xNum;
         }
+        if (tRaw) {
+          const tNum = parseFloat(tRaw.replace(/^"|"$/g, ''));
+          if (Number.isFinite(tNum) && tNum >= 0.6 && tNum <= 1) tVal = tNum;
+        }
       }
     } catch {}
     document.documentElement.style.setProperty('--search-unfocused-opacity', String(sVal));
     document.documentElement.style.setProperty('--bookmarks-unfocused-opacity', String(bVal));
     document.documentElement.style.setProperty('--sixty-unfocused-opacity', String(xVal));
+    document.documentElement.style.setProperty('--top-visited-unfocused-opacity', String(tVal));
   }
   await loadOpacityPreferences();
 
@@ -789,7 +816,6 @@
   let themeMode = 'system';
   let categoryOrder = [];
   let allBookmarks = [];
-  const elMain = document.querySelector('.main');
   let inputDebounceTimer = null;
 
   async function loadCategoryOrder() {
@@ -1046,6 +1072,14 @@
     }
 
     renderCategories(categories);
+    categoriesMapCache = categories;
+    // 渲染热门栏目（如开启）
+    if (navShowTopVisited) {
+      renderTopVisitedCategories(categories);
+    } else {
+      const existingTop = document.getElementById('top-visited');
+      if (existingTop) existingTop.remove();
+    }
   }
 
   let dragSrcSection = null;
@@ -1113,6 +1147,14 @@
         link.href = item.url || '#';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        // 记录访问（点击时）
+        link.addEventListener('click', () => {
+          try {
+            const catName = title.textContent || '未分类';
+            const key = item.id || item.url || `${item.title}|${item.url}`;
+            recordVisit(catName, key);
+          } catch (_) {}
+        });
 
         const bullet = document.createElement('span');
         bullet.className = 'bullet';
@@ -1267,4 +1309,227 @@
       document.body.appendChild(section);
     }
   }
+
+  // ---- 访问统计与热门栏目 ----
+  async function loadVisitStats() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const { visitStats: vs } = await chrome.storage.local.get(['visitStats']);
+        if (vs && typeof vs === 'object') {
+          visitStats = {
+            byCategory: vs.byCategory || {},
+            byBookmark: vs.byBookmark || {},
+            lastByBookmark: vs.lastByBookmark || {}
+          };
+        }
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('visitStats');
+        if (raw) {
+          const vs = JSON.parse(raw);
+          visitStats = {
+            byCategory: vs.byCategory || {},
+            byBookmark: vs.byBookmark || {},
+            lastByBookmark: vs.lastByBookmark || {}
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('加载访问统计失败', e);
+    }
+  }
+
+  async function saveVisitStats() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ visitStats });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('visitStats', JSON.stringify(visitStats));
+      }
+    } catch (e) {
+      console.warn('保存访问统计失败', e);
+    }
+  }
+
+  function recordVisit(categoryName, bookmarkKey) {
+    const cat = String(categoryName || '未分类');
+    const key = String(bookmarkKey || '');
+    // 类目计数
+    visitStats.byCategory[cat] = (visitStats.byCategory[cat] || 0) + 1;
+    // 书签计数（可选）
+    if (key) visitStats.byBookmark[key] = (visitStats.byBookmark[key] || 0) + 1;
+    // 记录最近访问时间
+    if (key) visitStats.lastByBookmark[key] = Date.now();
+    saveVisitStats();
+    if (navShowTopVisited && categoriesMapCache) {
+      renderTopVisitedCategories(categoriesMapCache);
+    }
+  }
+
+  async function loadTopVisitedPreference() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
+        const { navShowTopVisited: showTop, navTopVisitedCount: topN } = await chrome.storage.sync.get(['navShowTopVisited','navTopVisitedCount']);
+        navShowTopVisited = !!showTop;
+        navTopVisitedCount = Number.isFinite(topN) ? Math.max(1, Math.min(50, Number(topN))) : 10;
+      } else if (typeof localStorage !== 'undefined') {
+        const showRaw = localStorage.getItem('navShowTopVisited');
+        const nRaw = localStorage.getItem('navTopVisitedCount');
+        navShowTopVisited = showRaw ? showRaw === 'true' : false;
+        navTopVisitedCount = nRaw ? Math.max(1, Math.min(50, Number(nRaw))) : 10;
+      }
+    } catch (e) {
+      navShowTopVisited = false;
+      navTopVisitedCount = 10;
+    }
+  }
+
+  function renderTopVisitedCategories(categoriesMap) {
+    try {
+      const existing = document.getElementById('top-visited');
+      if (existing) existing.remove();
+      const byCat = visitStats.byCategory || {};
+      const ROOTS = new Set([
+        '书签栏', 'Bookmarks bar', 'Bookmarks Bar',
+        '其他书签', 'Other bookmarks',
+        '移动设备书签', 'Mobile bookmarks'
+      ].map(s => s.toLowerCase()));
+      function formatCategory(path) {
+        const parts = String(path || '').split('/').filter(Boolean);
+        if (!parts.length) return '未分类';
+        if (ROOTS.has(parts[0].toLowerCase())) parts.shift();
+        return parts.join('/') || '未分类';
+      }
+      function resolveBookmark(key) {
+        for (const items of Object.values(categoriesMap || {})) {
+          for (const it of items) {
+            if (String(it.id) === String(key) || String(it.url) === String(key)) {
+              return it;
+            }
+          }
+        }
+        if (String(key).includes('|')) {
+          const [t, u] = String(key).split('|');
+          return { title: t || u || '未命名', url: u || '', parentPath: '' };
+        }
+        return { title: String(key), url: '', parentPath: '' };
+      }
+      const byBm = visitStats.byBookmark || {};
+      const bmEntries = Object.entries(byBm);
+      bmEntries.sort((a, b) => b[1] - a[1]);
+      const top = bmEntries.slice(0, navTopVisitedCount);
+
+      const section = document.createElement('section');
+      section.className = 'section';
+      section.id = 'top-visited';
+
+      const header = document.createElement('div');
+      header.className = 'section-header';
+      const headLeft = document.createElement('div');
+      headLeft.className = 'section-head-left';
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '🔥';
+      const title = document.createElement('div');
+      title.className = 'section-title';
+      title.textContent = `热门书签 Top ${top.length}`;
+      const count = document.createElement('div');
+      count.className = 'section-count';
+      count.textContent = `${bmEntries.length} 书签参与统计`;
+      headLeft.appendChild(handle);
+      headLeft.appendChild(title);
+      header.appendChild(headLeft);
+      header.appendChild(count);
+
+      const list = document.createElement('ul');
+      list.className = 'list';
+      if (top.length === 0) {
+        const li = document.createElement('li');
+        const tipBlock = document.createElement('div');
+        tipBlock.className = 'item';
+        const bullet = document.createElement('span');
+        bullet.className = 'bullet';
+        const main = document.createElement('div');
+        main.className = 'item-main';
+        const t = document.createElement('div');
+        t.className = 'title';
+        t.textContent = '暂无访问记录，点击书签后将统计';
+        main.appendChild(t);
+        tipBlock.appendChild(bullet);
+        tipBlock.appendChild(main);
+        li.appendChild(tipBlock);
+        list.appendChild(li);
+      } else {
+      for (const [key, c] of top) {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.className = 'item';
+        const bm = resolveBookmark(key);
+        link.href = bm.url || '#';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        const bullet = document.createElement('span');
+        bullet.className = 'bullet';
+        const main = document.createElement('div');
+        main.className = 'item-main';
+        const t = document.createElement('div');
+        t.className = 'title';
+        t.textContent = `${bm.title || bm.url || '未命名'}（${c} 次）`;
+        t.title = `${bm.title || bm.url || '未命名'}（${c} 次）`;
+        const u = document.createElement('div');
+        u.className = 'url';
+        u.textContent = bm.url || '';
+        main.appendChild(t);
+        main.appendChild(u);
+        link.appendChild(bullet);
+        link.appendChild(main);
+        link.addEventListener('click', () => {
+          const catName = formatCategory(bm.parentPath);
+          recordVisit(catName, key);
+        });
+        li.appendChild(link);
+        list.appendChild(li);
+      }
+      }
+
+      section.appendChild(header);
+      section.appendChild(list);
+      if (elMain && elSixty) {
+        elMain.insertBefore(section, elSixty);
+      } else if (elMain && elSections) {
+        elMain.insertBefore(section, elSections);
+      } else {
+        document.body.prepend(section);
+      }
+    } catch (e) {
+      console.warn('渲染热门栏目失败', e);
+    }
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'sync' && (changes.navShowTopVisited || changes.navTopVisitedCount)) {
+        loadTopVisitedPreference().then(() => {
+          if (navShowTopVisited && categoriesMapCache) {
+            renderTopVisitedCategories(categoriesMapCache);
+          } else {
+            const existingTop = document.getElementById('top-visited');
+            if (existingTop) existingTop.remove();
+          }
+        });
+      }
+    });
+  }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'navShowTopVisited' || e.key === 'navTopVisitedCount') {
+      loadTopVisitedPreference().then(() => {
+        if (navShowTopVisited && categoriesMapCache) {
+          renderTopVisitedCategories(categoriesMapCache);
+        } else {
+          const existingTop = document.getElementById('top-visited');
+          if (existingTop) existingTop.remove();
+        }
+      });
+    }
+  });
 })();

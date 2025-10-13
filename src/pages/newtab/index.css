@@ -17,6 +17,8 @@
   --bookmarks-unfocused-opacity: 0.86;
   /* 非聚焦时透明度（新增：60s栏目） */
   --sixty-unfocused-opacity: 0.86;
+  /* 非聚焦时透明度（新增：热门栏目） */
+  --top-visited-unfocused-opacity: 0.86;
 }
 
 @media (prefers-color-scheme: light) {
@@ -242,6 +244,8 @@ body {
 /* 60s 栏目非悬停时的透明度（可配置） */
 #sixty-seconds { transition: opacity 160ms ease; }
 #sixty-seconds:not(:hover) { opacity: var(--sixty-unfocused-opacity); }
+/* 热门栏目透明度控制 */
+#top-visited:not(:hover) { opacity: var(--top-visited-unfocused-opacity); }
 .engine-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
 .search input {
   appearance: none;

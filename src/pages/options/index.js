@@ -21,6 +21,9 @@ class OptionsManager {
     await this.bindEvents();
     this.renderUI();
     this.setVersionTexts();
+    // 初始化同步区的显示逻辑，并尝试每日自动同步
+    this.updateSyncConfig();
+    await this._maybeRunDailyAutoSync();
   }
 
   // 加载设置
@@ -50,7 +53,15 @@ class OptionsManager {
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
           'sixtyUnfocusedOpacity',
+          'topVisitedUnfocusedOpacity',
           'showBookmarks',
+          // 热门栏目显示与数量
+          'navShowTopVisited', 'navTopVisitedCount',
+          // 自动归档旧书签
+          'autoArchiveOldBookmarks', 'archiveOlderThanDays',
+          // GitHub 同步配置
+          'githubToken', 'githubOwner', 'githubRepo', 'githubBranch', 'githubPath', 'githubFormat', 'githubDualUpload', 'githubPathHtml',
+          'githubAutoSyncDaily', 'githubLastAutoSyncDate',
           // 失效检测严格模式
           'deadStrictMode',
           // 失效扫描新增配置
@@ -80,7 +91,12 @@ class OptionsManager {
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
           'sixtyUnfocusedOpacity',
+          'topVisitedUnfocusedOpacity',
           'showBookmarks',
+          'navShowTopVisited', 'navTopVisitedCount',
+          'autoArchiveOldBookmarks', 'archiveOlderThanDays',
+          'githubToken', 'githubOwner', 'githubRepo', 'githubFormat', 'githubDualUpload', 'githubPath', 'githubPathHtml',
+          'githubAutoSyncDaily', 'githubLastAutoSyncDate',
           'deadStrictMode',
           'deadTimeoutMs',
           'deadIgnorePrivateIp',
@@ -126,7 +142,39 @@ class OptionsManager {
           if (Number.isFinite(num) && num >= 0.6 && num <= 1) return num;
           return 0.86;
         })(),
+        topVisitedUnfocusedOpacity: (() => {
+          const v = result.topVisitedUnfocusedOpacity;
+          const num = typeof v === 'string' ? parseFloat(v) : v;
+          if (Number.isFinite(num) && num >= 0.6 && num <= 1) return num;
+          return 0.86;
+        })(),
         showBookmarks: result.showBookmarks !== undefined ? !!result.showBookmarks : false,
+        navShowTopVisited: result.navShowTopVisited !== undefined ? !!result.navShowTopVisited : false,
+        navTopVisitedCount: (() => {
+          const v = result.navTopVisitedCount;
+          const num = typeof v === 'string' ? parseInt(v, 10) : v;
+          if (Number.isFinite(num)) return Math.max(1, Math.min(50, num));
+          return 10;
+        })(),
+        autoArchiveOldBookmarks: result.autoArchiveOldBookmarks !== undefined ? !!result.autoArchiveOldBookmarks : false,
+        archiveOlderThanDays: (() => {
+          const v = result.archiveOlderThanDays;
+          const num = typeof v === 'string' ? parseInt(v, 10) : v;
+          if (Number.isFinite(num)) return Math.max(7, Math.min(3650, num));
+          return 180;
+        })(),
+        // GitHub 同步配置
+        githubToken: (result.githubToken || '').trim(),
+        githubOwner: (result.githubOwner || '').trim(),
+        githubRepo: (result.githubRepo || '').trim(),
+        githubBranch: (result.githubBranch || 'main').trim(),
+        githubPath: (result.githubPath || 'tidymark/backups/tidymark-backup.json').trim(),
+        githubFormat: ['json','html'].includes(result.githubFormat) ? result.githubFormat : 'json',
+        githubDualUpload: result.githubDualUpload !== undefined ? !!result.githubDualUpload : false,
+        githubPathHtml: (result.githubPathHtml || 'tidymark/backups/tidymark-bookmarks.html').trim(),
+        githubAutoSyncDaily: result.githubAutoSyncDaily !== undefined ? !!result.githubAutoSyncDaily : false,
+        githubAutoSyncOnPopup: result.githubAutoSyncOnPopup !== undefined ? !!result.githubAutoSyncOnPopup : false,
+        githubLastAutoSyncDate: (result.githubLastAutoSyncDate || '').trim(),
         deadStrictMode: result.deadStrictMode !== undefined ? !!result.deadStrictMode : false,
         deadTimeoutMs: (() => {
           const v = result.deadTimeoutMs;
@@ -156,7 +204,23 @@ class OptionsManager {
         sixtySecondsEnabled: true,
         searchUnfocusedOpacity: 0.86,
         bookmarksUnfocusedOpacity: 0.86,
+        topVisitedUnfocusedOpacity: 0.86,
         showBookmarks: false,
+        navShowTopVisited: false,
+        navTopVisitedCount: 10,
+        autoArchiveOldBookmarks: false,
+        archiveOlderThanDays: 180,
+        githubToken: '',
+        githubOwner: '',
+        githubRepo: '',
+        githubBranch: 'main',
+        githubPath: 'tidymark/backups/tidymark-backup.json',
+        githubFormat: 'json',
+        githubDualUpload: false,
+        githubPathHtml: 'tidymark/backups/tidymark-bookmarks.html',
+        githubAutoSyncDaily: false,
+        githubAutoSyncOnPopup: false,
+        githubLastAutoSyncDate: '',
         deadTimeoutMs: 8000,
         deadIgnorePrivateIp: false,
         deadScanDuplicates: false,
@@ -398,12 +462,72 @@ class OptionsManager {
       });
     }
 
+    // 热门栏目透明度
+    const topVisitedOpacity = document.getElementById('topVisitedUnfocusedOpacity');
+    const topVisitedOpacityValue = document.getElementById('topVisitedUnfocusedOpacityValue');
+    if (topVisitedOpacity) {
+      const syncTopVisitedView = (val) => { if (topVisitedOpacityValue) topVisitedOpacityValue.textContent = Number(val).toFixed(2); };
+      syncTopVisitedView(this.settings.topVisitedUnfocusedOpacity || 0.86);
+      topVisitedOpacity.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (Number.isFinite(val)) {
+          this.settings.topVisitedUnfocusedOpacity = Math.max(0.6, Math.min(1, val));
+          syncTopVisitedView(this.settings.topVisitedUnfocusedOpacity);
+          this.saveSettings();
+        }
+      });
+    }
+
     // 书签列表是否展示
     const showBookmarks = document.getElementById('showBookmarks');
     if (showBookmarks) {
       showBookmarks.addEventListener('change', (e) => {
         this.settings.showBookmarks = !!e.target.checked;
         this.saveSettings();
+      });
+    }
+
+    // 热门栏目开关
+    const navShowTopVisited = document.getElementById('navShowTopVisited');
+    if (navShowTopVisited) {
+      navShowTopVisited.addEventListener('change', (e) => {
+        this.settings.navShowTopVisited = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
+    // 热门栏目数量
+    const navTopVisitedCount = document.getElementById('navTopVisitedCount');
+    if (navTopVisitedCount) {
+      const init = Number.isFinite(this.settings.navTopVisitedCount) ? this.settings.navTopVisitedCount : 10;
+      navTopVisitedCount.value = String(init);
+      navTopVisitedCount.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (Number.isFinite(val)) {
+          this.settings.navTopVisitedCount = Math.max(1, Math.min(50, val));
+          this.saveSettings();
+        }
+      });
+    }
+
+    // 自动归档旧书签
+    const autoArchive = document.getElementById('autoArchiveOldBookmarks');
+    if (autoArchive) {
+      autoArchive.addEventListener('change', (e) => {
+        this.settings.autoArchiveOldBookmarks = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+    const archiveDays = document.getElementById('archiveOlderThanDays');
+    if (archiveDays) {
+      const init = Number.isFinite(this.settings.archiveOlderThanDays) ? this.settings.archiveOlderThanDays : 180;
+      archiveDays.value = String(init);
+      archiveDays.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (Number.isFinite(val)) {
+          this.settings.archiveOlderThanDays = Math.max(7, Math.min(3650, val));
+          this.saveSettings();
+        }
       });
     }
 
@@ -494,6 +618,20 @@ class OptionsManager {
       });
     }
 
+    // 备份导出 / 导入
+    const exportBackupBtn = document.getElementById('exportBackupBtn');
+    if (exportBackupBtn) {
+      exportBackupBtn.addEventListener('click', () => {
+        this.exportBackup();
+      });
+    }
+    const importBackupBtn = document.getElementById('importBackupBtn');
+    if (importBackupBtn) {
+      importBackupBtn.addEventListener('click', () => {
+        this.importBackup();
+      });
+    }
+
     const addRule = document.getElementById('addRule');
     if (addRule) {
       addRule.addEventListener('click', () => {
@@ -512,6 +650,78 @@ class OptionsManager {
     if (resetData) {
       resetData.addEventListener('click', () => {
         this.resetSettings();
+      });
+    }
+
+    // GitHub 同步配置输入事件
+    const ghToken = document.getElementById('githubToken');
+    if (ghToken) {
+      ghToken.addEventListener('input', (e) => {
+        this.settings.githubToken = e.target.value;
+        this.saveSettings();
+      });
+    }
+    const ghOwner = document.getElementById('githubOwner');
+    if (ghOwner) {
+      ghOwner.addEventListener('input', (e) => {
+        this.settings.githubOwner = e.target.value;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    const ghRepo = document.getElementById('githubRepo');
+    if (ghRepo) {
+      ghRepo.addEventListener('input', (e) => {
+        this.settings.githubRepo = e.target.value;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    // 移除分支与路径字段（使用默认值）
+
+    const ghFormat = document.getElementById('githubFormat');
+    if (ghFormat) {
+      ghFormat.addEventListener('change', (e) => {
+        const val = String(e.target.value || 'json');
+        this.settings.githubFormat = ['json','html'].includes(val) ? val : 'json';
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    const ghDual = document.getElementById('githubDualUpload');
+    if (ghDual) {
+      ghDual.addEventListener('change', (e) => {
+        this.settings.githubDualUpload = !!e.target.checked;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    // 移除 HTML 路径字段（使用默认值）
+
+    // 自动同步开关
+    const autoDaily = document.getElementById('githubAutoSyncDaily');
+    if (autoDaily) {
+      autoDaily.addEventListener('change', (e) => {
+        this.settings.githubAutoSyncDaily = !!e.target.checked;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    // 已合并为每日同步开关；移除“打开插件页面时自动同步”
+
+    // GitHub 同步按钮
+    const githubSyncBtn = document.getElementById('githubSyncBtn');
+    if (githubSyncBtn) {
+      githubSyncBtn.addEventListener('click', () => {
+        this.syncToGithub();
+      });
+    }
+
+    const quickGithubSyncBtn = document.getElementById('quickGithubSyncBtn');
+    if (quickGithubSyncBtn) {
+      quickGithubSyncBtn.addEventListener('click', () => {
+        this.syncToGithub();
+        this.switchTab('sync');
       });
     }
 
@@ -1355,6 +1565,7 @@ class OptionsManager {
     this.updateClassificationRules();
     this.updateAiConfig();
     this.updateWidgetConfig();
+    this.updateSyncConfig();
   }
 
   // 更新分类规则
@@ -1510,9 +1721,103 @@ class OptionsManager {
     if (sixtyOpacity) sixtyOpacity.value = String(this.settings.sixtyUnfocusedOpacity || 0.86);
     if (sixtyOpacityValue) sixtyOpacityValue.textContent = Number(this.settings.sixtyUnfocusedOpacity || 0.86).toFixed(2);
 
+    const topVisitedOpacity = document.getElementById('topVisitedUnfocusedOpacity');
+    const topVisitedOpacityValue = document.getElementById('topVisitedUnfocusedOpacityValue');
+    if (topVisitedOpacity) topVisitedOpacity.value = String(this.settings.topVisitedUnfocusedOpacity || 0.86);
+    if (topVisitedOpacityValue) topVisitedOpacityValue.textContent = Number(this.settings.topVisitedUnfocusedOpacity || 0.86).toFixed(2);
+
     // 书签列表是否展示回显
     const showBookmarks = document.getElementById('showBookmarks');
     if (showBookmarks) showBookmarks.checked = !!this.settings.showBookmarks;
+
+    // 热门栏目回显
+    const navShowTopVisited = document.getElementById('navShowTopVisited');
+    const navTopVisitedCount = document.getElementById('navTopVisitedCount');
+    if (navShowTopVisited) navShowTopVisited.checked = !!this.settings.navShowTopVisited;
+    if (navTopVisitedCount) navTopVisitedCount.value = String(this.settings.navTopVisitedCount ?? 10);
+
+    // 自动归档旧书签回显
+    const autoArchive = document.getElementById('autoArchiveOldBookmarks');
+    const archiveDays = document.getElementById('archiveOlderThanDays');
+    if (autoArchive) autoArchive.checked = !!this.settings.autoArchiveOldBookmarks;
+    if (archiveDays) archiveDays.value = String(this.settings.archiveOlderThanDays ?? 180);
+  }
+
+  // 更新同步与导出配置
+  updateSyncConfig() {
+    const tokenInput = document.getElementById('githubToken');
+    const ownerInput = document.getElementById('githubOwner');
+    const repoInput = document.getElementById('githubRepo');
+    const formatSelect = document.getElementById('githubFormat');
+    const dualUploadCheckbox = document.getElementById('githubDualUpload');
+    const formatLabel = document.querySelector('label[for="githubFormat"]');
+    const pathHintEl = document.getElementById('githubPathHint');
+    const autoDaily = document.getElementById('githubAutoSyncDaily');
+    const autoOnPopup = document.getElementById('githubAutoSyncOnPopup');
+    const statusEl = document.getElementById('githubSyncStatus');
+
+    if (tokenInput) tokenInput.value = this.settings.githubToken || '';
+    if (ownerInput) ownerInput.value = this.settings.githubOwner || '';
+    if (repoInput) repoInput.value = this.settings.githubRepo || '';
+    if (formatSelect) formatSelect.value = this.settings.githubFormat || 'json';
+    if (dualUploadCheckbox) dualUploadCheckbox.checked = !!this.settings.githubDualUpload;
+    if (autoDaily) autoDaily.checked = !!this.settings.githubAutoSyncDaily;
+    // 已移除 autoOnPopup 选项
+
+    // 勾选双格式时隐藏备份格式选择器
+    const showFormat = !this.settings.githubDualUpload;
+    if (formatSelect) formatSelect.style.display = showFormat ? '' : 'none';
+    if (formatLabel) formatLabel.style.display = showFormat ? '' : 'none';
+
+    // 动态路径提示
+    if (pathHintEl) {
+      const owner = (this.settings.githubOwner || '').trim();
+      const repo = (this.settings.githubRepo || '').trim();
+      const branch = (this.settings.githubBranch || 'main').trim();
+      const jsonPath = this.settings.githubPath || 'tidymark/backups/tidymark-backup.json';
+      const htmlPath = this.settings.githubPathHtml || 'tidymark/backups/tidymark-bookmarks.html';
+      let hint = '';
+      if (!owner || !repo) {
+        hint = `请设置仓库所有者与仓库名，例如 owner/repo。默认分支为 \`${branch}\`；JSON 路径 \`${jsonPath}\`，HTML 路径 \`${htmlPath}\`。`;
+      } else if (this.settings.githubDualUpload) {
+        hint = `将上传到 \`${owner}/${repo}\` 的 \`${branch}\` 分支：JSON -> \`${jsonPath}\`；HTML -> \`${htmlPath}\`。`;
+      } else {
+        const curFmt = this.settings.githubFormat === 'html' ? 'HTML' : 'JSON';
+        const curPath = this.settings.githubFormat === 'html' ? htmlPath : jsonPath;
+        hint = `将上传到 \`${owner}/${repo}\` 的 \`${branch}\` 分支：${curFmt} -> \`${curPath}\`。`;
+      }
+      pathHintEl.textContent = hint;
+    }
+
+    if (statusEl) {
+      try {
+        statusEl.textContent = window.I18n ? (window.I18n.t('sync.github.status.idle') || '尚未同步') : '尚未同步';
+      } catch {
+        statusEl.textContent = '尚未同步';
+      }
+    }
+  }
+
+  // 每日首次打开自动同步（设置页）
+  async _maybeRunDailyAutoSync() {
+    try {
+      if (!this.settings.githubAutoSyncDaily) return;
+      const owner = (this.settings.githubOwner || '').trim();
+      const repo = (this.settings.githubRepo || '').trim();
+      const token = (this.settings.githubToken || '').trim();
+      if (!owner || !repo || !token) return;
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const todayStr = `${yyyy}-${mm}-${dd}`;
+      if (this.settings.githubLastAutoSyncDate === todayStr) return;
+      this.settings.githubLastAutoSyncDate = todayStr;
+      await this.saveSettings();
+      this.syncToGithub();
+    } catch (e) {
+      console.warn('每日自动同步尝试失败', e);
+    }
   }
 
   // 获取默认规则
@@ -2275,6 +2580,56 @@ class OptionsManager {
     }
   }
 
+  // 触发 GitHub 同步
+  async syncToGithub() {
+    const statusEl = document.getElementById('githubSyncStatus');
+    const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+
+    const token = (this.settings.githubToken || '').trim();
+    const owner = (this.settings.githubOwner || '').trim();
+    const repo = (this.settings.githubRepo || '').trim();
+    const format = (this.settings.githubFormat || 'json');
+    const dualUpload = !!this.settings.githubDualUpload;
+
+    if (!token || !owner || !repo) {
+      this.showMessage('请填写完整的 GitHub 配置', 'error');
+      setStatus('配置不完整');
+      return;
+    }
+
+    setStatus('正在同步到 GitHub...');
+    try {
+      console.log('[Options] 发送 syncGithubBackup 消息：', {
+        tokenLen: token.length,
+        owner,
+        repo,
+        format,
+        dualUpload
+      });
+      chrome.runtime.sendMessage({
+        action: 'syncGithubBackup',
+        payload: { token, owner, repo, format, dualUpload }
+      }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          console.error('[Options] sendMessage 回调 lastError:', chrome.runtime.lastError);
+        }
+        console.log('[Options] 收到 syncGithubBackup 回调：', response);
+        if (response && response.success) {
+          this.showMessage('已同步到 GitHub', 'success');
+          setStatus('同步成功');
+        } else {
+          const errRaw = (response && response.error) ? String(response.error) : '未知错误';
+          const friendly = this._formatGithubSyncError(errRaw, { owner, repo });
+          this.showMessage(friendly.message, 'error');
+          setStatus(friendly.summary);
+        }
+      });
+    } catch (e) {
+      this.showMessage('同步过程中出现异常：' + e.message, 'error');
+      setStatus('同步失败');
+    }
+  }
+
   // 显示消息
   showMessage(message, type = 'info') {
     // 创建消息元素
@@ -2315,6 +2670,61 @@ class OptionsManager {
         }
       }, 300);
     }, 3000);
+  }
+
+  // 将 GitHub 同步错误映射为更友好的提示
+  _formatGithubSyncError(errText, { owner, repo } = {}) {
+    const clean = String(errText || '').replace(/`/g, '').trim();
+    const m = clean.match(/GitHub\s*响应\s*(\d+)/);
+    const code = m ? Number(m[1]) : null;
+    const is404 = code === 404 || /\b404\b/.test(clean) || /Not\s*Found/i.test(clean);
+    const is403 = code === 403 || /\b403\b/.test(clean) || /Forbidden/i.test(clean);
+    const is401 = code === 401 || /\b401\b/.test(clean) || /Unauthorized/i.test(clean);
+    const is422 = code === 422 || /\b422\b/.test(clean) || /Unprocessable\s*Entity/i.test(clean);
+    const is429 = code === 429 || /rate\s*limit/i.test(clean);
+
+    const repoUrl = owner && repo ? `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` : '';
+
+    if (is404) {
+      return {
+        message: '同步失败：未找到目标（仓库或默认分支未初始化）。',
+        summary: '请检查：1) 仓库是否存在且可访问；2) 仓库不是空仓库（需先创建一次提交，如添加 README）；3) 若仓库默认分支不是 main，系统已尝试 master，仍失败请在仓库页面确认默认分支。' + (repoUrl ? ` 仓库：${repoUrl}` : ''),
+        code: 404
+      };
+    }
+    if (is403) {
+      return {
+        message: '同步失败：权限不足（令牌无法写入仓库）。',
+        summary: '请在 GitHub 令牌设置中为目标仓库授予“Contents: Read and write”权限，私有仓库需明确授予访问。' + (repoUrl ? ` 仓库：${repoUrl}` : ''),
+        code: 403
+      };
+    }
+    if (is401) {
+      return {
+        message: '同步失败：令牌无效或已过期。',
+        summary: '请重新生成并填写有效的个人访问令牌（PAT），确保复制完整且未包含空格。',
+        code: 401
+      };
+    }
+    if (is422) {
+      return {
+        message: '同步失败：请求内容不符合要求。',
+        summary: '可能原因：内容编码异常、提交信息缺失或与现有文件冲突。可重试或在仓库中删除冲突文件后再试。',
+        code: 422
+      };
+    }
+    if (is429) {
+      return {
+        message: '同步失败：达到调用速率限制。',
+        summary: '请稍后重试或降低操作频率；频繁请求可能被 GitHub 临时限制。',
+        code: 429
+      };
+    }
+    return {
+      message: '同步失败：' + (clean || '未知错误'),
+      summary: '请检查仓库是否存在、令牌权限是否包含“Contents: Read and write”，以及仓库是否已完成首次提交。' + (repoUrl ? ` 仓库：${repoUrl}` : ''),
+      code: code || 0
+    };
   }
 
   // 统一确认弹窗（与插件样式一致）

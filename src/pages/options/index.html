@@ -34,7 +34,8 @@
       <button class="tab-btn" data-tab="nav">导航设置</button>
       <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 分类助手</button>
       <button class="tab-btn" data-tab="rules" data-i18n="rules.header">分类规则管理</button>
-      <button class="tab-btn" data-tab="backup" data-i18n="tabs.help">帮助</button>
+        <button class="tab-btn" data-tab="sync" data-i18n="tabs.sync">同步导出</button>
+        <button class="tab-btn" data-tab="backup" data-i18n="tabs.help">帮助</button>
     </nav>
 
     <!-- 导航设置（独立页签） -->
@@ -110,6 +111,11 @@
               <input type="range" id="sixtyUnfocusedOpacity" min="0.6" max="1" step="0.02">
               <p class="setting-desc">未悬停时：当前 <span id="sixtyUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
+            <div class="setting-item">
+              <label for="topVisitedUnfocusedOpacity">热门栏目透明度</label>
+              <input type="range" id="topVisitedUnfocusedOpacity" min="0.6" max="1" step="0.02">
+              <p class="setting-desc">未悬停时：当前 <span id="topVisitedUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+            </div>
           </div>
         </div>
 
@@ -121,6 +127,45 @@
               <span>显示书签列表</span>
             </label>
             <p class="setting-desc inline-hint">默认不展示。开启后，新标签页显示书签列表。</p>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="toggle-row">
+            <label class="setting-label">
+              <input type="checkbox" id="navShowTopVisited">
+              <span class="checkmark"></span>
+              <span>显示热门栏目（访问频率 Top N）</span>
+            </label>
+            <p class="setting-desc inline-hint">开启后，在导航页顶部显示按访问次数排序的热门书签栏目</p>
+          </div>
+        </div>
+        <div class="setting-item">
+          <label for="navTopVisitedCount">热门栏目数量（Top N）</label>
+          <input type="number" id="navTopVisitedCount" min="1" max="50" step="1" placeholder="10">
+          <p class="setting-desc">控制显示的热门栏目数量，建议 5-20</p>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <h3>🗂️ 自动归档旧书签</h3>
+            <div class="section-description">
+              <p>根据最近访问时间自动将不常访问的书签移动到“归档”文件夹（默认关闭）</p>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="toggle-row">
+              <label class="setting-label">
+                <input type="checkbox" id="autoArchiveOldBookmarks">
+                <span class="checkmark"></span>
+                <span>启用自动归档</span>
+              </label>
+              <p class="setting-desc inline-hint">开启后，扩展会定期将最近访问时间早于阈值的书签搬入“归档”；没有访问记录的书签将回退按添加时间判断。</p>
+            </div>
+          </div>
+          <div class="setting-item">
+            <label for="archiveOlderThanDays">归档阈值（距今多少天前）</label>
+            <input type="number" id="archiveOlderThanDays" min="7" max="3650" step="1" placeholder="180">
+            <p class="setting-desc">按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。</p>
           </div>
         </div>
       </div>
@@ -237,10 +282,11 @@
     <!-- 整理操作 -->
     <section class="tab-content active" id="organize">
       <div class="section">
-        <div class="section-header">
-          <h2>🔧 整理操作</h2>
+      <div class="section-header">
+        <h2>🔧 整理操作</h2>
       <div class="section-actions">
         <button class="btn btn-outline" id="quickBackupBtn">💾 备份书签</button>
+        <button class="btn btn-outline" id="quickGithubSyncBtn">☁️ 同步到 GitHub</button>
         <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
         <button class="btn btn-outline" id="aiInferOrganizeBtn" data-i18n="ai.infer.btn">🤖 AI 全量归类</button>
       </div>
@@ -323,6 +369,86 @@
             <button class="btn btn-outline btn-danger" id="deadDeleteBtn" data-i18n="dead.deleteSelected">删除选中</button>
           </div>
           <ul class="list" id="deadResultsList"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 同步与导出 -->
+    <section class="tab-content" id="sync">
+      <div class="section">
+        <div class="section-header">
+          <h2 data-i18n="sync.header">🔁 同步与导出</h2>
+          <div class="section-description">
+            <p data-i18n="sync.desc">在此导出/导入备份，并配置同步到 GitHub</p>
+          </div>
+        </div>
+
+        <div class="data-management-grid">
+          <div class="info-card">
+            <div class="card-header">
+              <h3 data-i18n="sync.export.header">💾 本地备份</h3>
+            </div>
+            <div class="card-content">
+              <div class="action-row">
+                <button class="btn btn-outline" id="exportBackupBtn" data-i18n="sync.export.btn">导出备份（JSON）</button>
+                <button class="btn btn-outline" id="importBackupBtn" data-i18n="sync.import.btn">导入备份（JSON）</button>
+              </div>
+              <p class="setting-desc" data-i18n="sync.export.tip">建议在整理前导出备份；导入将覆盖当前数据。</p>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="card-header">
+              <h3 data-i18n="sync.github.header">☁️ GitHub 云同步</h3>
+            </div>
+            <div class="card-content">
+              <p class="setting-desc" data-i18n="sync.github.desc">配置个人访问令牌与仓库信息，备份将自动保存到默认路径</p>
+              <div class="form-grid">
+                <label for="githubToken" data-i18n="sync.github.token.label">GitHub Token</label>
+                <input type="password" id="githubToken" data-i18n-placeholder="sync.github.token.ph" />
+
+                <label for="githubOwner" data-i18n="sync.github.owner.label">仓库所有者</label>
+                <input type="text" id="githubOwner" data-i18n-placeholder="sync.github.owner.ph" />
+
+                <label for="githubRepo" data-i18n="sync.github.repo.label">仓库名</label>
+                <input type="text" id="githubRepo" data-i18n-placeholder="sync.github.repo.ph" />
+                <p class="setting-desc full-row" id="githubPathHint">将在目标仓库创建备份文件；路径示例：<code>tidymark/backups/tidymark-backup.json</code> 或 <code>tidymark/backups/tidymark-bookmarks.html</code>。</p>
+
+                <label for="githubFormat">备份格式</label>
+                <select id="githubFormat">
+                  <option value="json">JSON（插件备份）</option>
+                  <option value="html">HTML（Chrome 书签）</option>
+                </select>
+
+                <label class="setting-label full-row" for="githubDualUpload">
+                  <input type="checkbox" id="githubDualUpload" />
+                  <span class="checkmark"></span>
+                  <span>同时上传两种格式</span>
+                </label>
+
+                <label class="setting-label full-row" for="githubAutoSyncDaily">
+                  <input type="checkbox" id="githubAutoSyncDaily" />
+                  <span class="checkmark"></span>
+                  <span>自动同步到 GitHub（每日一次）</span>
+                </label>
+                <p class="setting-desc full-row">说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。</p>
+              </div>
+              <div class="action-row">
+                <button class="btn btn-accent" id="githubSyncBtn" data-i18n="sync.github.run">一键同步到 GitHub</button>
+              </div>
+              <p class="setting-desc" id="githubSyncStatus" data-i18n="sync.github.status.idle">尚未同步</p>
+
+              <details style="margin-top:12px;">
+                <summary>GitHub 操作指南</summary>
+                <ol class="setting-desc" style="margin-top:8px;">
+                  <li>创建或准备仓库：可在 GitHub 主页右上角 <em>+</em> → <em>New repository</em> 新建仓库，默认分支通常为 <code>main</code>。</li>
+                  <li>生成个人访问令牌（PAT）：进入个人设置 → <em>Developer settings</em> → <em>Personal access tokens</em>，创建令牌并至少勾选 <code>repo</code> 权限；复制令牌保存到 <em>GitHub Token</em> 字段。</li>
+                  <li>填写同步配置：Owner（用户名或组织名）、Repo（仓库名）、备份格式（JSON/HTML）。可启用“同时上传两种格式”以在仓库生成两份文件。</li>
+                  <li>验证与导入：点击“一键同步到 GitHub”后，到仓库查看文件是否更新。若选择或启用 HTML，同步的文件可在 Chrome 书签管理器导入（Chrome：书签管理器 → 右上角“⋮” → 导入书签）。</li>
+                </ol>
+              </details>
+            </div>
+          </div>
         </div>
       </div>
     </section>

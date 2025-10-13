@@ -21,6 +21,9 @@ class PopupManager {
     
     // 加载主界面数据
     await this.loadData();
+
+    // 打开弹窗时的自动同步（可选）
+    await this.maybeAutoSyncOnOpen();
     
     // 如果是首次使用，显示功能介绍弹窗
     if (isFirstTime) {
@@ -29,6 +32,30 @@ class PopupManager {
         this.showFeatureTips();
         this.markAsUsed();
       }, 500);
+    }
+  }
+
+  async maybeAutoSyncOnOpen() {
+    try {
+      // 仅在扩展环境里执行
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.runtime) return;
+      const cfg = await chrome.storage.sync.get(['githubAutoSyncOnPopup','githubToken','githubOwner','githubRepo','githubFormat','githubDualUpload']);
+      if (!cfg.githubAutoSyncOnPopup) return;
+      const token = (cfg.githubToken || '').trim();
+      const owner = (cfg.githubOwner || '').trim();
+      const repo = (cfg.githubRepo || '').trim();
+      const format = ['json','html'].includes(cfg.githubFormat) ? cfg.githubFormat : 'json';
+      const dualUpload = !!cfg.githubDualUpload;
+      if (!token || !owner || !repo) return; // 基本配置不完整不触发
+      const resp = await chrome.runtime.sendMessage({ action: 'syncGithubBackup', token, owner, repo, format, dualUpload });
+      if (resp && resp.success) {
+        this.showSuccess('已自动同步到 GitHub');
+      } else {
+        const err = resp?.error || '自动同步失败';
+        this.showError(err);
+      }
+    } catch (e) {
+      console.warn('弹窗自动同步失败:', e);
     }
   }
 

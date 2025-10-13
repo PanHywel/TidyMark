@@ -94,6 +94,7 @@
     'tabs.organize': { 'zh-CN': '整理', 'zh-TW': '整理', 'en': 'Organize', 'ru': 'Упорядочить' },
     'tabs.ai': { 'zh-CN': 'AI 配置', 'zh-TW': 'AI 設定', 'en': 'AI Settings', 'ru': 'Настройки AI' },
     'tabs.help': { 'zh-CN': '帮助', 'zh-TW': '說明', 'en': 'Help', 'ru': 'Помощь' },
+    'tabs.sync': { 'zh-CN': '同步导出', 'zh-TW': '同步導出', 'en': 'Sync & Export', 'ru': 'Синхронизация и экспорт' },
 
     'actions.backup': { 'zh-CN': '备份书签', 'zh-TW': '備份書籤', 'en': 'Backup Bookmarks', 'ru': 'Резервное копирование' },
     'actions.organize': { 'zh-CN': '自动整理', 'zh-TW': '自動整理', 'en': 'Auto Organize', 'ru': 'Автосортировка' },
@@ -114,6 +115,30 @@
 
   // Extended UI translations
   const translationsExt = {
+    // Sync & Export
+    'sync.header': { 'zh-CN': '🔁 同步与导出', 'zh-TW': '🔁 同步與匯出', 'en': '🔁 Sync & Export', 'ru': '🔁 Синхронизация и экспорт' },
+    'sync.desc': { 'zh-CN': '在此导出/导入备份，并配置同步到 GitHub', 'zh-TW': '在此匯出/匯入備份，並設定同步到 GitHub', 'en': 'Export/import backups and configure GitHub sync', 'ru': 'Экспорт/импорт резервных копий и настройка синхронизации с GitHub' },
+    'sync.export.header': { 'zh-CN': '💾 本地备份', 'zh-TW': '💾 本地備份', 'en': '💾 Local Backup', 'ru': '💾 Локальная копия' },
+    'sync.export.btn': { 'zh-CN': '导出备份（JSON）', 'zh-TW': '匯出備份（JSON）', 'en': 'Export Backup (JSON)', 'ru': 'Экспорт резервной копии (JSON)' },
+    'sync.import.btn': { 'zh-CN': '导入备份（JSON）', 'zh-TW': '匯入備份（JSON）', 'en': 'Import Backup (JSON)', 'ru': 'Импорт резервной копии (JSON)' },
+    'sync.export.tip': { 'zh-CN': '建议在整理前导出备份；导入将覆盖当前数据。', 'zh-TW': '建議在整理前匯出備份；匯入將覆蓋目前資料。', 'en': 'Export before organizing; import will overwrite current data.', 'ru': 'Экспортируйте перед упорядочиванием; импорт перезапишет текущие данные.' },
+    'sync.github.header': { 'zh-CN': '☁️ GitHub 云同步', 'zh-TW': '☁️ GitHub 雲端同步', 'en': '☁️ GitHub Cloud Sync', 'ru': '☁️ Синхронизация с GitHub' },
+    'sync.github.desc': { 'zh-CN': '配置个人访问令牌与仓库信息，将备份文件同步到指定路径', 'zh-TW': '設定個人存取權杖與倉庫資訊，將備份檔同步到指定路徑', 'en': 'Set up PAT and repo info to sync backup to a path', 'ru': 'Настройте PAT и репозиторий для синхронизации резервной копии по пути' },
+    'sync.github.token.label': { 'zh-CN': 'GitHub Token', 'zh-TW': 'GitHub Token', 'en': 'GitHub Token', 'ru': 'Токен GitHub' },
+    'sync.github.token.ph': { 'zh-CN': '请输入个人访问令牌（PAT）', 'zh-TW': '請輸入個人存取權杖（PAT）', 'en': 'Enter Personal Access Token (PAT)', 'ru': 'Введите персональный токен доступа (PAT)' },
+    'sync.github.owner.label': { 'zh-CN': '仓库所有者', 'zh-TW': '倉庫擁有者', 'en': 'Repository Owner', 'ru': 'Владелец репозитория' },
+    'sync.github.owner.ph': { 'zh-CN': '如：your-github-username', 'zh-TW': '如：your-github-username', 'en': 'e.g., your-github-username', 'ru': 'например, your-github-username' },
+    'sync.github.repo.label': { 'zh-CN': '仓库名', 'zh-TW': '倉庫名稱', 'en': 'Repository', 'ru': 'Репозиторий' },
+    'sync.github.repo.ph': { 'zh-CN': '如：your-repo', 'zh-TW': '如：your-repo', 'en': 'e.g., your-repo', 'ru': 'например, your-repo' },
+    'sync.github.branch.label': { 'zh-CN': '分支', 'zh-TW': '分支', 'en': 'Branch', 'ru': 'Ветка' },
+    'sync.github.branch.ph': { 'zh-CN': '如：main', 'zh-TW': '如：main', 'en': 'e.g., main', 'ru': 'например, main' },
+    'sync.github.path.label': { 'zh-CN': '文件路径', 'zh-TW': '檔案路徑', 'en': 'File Path', 'ru': 'Путь к файлу' },
+    'sync.github.path.ph': { 'zh-CN': '如：tidymark/backups/tidymark-backup.json', 'zh-TW': '如：tidymark/backups/tidymark-backup.json', 'en': 'e.g., tidymark/backups/tidymark-backup.json', 'ru': 'например, tidymark/backups/tidymark-backup.json' },
+    'sync.github.run': { 'zh-CN': '一键同步到 GitHub', 'zh-TW': '一鍵同步到 GitHub', 'en': 'Sync to GitHub', 'ru': 'Синхронизировать с GitHub' },
+    'sync.github.status.idle': { 'zh-CN': '尚未同步', 'zh-TW': '尚未同步', 'en': 'Not synced yet', 'ru': 'Ещё не синхронизировано' },
+    'sync.github.status.syncing': { 'zh-CN': '正在同步到 GitHub…', 'zh-TW': '正在同步到 GitHub…', 'en': 'Syncing to GitHub…', 'ru': 'Синхронизация с GitHub…' },
+    'sync.github.status.success': { 'zh-CN': '同步成功', 'zh-TW': '同步成功', 'en': 'Sync successful', 'ru': 'Синхронизация завершена' },
+    'sync.github.status.fail': { 'zh-CN': '同步失败：{error}', 'zh-TW': '同步失敗：{error}', 'en': 'Sync failed: {error}', 'ru': 'Сбой синхронизации: {error}' },
     // About
     'about.intro': { 'zh-CN': 'TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。', 'zh-TW': 'TidyMark 是一個智慧書籤管理擴充，協助您自動整理與分類書籤。', 'en': 'TidyMark is a smart bookmark manager that auto-organizes your bookmarks.', 'ru': 'TidyMark — умный менеджер закладок, автоматически упорядочивающий их.' },
     'about.features.smart': { 'zh-CN': '🔄 智能整理', 'zh-TW': '🔄 智慧整理', 'en': '🔄 Smart Organizing', 'ru': '🔄 Умная сортировка' },

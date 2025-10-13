@@ -203,6 +203,45 @@ body {
   margin-left: 32px;
 }
 
+/* 表单网格布局与间距优化 */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 16px;
+  row-gap: 12px;
+  align-items: center;
+}
+.form-grid label {
+  margin-bottom: 4px;
+}
+.form-grid input,
+.form-grid select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+.form-grid .full-row {
+  grid-column: 1 / -1;
+}
+
+/* 复选框可视样式 */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+}
+
+/* 卡片内容内的说明文本左对齐，不额外缩进 */
+.card-content .setting-desc {
+  margin-left: 0;
+}
+
+/* 操作区与表单的上下间距优化 */
+.action-row {
+  margin-top: 12px;
+}
+
 /* 启用AI开关的横向排版优化 */
 .toggle-row {
   display: flex;
@@ -728,13 +767,48 @@ select:focus {
 }
 
 .card-content {
-  padding: 0 20px 20px 20px;
+  padding: 12px 20px 20px 20px;
 }
 
 .card-content p {
   margin: 0 0 16px 0;
   color: #64748b;
   line-height: 1.5;
+}
+
+/* 卡片内提示文本的上下间距优化 */
+.card-content .setting-desc {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+/* 操作指南详情块的内边距与样式 */
+.card-content details {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+.card-content details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+}
+.card-content details .setting-desc {
+  margin-top: 8px;
+  margin-left: 0;
+}
+
+/* 修复操作指南编号列表在容器外显示的问题 */
+.card-content details ol.setting-desc {
+  list-style-position: inside;
+  padding-left: 12px;
+  margin-left: 0;
+}
+
+#githubSyncStatus {
+  margin-top: 10px;
+  margin-bottom: 8px;
 }
 
 /* 步骤列表样式 */
