@@ -104,9 +104,41 @@
   }
 
   async function fetchBingWallpaper60s(signal) {
-    // 1) 依次尝试 60s 实例 /v2/bing
+    // 1) 优先尝试首选实例，其次依次回退其它实例
     let lastErr;
-    for (const base of SIXTY_INSTANCES) {
+    const candidates = [...SIXTY_INSTANCES];
+    try {
+      const preferred = await getPreferredSixtyInstance();
+      if (preferred && candidates.includes(preferred)) {
+        try {
+          const url = `${preferred}/v2/bing`;
+          const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+          if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
+          const json = await resp.json();
+          if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
+          if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
+          const d = json.data || {};
+          const cover = d.cover_4k || d.cover;
+          if (!cover) throw new Error('未提供壁纸链接');
+          await setPreferredSixtyInstance(preferred);
+          return {
+            title: d.title,
+            description: d.description,
+            main_text: d.main_text,
+            copyright: d.copyright,
+            update_date: d.update_date,
+            update_date_at: d.update_date_at,
+            cover,
+          };
+        } catch (e) {
+          lastErr = e;
+          const idx = candidates.indexOf(preferred);
+          if (idx >= 0) candidates.splice(idx, 1);
+        }
+      }
+    } catch {}
+
+    for (const base of candidates) {
       try {
         const url = `${base}/v2/bing`;
         const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
@@ -117,6 +149,7 @@
         const d = json.data || {};
         const cover = d.cover_4k || d.cover;
         if (!cover) throw new Error('未提供壁纸链接');
+        await setPreferredSixtyInstance(base);
         return {
           title: d.title,
           description: d.description,
@@ -716,19 +749,33 @@
   }
 
   async function fetchWeather(city) {
-    // 60s v2 天气端点候选（均支持 HTTPS，按顺序回退）
-    const instances = [
-      'https://60s.viki.moe',
-      'https://60api.09cdn.xyz',
-      'https://60s.zeabur.app',
-      'https://60s.crystelf.top',
-      'https://cqxx.site',
-      'https://api.yanyua.icu',
-      'https://60s.tmini.net',
-      'https://60s.7se.cn'
-    ];
+    // 60s v2 天气：优先首选实例，失败再回退
     let lastError = null;
-    for (const base of instances) {
+    const candidates = [...SIXTY_INSTANCES];
+    try {
+      const preferred = await getPreferredSixtyInstance();
+      if (preferred && candidates.includes(preferred)) {
+        const url = `${preferred}/v2/weather${city ? `?query=${encodeURIComponent(city)}` : ''}`;
+        try {
+          const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          if (typeof json.code === 'number' && json.code === 200 && json.data) {
+            await setPreferredSixtyInstance(preferred);
+            return { __provider: url, ...json };
+          }
+          lastError = new Error(json.message || `接口返回非成功状态：${json.code}`);
+          const idx = candidates.indexOf(preferred);
+          if (idx >= 0) candidates.splice(idx, 1);
+        } catch (e) {
+          lastError = e;
+          const idx = candidates.indexOf(preferred);
+          if (idx >= 0) candidates.splice(idx, 1);
+        }
+      }
+    } catch {}
+
+    for (const base of candidates) {
       const url = `${base}/v2/weather${city ? `?query=${encodeURIComponent(city)}` : ''}`;
       try {
         const resp = await fetch(url, { cache: 'no-store', redirect: 'follow' });
@@ -736,6 +783,7 @@
         const json = await resp.json();
         // 要求 code===200 才视为成功
         if (typeof json.code === 'number' && json.code === 200 && json.data) {
+          await setPreferredSixtyInstance(base);
           return { __provider: url, ...json };
         }
         // 非 200 则继续尝试下一个实例
