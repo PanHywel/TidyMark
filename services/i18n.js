@@ -169,6 +169,7 @@
     // Help content
     'organize.header': { 'zh-CN': '🔧 整理操作', 'zh-TW': '🔧 整理操作', 'en': '🔧 Organize Actions', 'ru': '🔧 Действия упорядочивания' },
     'organize.desc': { 'zh-CN': '在此执行书签整理操作：生成预览、AI 优化与确认移动。', 'zh-TW': '在此執行書籤整理：生成預覽、AI 優化與確認移動。', 'en': 'Run bookmark organizing: preview, AI optimization, and confirm moves.', 'ru': 'Организация закладок: предпросмотр, оптимизация AI и подтверждение.' },
+    'organize.auto.hint': { 'zh-CN': '依「分类规则」生成预览并移动；如启用 AI，将进行二次优化。', 'zh-TW': '依「分類規則」生成預覽並移動；如啟用 AI，將進行二次優化。', 'en': 'Uses category rules to preview and move; if AI is enabled, it performs a secondary optimization.', 'ru': 'По правилам категорий создаёт предпросмотр и выполняет перемещение; при включённом AI выполняет вторичную оптимизацию.' },
     'help.organize.header': { 'zh-CN': '🔧 使用整理功能', 'zh-TW': '🔧 使用整理功能', 'en': '🔧 Using Organize', 'ru': '🔧 Использование упорядочивания' },
     'help.organize.desc': { 'zh-CN': '通过“整理”标签执行自动整理或 AI 全量归类，支持预览与确认。', 'zh-TW': '透過「整理」標籤執行自動整理或 AI 全量歸類，支援預覽與確認。', 'en': 'Use the Organize tab to run Auto Organize or AI Full Categorization with preview and confirmation.', 'ru': 'Во вкладке «Упорядочить» запускайте автосортировку или полную категоризацию AI с предпросмотром и подтверждением.' },
     'help.organize.step1': { 'zh-CN': '点击“⚡ 自动整理”生成预览；如启用 AI，将进行二次优化。', 'zh-TW': '點擊「⚡ 自動整理」生成預覽；如啟用 AI，將進行二次優化。', 'en': 'Click “⚡ Auto Organize” to generate a preview; if AI is enabled, it refines results.', 'ru': 'Нажмите «⚡ Автосортировка» для предпросмотра; при включенном AI произойдет доработка.' },
