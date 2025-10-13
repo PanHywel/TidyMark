@@ -23,6 +23,31 @@
 
 — 仅保留核心信息，更多细节请参考源码与注释。
 
+# TidyMark — Smart Bookmark Organizer
+
+A lightweight Chrome/Edge extension for auto categorization, AI-assisted organizing, dead link checking, and a New Tab navigation. Built with Manifest V3.
+
+## Features
+
+- Auto categorize: organize bookmarks by rules with one click.
+- AI assist: OpenAI/DeepSeek compatible to improve results.
+- Dead links: scan unreachable bookmarks; bulk delete or move.
+- New Tab navigation: categorized bookmarks and useful info on New Tab.
+
+## Installation
+
+- Download the ZIP from GitHub Releases.
+- Open `chrome://extensions/` (or `edge://extensions/`).
+- Enable Developer mode → Load unpacked → select the folder.
+
+## Screenshots
+
+<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="700"></a>
+<a href="./assets/screenshots/home.png"><img src="./assets/screenshots/home.png" alt="Home" width="400"></a>
+<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="400"></a>
+
+— Minimal info only. See source/comments for details.
+
 Major feature: besides automatic bookmark organization, the New Tab navigation is a primary capability of this project.
 
 ## Configuration
