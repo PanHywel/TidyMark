@@ -15,7 +15,7 @@
         <h1>TidyMark</h1>
       </div>
       <div class="header-right">
-        <div class="version">v1.0.0</div>
+        <div class="version">v1.3.7</div>
         <div class="lang-switch">
           <select id="languageSelect" class="lang-select">
             <option value="zh-CN">简体中文</option>
@@ -247,6 +247,10 @@
               <p class="setting-desc" data-i18n="pref.language.desc">AI 生成分类名称的语言</p>
             </div>
           </div>
+          <div class="setting-item" style="margin-top: 8px;">
+            <button class="btn btn-secondary" id="testAiConnection">测试链接</button>
+            <span id="testResult" class="setting-desc inline-hint" style="margin-left: 10px;"></span>
+          </div>
         </div>
       </div>
     </section>
@@ -288,7 +292,7 @@
         <button class="btn btn-outline" id="quickBackupBtn">💾 备份书签</button>
         <button class="btn btn-outline" id="quickGithubSyncBtn">☁️ 同步到 GitHub</button>
         <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
-        <button class="btn btn-outline" id="aiInferOrganizeBtn" data-i18n="ai.infer.btn">🤖 AI 全量归类</button>
+        <button class="btn btn-accent" id="aiInferOrganizeBtn" data-i18n="ai.infer.btn">🤖 AI 全量归类</button>
       </div>
     </div>
     <div class="section-description">

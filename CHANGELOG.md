@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.7 — 2025-10-13
+
+- Options: restore AI connectivity “测试链接” button and inline result.
+- Options: change “🤖 AI 全量归类” to accent primary style for parity with “⚡ 自动整理”.
+- Background: wire classification language (zh/en/auto) into default rules, auto classify, context menu quick classify, and AI mock suggestions; fallback folder name supports “其他/Others”.
+- UX: organize preview respects bilingual “其他/Others” when moving uncategorized items.
+- CI: release workflow triggers on `v*.*.*` tag; packaged zip includes `manifest.json`, `icons`, `src`, `services`, `README.md`, `LICENSE`.
+
 ## v1.3.2 — 2025-10-11
 
 - New Tab: change default search engine to Bing.

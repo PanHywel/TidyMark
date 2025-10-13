@@ -95,7 +95,7 @@ async function initializeExtension() {
       autoBackup: true,
       backupPath: '',
       autoClassify: true,
-      classificationRules: getDefaultClassificationRules(),
+      classificationRules: getDefaultClassificationRules(resolveClassificationLanguage('auto')),
       enableAI: false,
       aiProvider: 'openai',
       aiApiKey: '',
@@ -151,49 +151,109 @@ async function initializeExtension() {
   }
 }
 
-// 获取默认分类规则
-function getDefaultClassificationRules() {
+// 分类名称中英文映射与语言解析
+const CATEGORY_EN_MAP = {
+  '开源与代码托管': 'Open Source & Repos',
+  '开发文档与API': 'Docs & API',
+  '前端框架': 'Frontend Frameworks',
+  '后端框架': 'Backend Frameworks',
+  '云服务与DevOps': 'Cloud & DevOps',
+  '数据库与数据': 'Databases & Data',
+  'AI与机器学习': 'AI & Machine Learning',
+  '产品设计': 'Product Design',
+  '设计资源与素材': 'Design Assets',
+  '学习教程与课程': 'Courses & Tutorials',
+  '技术博客与社区': 'Tech Blogs & Communities',
+  '新闻资讯与媒体': 'News & Media',
+  '在线工具与服务': 'Online Tools & Services',
+  '下载与资源': 'Downloads & Resources',
+  '视频与音乐': 'Videos & Music',
+  '游戏与娱乐': 'Games & Entertainment',
+  '购物电商': 'Shopping',
+  '社交媒体': 'Social Media',
+  '办公与协作': 'Work & Collaboration',
+  '笔记与知识库': 'Notes & Knowledge Base',
+  '项目与任务管理': 'Projects & Tasks',
+  '地图与导航': 'Maps & Navigation',
+  '博客平台与CMS': 'Blogs & CMS',
+  '数据科学与分析': 'Data Science & Analytics',
+  'API测试与开发': 'API Testing & Dev',
+  '邮件与通讯': 'Mail & Communication',
+  '求职与招聘': 'Jobs & Recruiting',
+  '金融与理财': 'Finance',
+  '生活服务': 'Lifestyle Services',
+  '阅读与电子书': 'Reading & eBooks',
+  '科研与论文': 'Research & Papers',
+  '浏览器与扩展': 'Browsers & Extensions',
+  '摄影与照片': 'Photography',
+  '图片处理与修图': 'Photo Editing',
+  '器材与评测': 'Gear & Reviews',
+  '图片托管与分享': 'Image Hosting & Sharing',
+  '摄影品牌与官网': 'Photo Brands',
+  '器材评测与资讯': 'Gear News & Reviews',
+  '版权素材与购买': 'Stock & Licensing',
+  '摄影教程与灵感': 'Photo Tutorials & Inspiration',
+  '其他': 'Others'
+};
+
+function resolveClassificationLanguage(langSetting) {
+  const v = (langSetting || 'auto');
+  if (v === 'auto') {
+    const nav = (navigator?.language || 'en').toLowerCase();
+    return nav.startsWith('zh') ? 'zh' : 'en';
+  }
+  return (v === 'zh' || v === 'en') ? v : 'zh';
+}
+
+function translateCategoryName(name, lang) {
+  if (lang === 'en') return CATEGORY_EN_MAP[name] || name;
+  return name;
+}
+
+// 获取默认分类规则（按语言生成分类名称）
+function getDefaultClassificationRules(lang = 'zh') {
+  const t = (zh) => translateCategoryName(zh, lang);
   return [
-    { category: '开源与代码托管', keywords: ['github', 'gitlab', 'gitee', 'bitbucket', 'source code', 'repository', 'repo'] },
-    { category: '开发文档与API', keywords: ['docs', 'documentation', 'api', 'sdk', 'developer', 'developers', 'reference', '文档', '接口'] },
-    { category: '前端框架', keywords: ['react', 'vue', 'angular', 'svelte', 'nextjs', 'nuxt', 'vite', 'webpack', 'babel', 'preact', 'solidjs', 'ember'] },
-    { category: '后端框架', keywords: ['spring', 'springboot', 'django', 'flask', 'fastapi', 'express', 'koa', 'rails', 'laravel', 'nestjs', 'micronaut', 'quarkus', 'fastify', 'hapi', 'gin', 'asp.net', 'dotnet', 'phoenix'] },
-    { category: '云服务与DevOps', keywords: ['aws', 'azure', 'gcp', 'cloud', 'kubernetes', 'k8s', 'docker', 'ci', 'cd', 'devops', 'terraform', 'cloudflare', 'vercel', 'netlify', 'digitalocean', 'heroku', 'render', 'linode', 'railway'] },
-    { category: '数据库与数据', keywords: ['mysql', 'postgres', 'mongodb', 'redis', 'sqlite', 'elasticsearch', 'clickhouse', 'snowflake', 'data', '数据库', 'mariadb', 'oracle', 'sql server', 'mssql', 'dynamodb', 'bigquery', 'firestore', 'cassandra'] },
-    { category: 'AI与机器学习', keywords: ['ai', 'ml', 'deep learning', 'nn', 'transformer', 'openai', 'huggingface', 'stable diffusion', 'llm', '机器学习', 'midjourney', 'dalle', 'runway', 'colab', 'tensorflow', 'pytorch', 'sklearn', 'xgboost'] },
-    { category: '产品设计', keywords: ['product', 'ux', 'ui', 'prototype', '设计', '交互', '体验'] },
-    { category: '设计资源与素材', keywords: ['dribbble', 'behance', 'figma', 'psd', 'svg', 'icon', 'font', '素材', '配色', 'icons8', 'fontawesome', 'material icons', 'coolors', 'colorhunt'] },
-    { category: '学习教程与课程', keywords: ['course', '教程', 'tutorial', 'learn', '学习', 'class', 'lesson', 'udemy', 'coursera', 'edx', 'pluralsight', 'codecademy', 'freecodecamp'] },
-    { category: '技术博客与社区', keywords: ['blog', '博客', 'medium', 'dev.to', 'reddit', '讨论', 'community', '论坛', 'hashnode'] },
-    { category: '新闻资讯与媒体', keywords: ['news', '资讯', 'headline', '媒体', 'press', 'newsletter', 'cnn', 'bbc', 'reuters', 'nytimes', 'theverge', 'wired', 'techcrunch', 'hacker news'] },
-    { category: '在线工具与服务', keywords: ['tool', '工具', 'software', 'app', '应用', 'utility', 'converter', 'online', 'remove.bg', 'smallpdf', 'ilovepdf', 'convertio', 'tinypng', 'tinyurl'] },
-    { category: '下载与资源', keywords: ['download', '下载', '镜像', '资源', 'release', 'release notes', 'npmjs', 'pypi', 'maven', 'rubygems', 'crates.io', 'chocolatey'] },
-    { category: '视频与音乐', keywords: ['youtube', 'bilibili', 'netflix', 'spotify', 'video', '音乐', '音频', '影视', 'vimeo', 'soundcloud', 'apple music', 'deezer', 'qq音乐', '网易云音乐', 'youku', 'iqiyi', '腾讯视频'] },
-    { category: '游戏与娱乐', keywords: ['game', 'gaming', 'steam', 'xbox', 'ps5', '游戏', '娱乐', 'epic', 'uplay', 'origin', 'battlenet', 'psn', 'nintendo'] },
-    { category: '购物电商', keywords: ['shop', '购物', 'buy', '购买', 'store', '商店', 'mall', '商城', 'taobao', 'jd', 'amazon', 'aliexpress', 'etsy', 'ebay', 'shopify', 'xiaomi', 'apple store'] },
-    { category: '社交媒体', keywords: ['twitter', 'x.com', 'facebook', 'instagram', 'tiktok', 'linkedin', '社交', '分享', '社区', 'wechat', 'weibo', 'discord', 'telegram', 'whatsapp', 'line', 'kakao', 'quora'] },
-    { category: '办公与协作', keywords: ['notion', 'confluence', 'slack', 'teams', 'jira', 'office', '文档', '协作', 'drive', 'google drive', 'dropbox', 'onedrive', 'monday', 'miro'] },
-    { category: '笔记与知识库', keywords: ['obsidian', 'evernote', 'note', 'wiki', '知识库'] },
-    { category: '项目与任务管理', keywords: ['asana', 'trello', 'todoist', 'clickup', 'kanban', '项目管理', '任务'] },
-    { category: '地图与导航', keywords: ['google maps', 'maps', 'gaode', '高德', 'baidu map', '百度地图', 'openstreetmap', 'osm', '导航'] },
-    { category: '博客平台与CMS', keywords: ['wordpress', 'ghost', 'blogger', 'cms', '内容管理'] },
-    { category: '数据科学与分析', keywords: ['kaggle', 'jupyter', 'databricks', 'data science', '数据科学'] },
-    { category: 'API测试与开发', keywords: ['postman', 'insomnia', 'swagger', 'openapi', 'api 测试'] },
-    { category: '邮件与通讯', keywords: ['gmail', 'outlook', 'mail', '邮箱', 'imap', 'smtp', 'message', 'chat', 'protonmail', 'fastmail', 'zoho mail', 'mailchimp', 'sendgrid'] },
-    { category: '求职与招聘', keywords: ['jobs', '招聘', '求职', 'career', 'hr', '猎头', '简历', 'indeed', 'glassdoor', 'lever', 'greenhouse', '拉勾', 'boss直聘', '前程无忧'] },
-    { category: '金融与理财', keywords: ['bank', 'finance', '投资', '基金', '股票', 'trading', 'crypto', '区块链', 'paypal', 'stripe', 'alipay', 'wechat pay', 'wise'] },
-    { category: '生活服务', keywords: ['生活', '服务', '家政', '外卖', '出行', '住宿', '旅游', 'uber', 'didi', '美团', '饿了么', 'airbnb', 'booking', 'trip', 'expedia'] },
-    { category: '阅读与电子书', keywords: ['read', '阅读', '电子书', 'epub', 'pdf', 'kindle', 'goodreads', 'gutenberg', 'scribd'] },
-    { category: '科研与论文', keywords: ['arxiv', '论文', 'research', '科研', 'paper', 'citation', 'nature', 'science', 'springer', 'ieee', 'acm', 'doi', 'researchgate'] },
-    { category: '浏览器与扩展', keywords: ['extension', '插件', 'chrome web store', 'edge add-ons', '浏览器', 'addons.mozilla.org', 'opera addons', 'chrome.google.com'] },
-    { category: '摄影与照片', keywords: ['photography', 'photo', '照片', '摄影', 'camera', '拍照', '拍摄', 'photrio', 'fredmiranda'] },
-    { category: '图片处理与修图', keywords: ['lightroom', 'photoshop', 'capture one', '修图', '编辑', 'raw', '后期', '色彩', 'darktable', 'affinity photo', 'gimp', 'luminar'] },
-    { category: '器材与评测', keywords: ['dslr', 'mirrorless', '微单', '单反', '镜头', 'lens', '评测', 'review', '光圈', '焦距', 'dxomark', 'cameralabs', 'the-digital-picture'] },
-    { category: '图片托管与分享', keywords: ['flickr', '500px', 'unsplash', 'pixabay', 'pexels', '图库', 'portfolio', '作品集', '图床', 'smugmug', 'zenfolio', 'imgur', 'pixiv'] },
-    { category: '摄影品牌与官网', keywords: ['canon', 'nikon', 'sonyalpha', 'fujifilm', 'leica', 'sigma', 'tamron', '富士', '徕卡'] },
-    { category: '器材评测与资讯', keywords: ['dpreview', 'petapixel', 'fstoppers', '评测', '测评', '评估'] },
-    { category: '版权素材与购买', keywords: ['getty', 'gettyimages', 'shutterstock', 'adobe stock', 'istock', 'pond5', '版权', '素材购买'] },
-    { category: '摄影教程与灵感', keywords: ['教程', 'tips', 'composition', '构图', '布光', '灵感', 'inspiration', 'kelbyone', 'phlearn', 'magnum photos'] }
+    { category: t('开源与代码托管'), keywords: ['github', 'gitlab', 'gitee', 'bitbucket', 'source code', 'repository', 'repo'] },
+    { category: t('开发文档与API'), keywords: ['docs', 'documentation', 'api', 'sdk', 'developer', 'developers', 'reference', '文档', '接口'] },
+    { category: t('前端框架'), keywords: ['react', 'vue', 'angular', 'svelte', 'nextjs', 'nuxt', 'vite', 'webpack', 'babel', 'preact', 'solidjs', 'ember'] },
+    { category: t('后端框架'), keywords: ['spring', 'springboot', 'django', 'flask', 'fastapi', 'express', 'koa', 'rails', 'laravel', 'nestjs', 'micronaut', 'quarkus', 'fastify', 'hapi', 'gin', 'asp.net', 'dotnet', 'phoenix'] },
+    { category: t('云服务与DevOps'), keywords: ['aws', 'azure', 'gcp', 'cloud', 'kubernetes', 'k8s', 'docker', 'ci', 'cd', 'devops', 'terraform', 'cloudflare', 'vercel', 'netlify', 'digitalocean', 'heroku', 'render', 'linode', 'railway'] },
+    { category: t('数据库与数据'), keywords: ['mysql', 'postgres', 'mongodb', 'redis', 'sqlite', 'elasticsearch', 'clickhouse', 'snowflake', 'data', '数据库', 'mariadb', 'oracle', 'sql server', 'mssql', 'dynamodb', 'bigquery', 'firestore', 'cassandra'] },
+    { category: t('AI与机器学习'), keywords: ['ai', 'ml', 'deep learning', 'nn', 'transformer', 'openai', 'huggingface', 'stable diffusion', 'llm', '机器学习', 'midjourney', 'dalle', 'runway', 'colab', 'tensorflow', 'pytorch', 'sklearn', 'xgboost'] },
+    { category: t('产品设计'), keywords: ['product', 'ux', 'ui', 'prototype', '设计', '交互', '体验'] },
+    { category: t('设计资源与素材'), keywords: ['dribbble', 'behance', 'figma', 'psd', 'svg', 'icon', 'font', '素材', '配色', 'icons8', 'fontawesome', 'material icons', 'coolors', 'colorhunt'] },
+    { category: t('学习教程与课程'), keywords: ['course', '教程', 'tutorial', 'learn', '学习', 'class', 'lesson', 'udemy', 'coursera', 'edx', 'pluralsight', 'codecademy', 'freecodecamp'] },
+    { category: t('技术博客与社区'), keywords: ['blog', '博客', 'medium', 'dev.to', 'reddit', '讨论', 'community', '论坛', 'hashnode'] },
+    { category: t('新闻资讯与媒体'), keywords: ['news', '资讯', 'headline', '媒体', 'press', 'newsletter', 'cnn', 'bbc', 'reuters', 'nytimes', 'theverge', 'wired', 'techcrunch', 'hacker news'] },
+    { category: t('在线工具与服务'), keywords: ['tool', '工具', 'software', 'app', '应用', 'utility', 'converter', 'online', 'remove.bg', 'smallpdf', 'ilovepdf', 'convertio', 'tinypng', 'tinyurl'] },
+    { category: t('下载与资源'), keywords: ['download', '下载', '镜像', '资源', 'release', 'release notes', 'npmjs', 'pypi', 'maven', 'rubygems', 'crates.io', 'chocolatey'] },
+    { category: t('视频与音乐'), keywords: ['youtube', 'bilibili', 'netflix', 'spotify', 'video', '音乐', '音频', '影视', 'vimeo', 'soundcloud', 'apple music', 'deezer', 'qq音乐', '网易云音乐', 'youku', 'iqiyi', '腾讯视频'] },
+    { category: t('游戏与娱乐'), keywords: ['game', 'gaming', 'steam', 'xbox', 'ps5', '游戏', '娱乐', 'epic', 'uplay', 'origin', 'battlenet', 'psn', 'nintendo'] },
+    { category: t('购物电商'), keywords: ['shop', '购物', 'buy', '购买', 'store', '商店', 'mall', '商城', 'taobao', 'jd', 'amazon', 'aliexpress', 'etsy', 'ebay', 'shopify', 'xiaomi', 'apple store'] },
+    { category: t('社交媒体'), keywords: ['twitter', 'x.com', 'facebook', 'instagram', 'tiktok', 'linkedin', '社交', '分享', '社区', 'wechat', 'weibo', 'discord', 'telegram', 'whatsapp', 'line', 'kakao', 'quora'] },
+    { category: t('办公与协作'), keywords: ['notion', 'confluence', 'slack', 'teams', 'jira', 'office', '文档', '协作', 'drive', 'google drive', 'dropbox', 'onedrive', 'monday', 'miro'] },
+    { category: t('笔记与知识库'), keywords: ['obsidian', 'evernote', 'note', 'wiki', '知识库'] },
+    { category: t('项目与任务管理'), keywords: ['asana', 'trello', 'todoist', 'clickup', 'kanban', '项目管理', '任务'] },
+    { category: t('地图与导航'), keywords: ['google maps', 'maps', 'gaode', '高德', 'baidu map', '百度地图', 'openstreetmap', 'osm', '导航'] },
+    { category: t('博客平台与CMS'), keywords: ['wordpress', 'ghost', 'blogger', 'cms', '内容管理'] },
+    { category: t('数据科学与分析'), keywords: ['kaggle', 'jupyter', 'databricks', 'data science', '数据科学'] },
+    { category: t('API测试与开发'), keywords: ['postman', 'insomnia', 'swagger', 'openapi', 'api 测试'] },
+    { category: t('邮件与通讯'), keywords: ['gmail', 'outlook', 'mail', '邮箱', 'imap', 'smtp', 'message', 'chat', 'protonmail', 'fastmail', 'zoho mail', 'mailchimp', 'sendgrid'] },
+    { category: t('求职与招聘'), keywords: ['jobs', '招聘', '求职', 'career', 'hr', '猎头', '简历', 'indeed', 'glassdoor', 'lever', 'greenhouse', '拉勾', 'boss直聘', '前程无忧'] },
+    { category: t('金融与理财'), keywords: ['bank', 'finance', '投资', '基金', '股票', 'trading', 'crypto', '区块链', 'paypal', 'stripe', 'alipay', 'wechat pay', 'wise'] },
+    { category: t('生活服务'), keywords: ['生活', '服务', '家政', '外卖', '出行', '住宿', '旅游', 'uber', 'didi', '美团', '饿了么', 'airbnb', 'booking', 'trip', 'expedia'] },
+    { category: t('阅读与电子书'), keywords: ['read', '阅读', '电子书', 'epub', 'pdf', 'kindle', 'goodreads', 'gutenberg', 'scribd'] },
+    { category: t('科研与论文'), keywords: ['arxiv', '论文', 'research', '科研', 'paper', 'citation', 'nature', 'science', 'springer', 'ieee', 'acm', 'doi', 'researchgate'] },
+    { category: t('浏览器与扩展'), keywords: ['extension', '插件', 'chrome web store', 'edge add-ons', '浏览器', 'addons.mozilla.org', 'opera addons', 'chrome.google.com'] },
+    { category: t('摄影与照片'), keywords: ['photography', 'photo', '照片', '摄影', 'camera', '拍照', '拍摄', 'photrio', 'fredmiranda'] },
+    { category: t('图片处理与修图'), keywords: ['lightroom', 'photoshop', 'capture one', '修图', '编辑', 'raw', '后期', '色彩', 'darktable', 'affinity photo', 'gimp', 'luminar'] },
+    { category: t('器材与评测'), keywords: ['dslr', 'mirrorless', '微单', '单反', '镜头', 'lens', '评测', 'review', '光圈', '焦距', 'dxomark', 'cameralabs', 'the-digital-picture'] },
+    { category: t('图片托管与分享'), keywords: ['flickr', '500px', 'unsplash', 'pixabay', 'pexels', '图库', 'portfolio', '作品集', '图床', 'smugmug', 'zenfolio', 'imgur', 'pixiv'] },
+    { category: t('摄影品牌与官网'), keywords: ['canon', 'nikon', 'sonyalpha', 'fujifilm', 'leica', 'sigma', 'tamron', '富士', '徕卡'] },
+    { category: t('器材评测与资讯'), keywords: ['dpreview', 'petapixel', 'fstoppers', '评测', '测评', '评估'] },
+    { category: t('版权素材与购买'), keywords: ['getty', 'gettyimages', 'shutterstock', 'adobe stock', 'istock', 'pond5', '版权', '素材购买'] },
+    { category: t('摄影教程与灵感'), keywords: ['教程', 'tips', 'composition', '构图', '布光', '灵感', 'inspiration', 'kelbyone', 'phlearn', 'magnum photos'] }
   ];
 }
 
@@ -750,12 +810,15 @@ async function autoClassifyBookmarks(options = {}) {
     // 获取分类规则
     let rules;
     try {
-      const { classificationRules } = await chrome.storage.sync.get('classificationRules');
-      rules = classificationRules || getDefaultClassificationRules();
+      const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules','classificationLanguage']);
+      const lang = resolveClassificationLanguage(classificationLanguage);
+      rules = classificationRules || getDefaultClassificationRules(lang);
       console.log('[autoClassify] 规则加载完成:', Array.isArray(rules) ? rules.length : 0);
     } catch (e) {
       console.warn('[autoClassify] 规则加载失败，使用默认规则:', e);
-      rules = getDefaultClassificationRules();
+      const { classificationLanguage } = await chrome.storage.sync.get('classificationLanguage');
+      const lang = resolveClassificationLanguage(classificationLanguage);
+      rules = getDefaultClassificationRules(lang);
     }
 
     // 获取所有书签
@@ -778,16 +841,19 @@ async function autoClassifyBookmarks(options = {}) {
       details: []
     };
 
+    const { classificationLanguage: clsLangRaw } = await chrome.storage.sync.get('classificationLanguage');
+    const clsLang = resolveClassificationLanguage(clsLangRaw);
+    const otherName = translateCategoryName('其他', clsLang);
     for (const bookmark of flatBookmarks) {
       if (!bookmark.url) continue; // 跳过文件夹
-      const category = classifyBookmark(bookmark, rules) || '其他';
+      const category = classifyBookmark(bookmark, rules) || otherName;
       preview.details.push({ bookmark, category });
       if (!preview.categories[category]) {
         preview.categories[category] = { count: 0, bookmarks: [] };
       }
       preview.categories[category].count++;
       preview.categories[category].bookmarks.push(bookmark);
-      if (category !== '其他') preview.classified++;
+      if (category !== otherName) preview.classified++;
     }
 
     if (dryRun) {
@@ -802,16 +868,17 @@ async function autoClassifyBookmarks(options = {}) {
     // 实际整理：仅为有书签的分类创建文件夹
     const categoryFolders = {};
 
-    // 只有当存在未分类书签时才创建"其他"文件夹
-    const otherCount = preview.categories['其他']?.count || 0;
+    // 只有当存在未分类书签时才创建“其他/Others”文件夹
+    const otherCount = (preview.categories[translateCategoryName('其他', clsLang)]?.count || 0);
     let otherFolder = null;
     if (otherCount > 0) {
-      otherFolder = await findOrCreateFolder('其他');
-      categoryFolders['其他'] = otherFolder;
+      const otherNm = translateCategoryName('其他', clsLang);
+      otherFolder = await findOrCreateFolder(otherNm);
+      categoryFolders[otherNm] = otherFolder;
     }
 
     for (const [category, data] of Object.entries(preview.categories)) {
-      if (category === '其他') continue;
+      if (category === otherName) continue;
       if (!data || data.count === 0) continue;
       const folder = await findOrCreateFolder(category);
       categoryFolders[category] = folder;
@@ -1018,7 +1085,7 @@ async function countBookmarks(bookmarkTree) {
 // AI分类功能（第二版功能）
 async function classifyBookmarksWithAI(bookmarks) {
   try {
-    const { aiProvider, aiApiKey, aiApiUrl } = await chrome.storage.sync.get(['aiProvider', 'aiApiKey', 'aiApiUrl']);
+    const { aiProvider, aiApiKey, aiApiUrl, classificationLanguage } = await chrome.storage.sync.get(['aiProvider', 'aiApiKey', 'aiApiUrl','classificationLanguage']);
     
     if (!aiApiKey) {
       throw new Error('AI API Key 未配置');
@@ -1026,11 +1093,12 @@ async function classifyBookmarksWithAI(bookmarks) {
 
     // 这里应该实现实际的AI API调用
     // 由于这是示例代码，我们返回模拟结果
+    const lang = resolveClassificationLanguage(classificationLanguage);
     const mockResults = bookmarks.map(bookmark => ({
       id: bookmark.id,
       title: bookmark.title,
       url: bookmark.url,
-      suggestedCategory: classifyBookmark(bookmark, getDefaultClassificationRules()),
+      suggestedCategory: classifyBookmark(bookmark, getDefaultClassificationRules(lang)),
       confidence: Math.random() * 0.5 + 0.5 // 0.5-1.0的置信度
     }));
 
@@ -1518,14 +1586,18 @@ async function organizeByPlan(plan) {
   // 计划格式直接复用预览结构：{ total, classified, categories: { name: {count, bookmarks[]} }, details }
   // 创建需要的文件夹
   const categoryFolders = {};
-  const otherCount = plan.categories['其他']?.count || 0;
+  // 兼容中英文“其他”分类
+  const otherCandidates = ['其他', 'Others'];
   let otherFolder = null;
-  if (otherCount > 0) {
-    otherFolder = await findOrCreateFolder('其他');
-    categoryFolders['其他'] = otherFolder;
+  for (const otherName of otherCandidates) {
+    const oc = plan.categories[otherName]?.count || 0;
+    if (oc > 0 && !categoryFolders[otherName]) {
+      otherFolder = await findOrCreateFolder(otherName);
+      categoryFolders[otherName] = otherFolder;
+    }
   }
   for (const [category, data] of Object.entries(plan.categories)) {
-    if (category === '其他') continue;
+    if (otherCandidates.includes(category)) continue;
     if (!data || data.count === 0) continue;
     const folder = await findOrCreateFolder(category);
     categoryFolders[category] = folder;
@@ -1757,8 +1829,9 @@ async function showAddNotification({ title, url, category }) {
 // 处理右键菜单点击
 chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
   try {
-    const { classificationRules } = await chrome.storage.sync.get('classificationRules');
-    const rules = classificationRules || getDefaultClassificationRules();
+    const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules','classificationLanguage']);
+    const lang = resolveClassificationLanguage(classificationLanguage);
+    const rules = classificationRules || getDefaultClassificationRules(lang);
 
     const targetUrl = info.linkUrl || info.pageUrl || tab?.url || '';
     if (!targetUrl) return;
@@ -1778,7 +1851,8 @@ chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
     }
 
     // 分类并移动
-    const category = classifyBookmark({ title, url: targetUrl }, rules) || '其他';
+    const otherName = translateCategoryName('其他', lang);
+    const category = classifyBookmark({ title, url: targetUrl }, rules) || otherName;
     const folder = await findOrCreateFolder(category);
     if (created && folder && String(created.parentId) !== String(folder.id)) {
       await chrome.bookmarks.move(created.id, { parentId: folder.id });
