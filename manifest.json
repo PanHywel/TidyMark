@@ -8,7 +8,10 @@
     "bookmarks",
     "storage",
     "downloads",
-    "activeTab"
+    "activeTab",
+    "alarms",
+    "contextMenus",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"

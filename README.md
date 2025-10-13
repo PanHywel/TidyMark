@@ -2,6 +2,13 @@
 
 一个轻量的 Chrome/Edge 扩展，支持自动分类、AI 辅助整理、失效书签检测，以及新标签页导航。基于 Manifest V3 原生实现。
 
+## 新增功能（v1.4.0）
+
+- 书签云同步 / 导出：支持每日自动进行 GitHub 书签备份（可在设置页配置），也可手动创建本地备份导出。
+- 自动归档旧书签：按“最近访问时间”判断，将不常访问的书签移入“归档”文件夹（可设置阈值，默认 180 天；无访问记录时回退按添加时间）。
+- 访问频率统计 / 使用热度分析：记录新标签页的书签访问次数与最近访问时间，支持热门栏目展示与基础使用分析。
+- 右键菜单集成：在网页右键菜单中一键“添加到 TidyMark 并分类”，自动创建并移动到匹配分类文件夹。
+
 ## 功能简介
 
 - 自动分类：按规则一键整理书签到对应类别。
@@ -139,7 +146,7 @@ TidyMark/
 
 ## Permissions
 
-- `bookmarks`, `storage`, `downloads`, `activeTab`
+- `bookmarks`, `storage`, `downloads`, `activeTab`, `alarms`, `contextMenus`, `notifications`
 
 ## Contributing
 

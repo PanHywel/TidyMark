@@ -11,12 +11,50 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // 更新时的处理
     console.log('扩展已更新到新版本');
   }
+
+  // 注册每日 GitHub 自动同步闹钟（MV3 service worker可被唤醒）
+  try {
+    chrome.alarms.create('tidymarkDailyGithubAutoSync', { periodInMinutes: 1440 });
+    console.log('[AutoSync] 已注册每日 GitHub 自动同步闹钟');
+  } catch (e) {
+    console.warn('[AutoSync] 创建自动同步闹钟失败', e);
+  }
+
+  // 注册右键菜单
+  try {
+    await registerContextMenus();
+  } catch (e) {
+    console.warn('[ContextMenus] 注册失败', e);
+  }
 });
 
 // 扩展启动时的初始化
 chrome.runtime.onStartup.addListener(async () => {
   console.log('TidyMark 扩展已启动');
   await checkAndBackupBookmarks();
+  await checkAndArchiveOldBookmarks();
+  // 启动后尝试进行每日自动同步（仅当配置完整且当天未同步）
+  try {
+    await maybeRunDailyGithubAutoSync('startup');
+  } catch (e) {
+    console.warn('[AutoSync] 启动自动同步失败', e);
+  }
+
+  // 启动时尝试注册右键菜单（避免开发模式热重载缺失）
+  try {
+    await registerContextMenus();
+  } catch (e) {
+    console.warn('[ContextMenus] 启动时注册失败', e);
+  }
+  
+  // 尝试初始化通知能力（无需显式初始化，只做能力检测日志）
+  try {
+    if (chrome.notifications) {
+      console.log('[Notifications] 能力可用');
+    }
+  } catch (e) {
+    console.warn('[Notifications] 能力检测失败', e);
+  }
 });
 
 // 点击扩展图标直接打开设置页面（移除 popup 后启用）
@@ -33,6 +71,21 @@ chrome.action.onClicked.addListener(() => {
     chrome.tabs.create({ url });
   }
 });
+
+// 通过闹钟周期性唤醒并执行每日一次的 GitHub 自动同步
+try {
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm && alarm.name === 'tidymarkDailyGithubAutoSync') {
+      try {
+        await maybeRunDailyGithubAutoSync('alarm');
+      } catch (e) {
+        console.warn('[AutoSync] 闹钟触发自动同步失败', e);
+      }
+    }
+  });
+} catch (e) {
+  console.warn('[AutoSync] 注册闹钟监听失败', e);
+}
 
 // 初始化扩展
 async function initializeExtension() {
@@ -147,8 +200,19 @@ function getDefaultClassificationRules() {
 // 监听来自popup和options页面的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('收到消息:', request);
+  const action = (request && typeof request.action === 'string') ? request.action.trim() : request.action;
+  try {
+    const codes = Array.from(String(action || '')).map(c => c.charCodeAt(0));
+    console.log('[onMessage] action 调试：', { action, length: String(action || '').length, codes });
+  } catch (_) {}
 
-  switch (request.action) {
+  // 兼容不可见空白字符导致的匹配失败
+  if (typeof action === 'string' && action.replace(/\s/g, '') === 'syncGithubBackup') {
+    handleSyncGithubBackup(request.payload, sendResponse);
+    return true;
+  }
+
+  switch (action) {
     case 'getBookmarks':
       handleGetBookmarks(sendResponse);
       break;
@@ -184,8 +248,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'organizeByAiInference':
       handleOrganizeByAiInference(sendResponse);
       break;
+    case 'syncGithubBackup':
+      handleSyncGithubBackup(request.payload, sendResponse);
+      break;
     default:
-      sendResponse({ success: false, error: '未知操作' });
+      console.warn('[onMessage] 未知操作:', action, '完整请求:', request);
+      sendResponse({ success: false, error: `未知操作: ${String(action)}` });
   }
 
   // 返回true表示异步响应
@@ -291,6 +359,210 @@ async function handleOrganizeByAiInference(sendResponse) {
   }
 }
 
+// 处理 GitHub 同步备份
+async function handleSyncGithubBackup(payload, sendResponse) {
+  try {
+    console.log('[SyncGithub] 进入处理器，收到 payload:', {
+      hasToken: !!(payload && payload.token),
+      owner: payload && payload.owner,
+      repo: payload && payload.repo,
+      format: payload && payload.format,
+      dualUpload: payload && payload.dualUpload
+    });
+    const { token, owner, repo, format = 'json', dualUpload = false } = payload || {};
+    if (!token || !owner || !repo) {
+      sendResponse({ success: false, error: '配置不完整' });
+      return;
+    }
+
+    // 使用默认分支与默认路径
+    let branch = 'main';
+    const path = 'tidymark/backups/tidymark-backup.json';
+    const pathHtml = 'tidymark/backups/tidymark-bookmarks.html';
+    const fmt = ['json','html'].includes(String(format)) ? String(format) : 'json';
+
+    // 确保有最新备份
+    let { lastBackup } = await chrome.storage.local.get(['lastBackup']);
+    if (!lastBackup) {
+      await createBookmarkBackup();
+      ({ lastBackup } = await chrome.storage.local.get(['lastBackup']));
+    }
+    if (!lastBackup) {
+      sendResponse({ success: false, error: '无法获取备份数据' });
+      return;
+    }
+
+    // Base64 编码工具（兼容中文）
+    const toBase64 = (str) => {
+      try {
+        return btoa(unescape(encodeURIComponent(str)));
+      } catch (_) {
+        const bytes = new TextEncoder().encode(str);
+        let binary = '';
+        bytes.forEach(b => { binary += String.fromCharCode(b); });
+        return btoa(binary);
+      }
+    };
+
+    // HTML 生成（Chrome 兼容 Netscape 书签格式）
+    const escapeHtml = (text = '') => String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+    const processBookmarkNode = (node, depth, defaultTimestamp) => {
+      const indent = '    '.repeat(depth);
+      let html = '';
+      if (node.children) {
+        const addDate = node.dateAdded ? Math.floor(node.dateAdded / 1000) : defaultTimestamp;
+        const lastModified = node.dateGroupModified ? Math.floor(node.dateGroupModified / 1000) : defaultTimestamp;
+        html += `${indent}<DT><H3 ADD_DATE="${addDate}" LAST_MODIFIED="${lastModified}">${escapeHtml(node.title || '未命名文件夹')}</H3>\n`;
+        html += `${indent}<DL><p>\n`;
+        for (const child of node.children) {
+          html += processBookmarkNode(child, depth + 1, defaultTimestamp);
+        }
+        html += `${indent}</DL><p>\n`;
+      } else if (node.url) {
+        const addDate = node.dateAdded ? Math.floor(node.dateAdded / 1000) : defaultTimestamp;
+        const icon = node.icon || '';
+        html += `${indent}<DT><A HREF="${escapeHtml(node.url)}" ADD_DATE="${addDate}"`;
+        if (icon) html += ` ICON_URI="${escapeHtml(icon)}"`;
+        html += `>${escapeHtml(node.title || node.url)}</A>\n`;
+      }
+      return html;
+    };
+    const generateChromeBookmarkHTML = (bookmarkTree) => {
+      const timestamp = Math.floor(Date.now() / 1000);
+      let html = `<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<!-- This is an automatically generated file.\n     It will be read and overwritten.\n     DO NOT EDIT! -->\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n\n<DL><p>\n`;
+      if (bookmarkTree && bookmarkTree.length > 0) {
+        const rootNode = bookmarkTree[0];
+        if (rootNode.children) {
+          for (const child of rootNode.children) {
+            html += processBookmarkNode(child, 1, timestamp);
+          }
+        }
+      }
+      html += `</DL><p>\n`;
+      return html;
+    };
+
+    // 获取仓库默认分支（更稳健，兼容 master/main 等）
+    try {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (repoInfoRes.ok) {
+        const info = await repoInfoRes.json();
+        if (info && typeof info.default_branch === 'string' && info.default_branch.trim()) {
+          branch = info.default_branch.trim();
+        }
+        console.log('[SyncGithub] 仓库信息已获取，默认分支:', branch);
+      }
+    } catch (e) {
+      console.warn('获取仓库默认分支失败，使用 main 作为默认', e);
+    }
+
+    // 上传单个文件的封装
+    const uploadOne = async (filePath, contentStr) => {
+      const segs = String(filePath).split('/').map(s => encodeURIComponent(s)).join('/');
+      const baseUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${segs}`;
+      const headers = {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      };
+      // 获取 sha
+      let sha;
+      try {
+        const getRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(branch)}`, { headers });
+        if (getRes.status === 200) {
+          const data = await getRes.json();
+          sha = data && data.sha;
+        }
+      } catch (e) {
+        console.warn('检查现有文件失败（忽略）', e);
+      }
+      console.log('[SyncGithub] 准备上传文件:', { path: filePath, hasSha: !!sha, branch });
+      const body = {
+        message: `TidyMark backup: ${new Date().toISOString()}`,
+        content: toBase64(contentStr),
+        branch
+      };
+      if (sha) body.sha = sha;
+      let putRes = await fetch(baseUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+      if (putRes.status === 201 || putRes.status === 200) {
+        const data = await putRes.json();
+        console.log('[SyncGithub] 上传成功:', { path: filePath, status: putRes.status });
+        return { success: true, data };
+      }
+      // 若 404 且当前分支为 main，尝试 master 分支重新上传
+      if (putRes.status === 404 && branch === 'main') {
+        try {
+          const fallbackBranch = 'master';
+          console.warn('[SyncGithub] main 分支上传 404，尝试使用 master 分支重新上传');
+          const fbBody = { ...body, branch: fallbackBranch };
+          // 重新获取 sha（针对 master）
+          let fbSha;
+          try {
+            const fbGetRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(fallbackBranch)}`, { headers });
+            if (fbGetRes.status === 200) {
+              const fbData = await fbGetRes.json();
+              fbSha = fbData && fbData.sha;
+              if (fbSha) fbBody.sha = fbSha;
+            }
+          } catch (e) {
+            console.warn('检查 master 分支现有文件失败（忽略）', e);
+          }
+          const fbPutRes = await fetch(baseUrl, { method: 'PUT', headers, body: JSON.stringify(fbBody) });
+          if (fbPutRes.status === 201 || fbPutRes.status === 200) {
+            const fbData = await fbPutRes.json();
+            console.log('[SyncGithub] 使用 master 分支上传成功:', { path: filePath, status: fbPutRes.status });
+            return { success: true, data: fbData };
+          } else {
+            const fbErrText = await fbPutRes.text();
+            console.error('[SyncGithub] master 分支上传失败:', { path: filePath, status: fbPutRes.status, errText: fbErrText });
+          }
+        } catch (e) {
+          console.warn('尝试回退至 master 分支上传时出现异常（忽略）', e);
+        }
+      }
+      const errText = await putRes.text();
+      console.error('[SyncGithub] 上传失败:', { path: filePath, status: putRes.status, errText });
+      return { success: false, error: `GitHub 响应 ${putRes.status}: ${errText}` };
+    };
+
+    const results = [];
+    if (dualUpload || fmt === 'json') {
+      results.push(await uploadOne(path, JSON.stringify(lastBackup, null, 2)));
+    }
+    if (dualUpload || fmt === 'html') {
+      const htmlStr = generateChromeBookmarkHTML(lastBackup.bookmarks || []);
+      results.push(await uploadOne(pathHtml, htmlStr));
+    }
+
+    const allOk = results.every(r => r.success);
+    if (allOk) {
+      const last = results[results.length - 1];
+      console.log('[SyncGithub] 所有上传成功，最后一个文件链接:', last && last.data);
+      sendResponse({ success: true, data: {
+        contentPath: dualUpload ? `${path} & ${pathHtml}` : (fmt === 'json' ? path : pathHtml),
+        htmlUrl: (last && last.data && last.data.content && last.data.content.html_url) || (last && last.data && last.data.commit && last.data.commit.html_url) || null
+      }});
+    } else {
+      const firstErr = results.find(r => !r.success)?.error || '未知错误';
+      console.error('[SyncGithub] 有上传失败，错误信息:', firstErr);
+      sendResponse({ success: false, error: firstErr });
+    }
+  } catch (error) {
+    console.error('GitHub 同步失败:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
 // 创建书签备份
 async function createBookmarkBackup() {
   try {
@@ -353,6 +625,121 @@ async function checkAndBackupBookmarks() {
     }
   } catch (error) {
     console.error('自动备份检查失败:', error);
+  }
+}
+
+// 检查并自动归档旧书签
+async function checkAndArchiveOldBookmarks() {
+  try {
+    const { autoArchiveOldBookmarks, archiveOlderThanDays } = await chrome.storage.sync.get(['autoArchiveOldBookmarks', 'archiveOlderThanDays']);
+    if (!autoArchiveOldBookmarks) return;
+
+    const days = Number.isFinite(archiveOlderThanDays) ? Math.max(7, Math.min(3650, archiveOlderThanDays)) : 180;
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const tree = await chrome.bookmarks.getTree();
+    const all = flattenBookmarks(tree);
+    if (!Array.isArray(all) || all.length === 0) return;
+
+    // 读取最近访问时间映射（来自新标签页统计）
+    let lastByBookmark = {};
+    try {
+      const { visitStats: vs } = await chrome.storage.local.get(['visitStats']);
+      if (vs && typeof vs === 'object' && vs.lastByBookmark) lastByBookmark = vs.lastByBookmark || {};
+    } catch (_) {}
+
+    // 找到/创建“归档”文件夹
+    const archiveFolder = await findOrCreateFolder('归档');
+    const archiveId = String(archiveFolder.id);
+
+    const toArchive = all.filter(b => {
+      const idKey = String(b.id);
+      const urlKey = String(b.url || '');
+      const lastVisit = Number(lastByBookmark[idKey] || lastByBookmark[urlKey] || 0);
+      let shouldArchive = false;
+      if (Number.isFinite(lastVisit) && lastVisit > 0) {
+        shouldArchive = lastVisit < threshold;
+      } else {
+        // 无访问记录时，回退到 dateAdded；如也无则不归档
+        const added = Number(b.dateAdded || 0);
+        shouldArchive = Number.isFinite(added) && added > 0 && added < threshold;
+      }
+      return b.url && shouldArchive && String(b.parentId) !== archiveId;
+    });
+
+    if (toArchive.length === 0) return;
+
+    console.log(`[Archive] 发现需要归档的书签 ${toArchive.length} 条（>${days} 天）`);
+    const parentIds = new Set();
+    for (const b of toArchive) {
+      try {
+        if (b.parentId) parentIds.add(String(b.parentId));
+        await chrome.bookmarks.move(String(b.id), { parentId: archiveId });
+      } catch (e) {
+        console.warn('[Archive] 移动书签失败:', b.id, e);
+      }
+    }
+
+    // 归档后清理可能出现的空目录（非系统目录）
+    try {
+      await cleanupEmptyFolders(Array.from(parentIds));
+    } catch (e) {
+      console.warn('[Archive] 清理空目录失败', e);
+    }
+  } catch (error) {
+    console.error('自动归档检查失败:', error);
+  }
+}
+
+// 每日自动同步（后台，无需打开任何页面）
+async function maybeRunDailyGithubAutoSync(trigger = 'manual') {
+  // 读取必要配置
+  const settings = await chrome.storage.sync.get([
+    'githubAutoSyncDaily', 'githubToken', 'githubOwner', 'githubRepo', 'githubFormat', 'githubDualUpload', 'githubLastAutoSyncDate'
+  ]);
+
+  if (!settings.githubAutoSyncDaily) {
+    console.log('[AutoSync] 未开启每日自动同步，跳过');
+    return;
+  }
+  const token = String(settings.githubToken || '').trim();
+  const owner = String(settings.githubOwner || '').trim();
+  const repo = String(settings.githubRepo || '').trim();
+  const format = (settings.githubFormat === 'html' ? 'html' : 'json');
+  const dualUpload = !!settings.githubDualUpload;
+  if (!token || !owner || !repo) {
+    console.warn('[AutoSync] GitHub 配置不完整，跳过自动同步');
+    return;
+  }
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  if (settings.githubLastAutoSyncDate === todayStr) {
+    console.log('[AutoSync] 今日已自动同步过，跳过');
+    return;
+  }
+
+  console.log(`[AutoSync] 触发每日自动同步（${trigger}）`);
+  const payload = { token, owner, repo, format, dualUpload };
+  // 复用现有同步实现：直接调用处理器并等待回调
+  const resp = await new Promise((resolve) => {
+    try {
+      handleSyncGithubBackup(payload, (result) => resolve(result));
+    } catch (e) {
+      resolve({ success: false, error: e?.message || String(e) });
+    }
+  });
+
+  if (resp && resp.success) {
+    console.log('[AutoSync] GitHub 自动同步成功');
+    try {
+      await chrome.storage.sync.set({ githubLastAutoSyncDate: todayStr });
+    } catch (e) {
+      console.warn('[AutoSync] 记录最后自动同步日期失败', e);
+    }
+  } else {
+    console.warn('[AutoSync] GitHub 自动同步失败', resp?.error);
+    // 失败不更新日期，以便下一次重试
   }
 }
 
@@ -1318,5 +1705,88 @@ async function cleanupEmptyFolders(folderIds) {
 
 // 定期检查备份（每小时检查一次）
 setInterval(checkAndBackupBookmarks, 60 * 60 * 1000);
+// 定期检查归档（每小时检查一次）
+setInterval(checkAndArchiveOldBookmarks, 60 * 60 * 1000);
 
 console.log('TidyMark 后台脚本已加载');
+// 注册右键菜单
+async function registerContextMenus() {
+  try {
+    // 先清理旧菜单以避免重复
+    if (chrome.contextMenus?.removeAll) {
+      await chrome.contextMenus.removeAll();
+    }
+    chrome.contextMenus.create({
+      id: 'tidymark_add_bookmark_page',
+      title: '添加到 TidyMark 并分类（页面）',
+      contexts: ['page']
+    });
+    chrome.contextMenus.create({
+      id: 'tidymark_add_bookmark_link',
+      title: '添加到 TidyMark 并分类（链接）',
+      contexts: ['link']
+    });
+    chrome.contextMenus.create({
+      id: 'tidymark_add_bookmark_selection',
+      title: '添加到 TidyMark 并分类（选中文本）',
+      contexts: ['selection']
+    });
+    console.log('[ContextMenus] 已创建右键菜单');
+  } catch (e) {
+    console.warn('[ContextMenus] 创建菜单失败', e);
+  }
+}
+
+// 显示添加成功通知
+async function showAddNotification({ title, url, category }) {
+  try {
+    if (!chrome.notifications) return;
+    const iconUrl = chrome.runtime.getURL('icons/icon128.png');
+    const message = `已添加到「${category}」文件夹`;
+    chrome.notifications.create(`tidymark_add_${Date.now()}`, {
+      type: 'basic',
+      title: 'TidyMark 添加成功',
+      message,
+      iconUrl
+    });
+  } catch (e) {
+    console.warn('[Notifications] 显示通知失败', e);
+  }
+}
+
+// 处理右键菜单点击
+chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
+  try {
+    const { classificationRules } = await chrome.storage.sync.get('classificationRules');
+    const rules = classificationRules || getDefaultClassificationRules();
+
+    const targetUrl = info.linkUrl || info.pageUrl || tab?.url || '';
+    if (!targetUrl) return;
+    const rawTitle = info.selectionText || info.linkText || tab?.title || targetUrl;
+    // 标题长度限制，避免过长
+    const title = String(rawTitle || targetUrl).slice(0, 255);
+
+    // 创建在书签栏（parentId: '1'）
+    let created;
+    try {
+      created = await chrome.bookmarks.create({ title, url: targetUrl, parentId: '1' });
+    } catch (e) {
+      console.warn('[ContextMenus] 创建书签失败，尝试查重后分类:', e);
+      const dup = (await chrome.bookmarks.search({ url: targetUrl }))?.find(b => b.url === targetUrl);
+      if (!dup) throw e;
+      created = dup;
+    }
+
+    // 分类并移动
+    const category = classifyBookmark({ title, url: targetUrl }, rules) || '其他';
+    const folder = await findOrCreateFolder(category);
+    if (created && folder && String(created.parentId) !== String(folder.id)) {
+      await chrome.bookmarks.move(created.id, { parentId: folder.id });
+    }
+    console.log(`[ContextMenus] 已添加并分类到 "${category}"`, { title, url: targetUrl });
+    // 显示通知
+    await showAddNotification({ title, url: targetUrl, category });
+  } catch (e) {
+    console.warn('[ContextMenus] 右键菜单处理失败', e);
+  }
+});
