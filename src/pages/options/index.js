@@ -3252,24 +3252,72 @@ document.addEventListener('DOMContentLoaded', async () => {
   optionsManager = new OptionsManager();
   await optionsManager.init();
   // 语言选择初始化与切换
-  const langSel = document.getElementById('languageSelect');
-  if (langSel) {
+  const langBtn = document.getElementById('languageIconBtn');
+  const langMenu = document.getElementById('langMenu');
+  if (langBtn && langMenu) {
     try {
       const current = window.I18n ? window.I18n.getLanguageSync() : 'en';
-      langSel.value = current;
+      // 高亮当前语言
+      langMenu.querySelectorAll('button[data-lang]').forEach(btn => {
+        const isActive = btn.getAttribute('data-lang') === current;
+        btn.style.fontWeight = isActive ? '600' : '500';
+        btn.style.background = isActive ? '#eef2ff' : '';
+      });
+      langBtn.title = (window.I18n ? (window.I18n.t('pref.language.label') || 'Language') : 'Language');
     } catch {}
-    langSel.addEventListener('change', async (e) => {
-      const lang = e.target.value;
+    // 切换菜单显示（使用 .open 类控制）
+    langBtn.addEventListener('click', () => {
+      const open = langMenu.classList.toggle('open');
+      langBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    langMenu.addEventListener('click', async (e) => {
+      const target = e.target.closest('button[data-lang]');
+      if (!target) return;
+      langMenu.classList.remove('open');
+      const lang = target.getAttribute('data-lang');
       if (window.I18n) {
         await window.I18n.setLanguage(lang);
       }
-      // 部分文案为一次性渲染，切换语言后刷新页面以确保全部更新
       setTimeout(() => {
-        try {
-          location.reload();
-        } catch {}
+        try { location.reload(); } catch {}
       }, 100);
     });
+    // 点击外部关闭
+    document.addEventListener('click', (e) => {
+      if (!langMenu.classList.contains('open')) return;
+      const target = e.target;
+      const clickedOnButton = langBtn.contains(target);
+      const clickedInMenu = langMenu.contains(target);
+      if (!clickedOnButton && !clickedInMenu) {
+        langMenu.classList.remove('open');
+        langBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    // Esc 键关闭
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && langMenu.classList.contains('open')) {
+        langMenu.classList.remove('open');
+        langBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  } else {
+    // 回退：保留原下拉选择逻辑
+    const langSel = document.getElementById('languageSelect');
+    if (langSel) {
+      try {
+        const current = window.I18n ? window.I18n.getLanguageSync() : 'en';
+        langSel.value = current;
+      } catch {}
+      langSel.addEventListener('change', async (e) => {
+        const lang = e.target.value;
+        if (window.I18n) {
+          await window.I18n.setLanguage(lang);
+        }
+        setTimeout(() => {
+          try { location.reload(); } catch {}
+        }, 100);
+      });
+    }
   }
 });
 

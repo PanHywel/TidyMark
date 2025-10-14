@@ -63,25 +63,48 @@ body {
   gap: 12px;
 }
 
-.lang-switch .lang-select {
-  appearance: none;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+.lang-switch { position: relative; }
+.lang-icon {
   background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   color: #ffffff;
-  min-width: 140px;
+  padding: 5px 9px; /* 细微增大内边距，提高可点击性 */
+  border-radius: 9999px;
+  cursor: pointer;
   backdrop-filter: blur(2px);
 }
+.lang-icon:focus { outline: none; border-color: #ffffff; }
+.lang-icon:hover { background: rgba(255, 255, 255, 0.25); }
 
-.lang-switch .lang-select:focus {
-  outline: none;
-  border-color: #ffffff;
+.lang-menu {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(2, 6, 23, 0.15);
+  padding: 6px;
+  display: none; /* 默认隐藏 */
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+  z-index: 50;
 }
-
-.lang-switch .lang-select option {
+.lang-menu.open { display: flex; }
+.lang-menu button {
+  all: unset;
+  display: block;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
   color: #0f172a;
 }
+.lang-menu button:hover { background: #f1f5f9; }
+
+/* SVG 图标大小适配 */
+.lang-icon-svg { width: 16px; height: 16px; display: block; }
 
 /* 标签导航样式 */
 .tabs {

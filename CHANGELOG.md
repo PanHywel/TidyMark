@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.10 — 2025-10-14
+
+- Options: replace header language select with icon button; set icon color to white and size to 16px; slightly increase button padding for better click comfort.
+- Options: switch menu show/hide to class-based `.open`; close on outside click and Esc; keep menu hidden by default via CSS; set `aria-expanded` on toggle.
+- No breaking changes; documentation unchanged.
+
 ## v1.4.9 — 2025-10-14
 
 - New Tab: autofocus search input and add JS fallback focus to ensure input is focused on open across browsers.
