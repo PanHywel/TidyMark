@@ -7,6 +7,52 @@
       ? self
       : globalThis;
   const supported = ['zh-CN', 'zh-TW', 'en', 'ru'];
+  // Fallback mapping for category names used by background rules
+  // Ensures translateCategoryByName can normalize display even if categoryMap lacks an entry
+  const ADDITIONAL_CATEGORY_PAIRS = {
+    '开源与代码托管': 'Open Source & Repos',
+    '开发文档与API': 'Docs & API',
+    '前端框架': 'Frontend Frameworks',
+    '后端框架': 'Backend Frameworks',
+    '云服务与DevOps': 'Cloud & DevOps',
+    '数据库与数据': 'Databases & Data',
+    'AI与机器学习': 'AI & Machine Learning',
+    '产品设计': 'Product Design',
+    '设计资源与素材': 'Design Assets',
+    '学习教程与课程': 'Courses & Tutorials',
+    '技术博客与社区': 'Tech Blogs & Communities',
+    '新闻资讯与媒体': 'News & Media',
+    '在线工具与服务': 'Online Tools & Services',
+    '下载与资源': 'Downloads & Resources',
+    '视频与音乐': 'Videos & Music',
+    '游戏与娱乐': 'Games & Entertainment',
+    '购物电商': 'Shopping',
+    '社交媒体': 'Social Media',
+    '办公与协作': 'Work & Collaboration',
+    '笔记与知识库': 'Notes & Knowledge Base',
+    '项目与任务管理': 'Projects & Tasks',
+    '地图与导航': 'Maps & Navigation',
+    '博客平台与CMS': 'Blogs & CMS',
+    '数据科学与分析': 'Data Science & Analytics',
+    'API测试与开发': 'API Testing & Dev',
+    '邮件与通讯': 'Mail & Communication',
+    '求职与招聘': 'Jobs & Recruiting',
+    '金融与理财': 'Finance',
+    '生活服务': 'Lifestyle Services',
+    '阅读与电子书': 'Reading & eBooks',
+    '科研与论文': 'Research & Papers',
+    '浏览器与扩展': 'Browsers & Extensions',
+    '摄影与照片': 'Photography',
+    '图片处理与修图': 'Photo Editing',
+    '器材与评测': 'Gear & Reviews',
+    '图片托管与分享': 'Image Hosting & Sharing',
+    '摄影品牌与官网': 'Photo Brands',
+    '器材评测与资讯': 'Gear News & Reviews',
+    '版权素材与购买': 'Stock & Licensing',
+    '摄影教程与灵感': 'Photo Tutorials & Inspiration',
+    '其他': 'Others'
+  };
+  const ADDITIONAL_CATEGORY_PAIRS_REVERSE = Object.fromEntries(Object.entries(ADDITIONAL_CATEGORY_PAIRS).map(([zh,en]) => [String(en), String(zh)]));
   const categoryMap = {
     'dev-tools': {
       'zh-CN': '开发工具', 'zh-TW': '開發工具', 'en': 'Developer Tools', 'ru': 'Инструменты разработчика'
@@ -495,6 +541,16 @@
   };
   Object.assign(translations, translationsOptionsNav);
 
+  // Organize params dialog & labels
+  const translationsOrganizeParams = {
+    'organize.confirm.title': { 'zh-CN': '确认整理参数', 'zh-TW': '確認整理參數', 'en': 'Confirm Organize Parameters', 'ru': 'Подтвердить параметры упорядочивания' },
+    'organize.scope.label': { 'zh-CN': '整理范围', 'zh-TW': '整理範圍', 'en': 'Scope', 'ru': 'Область' },
+    'organize.scope.option.all': { 'zh-CN': '全部书签', 'zh-TW': '全部書籤', 'en': 'All bookmarks', 'ru': 'Все закладки' },
+    'organize.target.label': { 'zh-CN': '目标父目录', 'zh-TW': '目標父目錄', 'en': 'Target parent folder', 'ru': 'Целевая родительская папка' },
+    'organize.target.option.bar': { 'zh-CN': '书签栏（默认）', 'zh-TW': '書籤列（預設）', 'en': 'Bookmarks Bar (default)', 'ru': 'Панель закладок (по умолчанию)' }
+  };
+  Object.assign(translations, translationsOrganizeParams);
+
   function normalize(lang) {
     if (!lang) return 'en';
     lang = lang.toLowerCase();
@@ -589,7 +645,17 @@
 
   function translateCategoryByName(name) {
     const key = resolveCategoryKeyByName(name);
-    return key ? translateCategory(key) : name;
+    if (key) return translateCategory(key);
+    // Fallback normalize using additional pairs when categoryMap lacks an entry
+    const lang = getLanguageSync();
+    const isZh = String(lang || '').toLowerCase().startsWith('zh');
+    if (isZh) {
+      const zh = ADDITIONAL_CATEGORY_PAIRS_REVERSE[name];
+      return zh || name;
+    } else {
+      const en = ADDITIONAL_CATEGORY_PAIRS[name];
+      return en || name;
+    }
   }
 
   function applyTranslations(root) {

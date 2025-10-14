@@ -295,7 +295,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
     case 'previewOrganize':
       // 返回整理预览（dryRun=true）
-      handleAutoClassify(sendResponse, { dryRun: true });
+      handleAutoClassify(sendResponse, {
+        dryRun: true,
+        scopeFolderId: request.scopeFolderId || ''
+      });
       break;
     case 'searchBookmarks':
       handleSearchBookmarks(request.query, sendResponse);
@@ -313,7 +316,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleOrganizeByPlan(request.plan, sendResponse);
       break;
     case 'organizeByAiInference':
-      handleOrganizeByAiInference(sendResponse);
+      handleOrganizeByAiInference(sendResponse, request);
       break;
     case 'syncGithubBackup':
       handleSyncGithubBackup(request.payload, sendResponse);
@@ -422,9 +425,10 @@ async function handleOrganizeByPlan(plan, sendResponse) {
 }
 
 // 基于 AI 推理生成全量整理计划（不提供预置分类）
-async function handleOrganizeByAiInference(sendResponse) {
+async function handleOrganizeByAiInference(sendResponse, request = {}) {
   try {
-    const plan = await organizePlanByAiInference();
+    const scopeFolderId = (request && request.scopeFolderId) ? String(request.scopeFolderId) : '';
+    const plan = await organizePlanByAiInference(scopeFolderId);
     sendResponse({ success: true, data: plan });
   } catch (error) {
     console.error('AI 推理归类失败:', error);
@@ -1077,11 +1081,16 @@ async function autoClassifyBookmarks(options = {}) {
       rules = getDefaultClassificationRules(lang);
     }
 
-    // 获取所有书签
+    // 获取书签（支持限定范围）
     let bookmarks;
     try {
-      bookmarks = await chrome.bookmarks.getTree();
-      console.log('[autoClassify] 获取书签树成功');
+      if (options.scopeFolderId) {
+        bookmarks = await chrome.bookmarks.getSubTree(String(options.scopeFolderId));
+        console.log('[autoClassify] 获取指定范围子树成功:', options.scopeFolderId);
+      } else {
+        bookmarks = await chrome.bookmarks.getTree();
+        console.log('[autoClassify] 获取书签树成功');
+      }
     } catch (e) {
       console.error('[autoClassify] 获取书签树失败:', e);
       throw new Error('无法读取书签，请检查权限');
@@ -1123,20 +1132,22 @@ async function autoClassifyBookmarks(options = {}) {
 
     // 实际整理：仅为有书签的分类创建文件夹
     const categoryFolders = {};
+    // 移除目标父目录功能：在整理范围下创建分类文件夹；若未指定范围则默认书签栏('1')
+    const parentId = options && options.scopeFolderId ? String(options.scopeFolderId) : '1';
 
     // 只有当存在未分类书签时才创建“其他/Others”文件夹
     const otherCount = (preview.categories[translateCategoryName('其他', clsLang)]?.count || 0);
     let otherFolder = null;
     if (otherCount > 0) {
       const otherNm = translateCategoryName('其他', clsLang);
-      otherFolder = await findOrCreateFolder(otherNm);
+      otherFolder = await findOrCreateFolder(otherNm, { parentId });
       categoryFolders[otherNm] = otherFolder;
     }
 
     for (const [category, data] of Object.entries(preview.categories)) {
       if (category === otherName) continue;
       if (!data || data.count === 0) continue;
-      const folder = await findOrCreateFolder(category);
+      const folder = await findOrCreateFolder(category, { parentId });
       categoryFolders[category] = folder;
     }
 
@@ -1219,24 +1230,35 @@ function classifyBookmark(bookmark, rules) {
   return '其他';
 }
 
-// 查找或创建文件夹
+// 查找或创建文件夹（若提供 parentId，仅在该父目录下匹配/创建）
 async function findOrCreateFolder(name) {
   try {
-    // 搜索现有文件夹
+    const hasOptions = (typeof arguments[1] === 'object' && arguments[1]);
+    const specifiedParentId = hasOptions && arguments[1].parentId ? String(arguments[1].parentId) : '';
+
+    // 搜索现有同名文件夹
     const results = await chrome.bookmarks.search(name);
-    // 仅匹配标题为该名称的文件夹
-    const folder = results.find(item => !item.url && item.title === name);
-    
+    let folder = null;
+    if (typeof name === 'string') {
+      if (specifiedParentId) {
+        // 严格限定：只复用同一父目录下的同名文件夹
+        folder = results.find(item => !item.url && item.title === name && String(item.parentId) === specifiedParentId);
+      } else {
+        // 未指定父目录时，可复用任意同名文件夹
+        folder = results.find(item => !item.url && item.title === name);
+      }
+    }
+
     if (folder) {
       return folder;
     }
 
-    // 创建新文件夹
+    // 未找到则在目标父目录下创建（未指定时默认书签栏 '1'）
+    const parentId = specifiedParentId || '1';
     const newFolder = await chrome.bookmarks.create({
       title: name,
-      parentId: '1' // 书签栏
+      parentId
     });
-    
     return newFolder;
   } catch (error) {
     console.error(`创建文件夹 "${name}" 失败:`, error);
@@ -1623,7 +1645,14 @@ async function refinePreviewWithAI(preview) {
     newPreview.categories[d.category].count++;
     newPreview.categories[d.category].bookmarks.push(d.bookmark);
   }
-  newPreview.classified = Object.keys(newPreview.categories).reduce((sum, k) => sum + (k !== '其他' ? newPreview.categories[k].count : 0), 0);
+  try {
+    const { classificationLanguage } = await chrome.storage.sync.get('classificationLanguage');
+    const lang = resolveClassificationLanguage(classificationLanguage);
+    const otherName = translateCategoryName('其他', lang);
+    newPreview.classified = Object.keys(newPreview.categories).reduce((sum, k) => sum + (k !== otherName ? (newPreview.categories[k]?.count || 0) : 0), 0);
+  } catch (_) {
+    newPreview.classified = Object.keys(newPreview.categories).reduce((sum, k) => sum + (k !== '其他' ? (newPreview.categories[k]?.count || 0) : 0), 0);
+  }
   newPreview.total = preview.total;
   // 打印输出预览摘要（AI 优化后）与变更数
   try {
@@ -1870,18 +1899,20 @@ async function organizeByPlan(plan) {
   const categoryFolders = {};
   // 兼容中英文“其他”分类
   const otherCandidates = ['其他', 'Others'];
+  // 移除目标父目录：在整理范围下创建分类文件夹；若未指定范围则默认书签栏('1')
+  const parentId = plan?.meta?.scopeFolderId ? String(plan.meta.scopeFolderId) : '1';
   let otherFolder = null;
   for (const otherName of otherCandidates) {
     const oc = plan.categories[otherName]?.count || 0;
     if (oc > 0 && !categoryFolders[otherName]) {
-      otherFolder = await findOrCreateFolder(otherName);
+      otherFolder = await findOrCreateFolder(otherName, { parentId });
       categoryFolders[otherName] = otherFolder;
     }
   }
   for (const [category, data] of Object.entries(plan.categories)) {
     if (otherCandidates.includes(category)) continue;
     if (!data || data.count === 0) continue;
-    const folder = await findOrCreateFolder(category);
+    const folder = await findOrCreateFolder(category, { parentId });
     categoryFolders[category] = folder;
   }
 
@@ -1940,7 +1971,7 @@ async function organizeByPlan(plan) {
 }
 
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
-async function organizePlanByAiInference() {
+async function organizePlanByAiInference(scopeFolderId = '') {
   // 读取设置以获取 AI 参数和语言
   const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
   if (!settings.enableAI) {
@@ -1953,7 +1984,11 @@ async function organizePlanByAiInference() {
   // 拉取并扁平化书签
   let bookmarksTree;
   try {
-    bookmarksTree = await chrome.bookmarks.getTree();
+    if (scopeFolderId) {
+      bookmarksTree = await chrome.bookmarks.getSubTree(scopeFolderId);
+    } else {
+      bookmarksTree = await chrome.bookmarks.getTree();
+    }
   } catch (e) {
     throw new Error('无法读取书签');
   }
@@ -2034,7 +2069,8 @@ async function organizePlanByAiInference() {
   }
 
   plan.classified = Object.keys(plan.categories).reduce((sum, k) => sum + (k !== '其他' ? plan.categories[k].count : 0), 0);
-  return plan;
+  // 附带元信息，便于前端确认时传递范围
+  return { ...plan, meta: { scopeFolderId: scopeFolderId || '' } };
 }
 
 // 删除指定ID集合中已变为空的书签目录（避开系统目录）

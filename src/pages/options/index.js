@@ -71,7 +71,9 @@ class OptionsManager {
           'deadTimeoutMs',
           'deadIgnorePrivateIp',
           'deadScanDuplicates',
-          'deadScanFolderId'
+          'deadScanFolderId',
+          // 整理范围（移除目标父目录）
+          'organizeScopeFolderId'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -107,7 +109,8 @@ class OptionsManager {
           'deadTimeoutMs',
           'deadIgnorePrivateIp',
           'deadScanDuplicates',
-          'deadScanFolderId'
+          'deadScanFolderId',
+          'organizeScopeFolderId'
         ];
         
         keys.forEach(key => {
@@ -714,6 +717,8 @@ class OptionsManager {
       });
     }
 
+    // 整理范围与目标父目录的选择移至确认弹窗，这里不再初始化内联控件
+
 
     // 按钮事件
     const quickBackupBtn = document.getElementById('quickBackupBtn');
@@ -1005,13 +1010,23 @@ class OptionsManager {
     };
     try {
       if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> 整理中...';
+        // 使用 loading 状态而非禁用，避免按钮颜色变灰且保留前置图标
+        btn.classList.add('is-loading');
+        btn.style.pointerEvents = 'none';
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '⚡ <span class="loading" style="margin:0 6px 0 4px;vertical-align:middle"></span> 整理中...';
       }
       setStatus('准备预览...', 'success');
       let previewResponse;
+      // 先弹出参数确认弹窗，仅选择整理范围
+      const params = await this.showOrganizeParamsDialog();
+      if (!params) return; // 用户取消
+      const { scopeFolderId } = params;
       if (typeof chrome !== 'undefined' && chrome?.runtime) {
-        previewResponse = await chrome.runtime.sendMessage({ action: 'previewOrganize' });
+        previewResponse = await chrome.runtime.sendMessage({
+          action: 'previewOrganize',
+          scopeFolderId: scopeFolderId || ''
+        });
       } else {
         throw new Error('当前不在扩展环境，无法执行');
       }
@@ -1029,8 +1044,13 @@ class OptionsManager {
       }
 
       // 将预览内嵌到“整理”标签，不再使用弹窗
-      this.organizePreviewPlan = plan;
-      this.renderOrganizePreview(plan);
+      // 记录当前选择至计划元信息，便于确认时传递
+      const meta = {
+        scopeFolderId: (params && params.scopeFolderId) || ''
+      };
+      const planWithMeta = { ...plan, meta };
+      this.organizePreviewPlan = planWithMeta;
+      this.renderOrganizePreview(planWithMeta);
     this.showMessage((window.I18n ? window.I18n.t('preview.generated.simple') : '预览已生成，请在下方确认'), 'success');
       // inline status banner removed; rely on global message only
     } catch (e) {
@@ -1038,7 +1058,10 @@ class OptionsManager {
       setStatus(`失败：${e?.message || e}`, 'error');
     } finally {
       if (btn) {
-        btn.disabled = false;
+        // 恢复按钮状态与文本
+        btn.classList.remove('is-loading');
+        btn.style.pointerEvents = '';
+        btn.removeAttribute('aria-busy');
         btn.innerHTML = original;
       }
     }
@@ -1053,16 +1076,25 @@ class OptionsManager {
     };
     try {
       if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> AI 归类中...';
+        // 使用 loading 状态而非禁用，避免按钮颜色变灰且保留前置图标
+        btn.classList.add('is-loading');
+        btn.style.pointerEvents = 'none';
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '🤖 <span class="loading" style="margin:0 6px 0 4px;vertical-align:middle"></span> AI 归类中...';
       }
       setStatus('准备 AI 归类预览...', 'info');
+      // 先弹出参数确认弹窗，仅选择整理范围
+      const params = await this.showOrganizeParamsDialog();
+      if (!params) return; // 用户取消
+      const { scopeFolderId } = params;
       if (typeof chrome === 'undefined' || !chrome?.runtime) {
         throw new Error('当前不在扩展环境，无法执行');
       }
-      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference' });
+      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderId: scopeFolderId || '' });
       if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
-      const plan = resp.data;
+      // 记录当前选择至计划元信息，便于确认时传递
+      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderId: scopeFolderId || '' } };
+      this._lastOrganizeParams = { scopeFolderId };
       // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
@@ -1074,7 +1106,10 @@ class OptionsManager {
       // inline status banner removed; rely on global message only
     } finally {
       if (btn) {
-        btn.disabled = false;
+        // 恢复按钮状态与文本
+        btn.classList.remove('is-loading');
+        btn.style.pointerEvents = '';
+        btn.removeAttribute('aria-busy');
         btn.innerHTML = original;
       }
     }
@@ -1264,8 +1299,12 @@ class OptionsManager {
           li.setAttribute('data-current', newCat);
           updateBadge(oldCat);
           updateBadge(newCat);
-          // 更新摘要：其他<->其他之间的移动影响"拟分类"计数
-          const otherName = '其他';
+          // 更新摘要：“其他/Others”之间的移动影响“拟分类”计数
+          const otherName = (() => {
+            if (preview.categories['其他']) return '其他';
+            if (preview.categories['Others']) return 'Others';
+            return '其他';
+          })();
           if (oldCat === otherName && newCat !== otherName) {
             preview.classified = (preview.classified || 0) + 1;
           } else if (oldCat !== otherName && newCat === otherName) {
@@ -1384,7 +1423,13 @@ class OptionsManager {
                 await new Promise(resolve => setTimeout(resolve, 800));
               }
               setStatus('执行整理中...', 'success');
-              const runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan: preview });
+              // 确认时携带元信息（仅整理范围）
+              const last = this._lastOrganizeParams || {};
+              const planToRun = {
+                ...preview,
+                meta: { ...(preview.meta || {}), scopeFolderId: last.scopeFolderId || '' }
+              };
+              const runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan: planToRun });
               if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
               setStatus('整理完成', 'success');
               container.innerHTML = '';
@@ -1552,8 +1597,12 @@ class OptionsManager {
           originItem.parentNode && originItem.parentNode.removeChild(originItem);
           debug('origin category section removed due to zero count:', originCat);
         }
-        // 更新摘要：其他<->其他之间的移动影响"拟分类"计数
-        const otherName = '其他';
+        // 更新摘要：“其他/Others”之间的移动影响“拟分类”计数
+        const otherName = (() => {
+          if (preview.categories['其他']) return '其他';
+          if (preview.categories['Others']) return 'Others';
+          return '其他';
+        })();
         if (originCat === otherName && newCat !== otherName) {
           preview.classified = (preview.classified || 0) + 1;
         } else if (originCat !== otherName && newCat === otherName) {
@@ -1567,6 +1616,45 @@ class OptionsManager {
     // 其余逻辑由事件委托处理
   }
 
+  // 弹出整理参数选择弹窗（范围/目标父目录），返回 { scopeFolderId, targetParentId } 或 null
+  async showOrganizeParamsDialog() {
+    const title = window.I18n ? (window.I18n.t('organize.confirm.title') || '确认整理参数') : '确认整理参数';
+    const scopeLabel = window.I18n ? (window.I18n.t('organize.scope.label') || '整理范围') : '整理范围';
+    const allText = window.I18n ? (window.I18n.t('organize.scope.option.all') || '全部书签') : '全部书签';
+
+    let folders = [];
+    try { folders = await this.getAllFolderPaths(); } catch (e) { console.warn('加载文件夹列表失败', e); }
+
+    const buildOptions = (defaultLabel) => {
+      const opts = [`<option value="">${this.escapeHtml(defaultLabel)}</option>`];
+      for (const f of folders) {
+        opts.push(`<option value="${this.escapeHtml(String(f.id))}">${this.escapeHtml(f.path)}</option>`);
+      }
+      return opts.join('');
+    };
+
+    const messageHtml = `
+      <div class="form-grid">
+        <label class="setting-label" style="display:block;margin-bottom:8px;">
+          <span>${this.escapeHtml(scopeLabel)}</span>
+          <select id="dlgScope" class="form-select">${buildOptions(allText)}</select>
+        </label>
+      </div>`;
+
+    const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
+    const cancelText = window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消';
+    // 显示通用确认弹窗
+    const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
+    if (!confirmed) return null;
+    const dlgScope = document.getElementById('dlgScope');
+    const scopeFolderId = dlgScope ? String(dlgScope.value || '').trim() : '';
+    // 仅本次执行使用，不强制持久化，但可同步设置以便下次默认
+    this.settings.organizeScopeFolderId = scopeFolderId || '';
+    try { await this.saveSettings(); } catch (e) {}
+    this._lastOrganizeParams = { scopeFolderId };
+    return { scopeFolderId };
+  }
+
   // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
   async backupBookmarks() {
     try {
@@ -1574,7 +1662,7 @@ class OptionsManager {
       const original = btn ? btn.innerHTML : '';
       if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;margin:0;display:inline-block;"></div> 备份中...';
+        btn.innerHTML = '<span class="loading" style="margin:0;vertical-align:middle"></span> 备份中...';
       }
 
       if (typeof chrome !== 'undefined' && chrome.bookmarks) {
