@@ -297,7 +297,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 返回整理预览（dryRun=true）
       handleAutoClassify(sendResponse, {
         dryRun: true,
-        scopeFolderId: request.scopeFolderId || ''
+        // 支持多范围：优先使用数组，其次兼容单值
+        scopeFolderIds: Array.isArray(request.scopeFolderIds)
+          ? request.scopeFolderIds.map(id => String(id)).filter(Boolean)
+          : (request.scopeFolderId ? [String(request.scopeFolderId)] : [])
       });
       break;
     case 'searchBookmarks':
@@ -427,8 +430,10 @@ async function handleOrganizeByPlan(plan, sendResponse) {
 // 基于 AI 推理生成全量整理计划（不提供预置分类）
 async function handleOrganizeByAiInference(sendResponse, request = {}) {
   try {
-    const scopeFolderId = (request && request.scopeFolderId) ? String(request.scopeFolderId) : '';
-    const plan = await organizePlanByAiInference(scopeFolderId);
+    const scopeFolderIds = Array.isArray(request?.scopeFolderIds)
+      ? request.scopeFolderIds.map(id => String(id)).filter(Boolean)
+      : (request?.scopeFolderId ? [String(request.scopeFolderId)] : []);
+    const plan = await organizePlanByAiInference(scopeFolderIds);
     sendResponse({ success: true, data: plan });
   } catch (error) {
     console.error('AI 推理归类失败:', error);
@@ -1081,21 +1086,37 @@ async function autoClassifyBookmarks(options = {}) {
       rules = getDefaultClassificationRules(lang);
     }
 
-    // 获取书签（支持限定范围）
-    let bookmarks;
+    // 获取书签（支持限定范围，兼容多范围与单范围）
+    let bookmarksTrees = [];
     try {
-      if (options.scopeFolderId) {
-        bookmarks = await chrome.bookmarks.getSubTree(String(options.scopeFolderId));
-        console.log('[autoClassify] 获取指定范围子树成功:', options.scopeFolderId);
+      const ids = Array.isArray(options.scopeFolderIds)
+        ? options.scopeFolderIds.map(id => String(id)).filter(Boolean)
+        : [];
+      if (ids.length > 0) {
+        for (const id of ids) {
+          const tree = await chrome.bookmarks.getSubTree(String(id));
+          bookmarksTrees.push({ scopeId: String(id), tree });
+          console.log('[autoClassify] 获取指定范围子树成功:', id);
+        }
+      } else if (options.scopeFolderId) {
+        const id = String(options.scopeFolderId);
+        const tree = await chrome.bookmarks.getSubTree(id);
+        bookmarksTrees.push({ scopeId: id, tree });
+        console.log('[autoClassify] 获取指定范围子树成功(兼容单值):', id);
       } else {
-        bookmarks = await chrome.bookmarks.getTree();
+        const tree = await chrome.bookmarks.getTree();
+        bookmarksTrees.push({ scopeId: '', tree });
         console.log('[autoClassify] 获取书签树成功');
       }
     } catch (e) {
       console.error('[autoClassify] 获取书签树失败:', e);
       throw new Error('无法读取书签，请检查权限');
     }
-    const flatBookmarks = flattenBookmarks(bookmarks);
+    let flatBookmarks = [];
+    for (const { scopeId, tree } of bookmarksTrees) {
+      const flat = flattenBookmarks(tree);
+      flat.forEach(b => flatBookmarks.push({ ...b, _originScopeId: scopeId }));
+    }
     console.log('[autoClassify] 扁平化书签数量:', flatBookmarks.length);
 
     // 构建预览分类结果
@@ -1112,7 +1133,7 @@ async function autoClassifyBookmarks(options = {}) {
     for (const bookmark of flatBookmarks) {
       if (!bookmark.url) continue; // 跳过文件夹
       const category = classifyBookmark(bookmark, rules) || otherName;
-      preview.details.push({ bookmark, category });
+      preview.details.push({ bookmark, category, scopeFolderId: bookmark._originScopeId || '' });
       if (!preview.categories[category]) {
         preview.categories[category] = { count: 0, bookmarks: [] };
       }
@@ -1131,31 +1152,38 @@ async function autoClassifyBookmarks(options = {}) {
     }
 
     // 实际整理：仅为有书签的分类创建文件夹
-    const categoryFolders = {};
-    // 移除目标父目录功能：在整理范围下创建分类文件夹；若未指定范围则默认书签栏('1')
-    const parentId = options && options.scopeFolderId ? String(options.scopeFolderId) : '1';
-
-    // 只有当存在未分类书签时才创建“其他/Others”文件夹
-    const otherCount = (preview.categories[translateCategoryName('其他', clsLang)]?.count || 0);
-    let otherFolder = null;
-    if (otherCount > 0) {
-      const otherNm = translateCategoryName('其他', clsLang);
-      otherFolder = await findOrCreateFolder(otherNm, { parentId });
-      categoryFolders[otherNm] = otherFolder;
-    }
-
-    for (const [category, data] of Object.entries(preview.categories)) {
+    // 多范围下按范围创建分类文件夹；未指定范围则默认书签栏('1')
+    const categoryFoldersByScope = {};
+    const categoriesPerScope = {};
+    for (const { category, scopeFolderId } of preview.details) {
+      const sid = scopeFolderId || '';
       if (category === otherName) continue;
-      if (!data || data.count === 0) continue;
-      const folder = await findOrCreateFolder(category, { parentId });
-      categoryFolders[category] = folder;
+      if (!categoriesPerScope[sid]) categoriesPerScope[sid] = new Set();
+      categoriesPerScope[sid].add(category);
+    }
+    for (const [sid, set] of Object.entries(categoriesPerScope)) {
+      const parentId = sid ? String(sid) : '1';
+      if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
+      for (const category of set) {
+        const folder = await findOrCreateFolder(category, { parentId });
+        categoryFoldersByScope[sid][category] = folder;
+      }
     }
 
   // 移动书签到对应文件夹
   let moved = 0;
   const oldParentCandidates = new Set();
-  for (const { bookmark, category } of preview.details) {
-    const targetFolder = categoryFolders[category];
+  for (const { bookmark, category, scopeFolderId } of preview.details) {
+    const sid = scopeFolderId || '';
+    if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
+    // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
+    let targetFolder = categoryFoldersByScope[sid][category];
+    if (!targetFolder && category === otherName) {
+      const otherNm = translateCategoryName('其他', clsLang);
+      const parentId = sid ? String(sid) : '1';
+      categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+      targetFolder = categoryFoldersByScope[sid][otherNm];
+    }
     if (!targetFolder) continue; // 未创建文件夹则不移动
     if (bookmark.parentId !== targetFolder.id) {
       if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
@@ -1171,21 +1199,24 @@ async function autoClassifyBookmarks(options = {}) {
     // 整理完成后，写入存储：organizedBookmarks 与 categories
     try {
       const organizedBookmarkIds = preview.details
-        .filter(({ category }) => Boolean(categoryFolders[category]))
+        .filter(({ category, scopeFolderId }) => Boolean(categoryFoldersByScope[scopeFolderId || '']?.[category]))
         .map(({ bookmark }) => bookmark.id);
 
-      const categoriesArr = Object.entries(categoryFolders).map(([name, folder]) => {
-        const bookmarkIds = preview.details
-          .filter(d => d.category === name)
-          .map(d => d.bookmark.id);
-        return {
-          id: folder.id,
-          name,
-          bookmarkIds,
-          keywords: [],
-          createdAt: new Date().toISOString()
-        };
-      });
+      const categoriesArr = [];
+      for (const [sid, map] of Object.entries(categoryFoldersByScope)) {
+        for (const [name, folder] of Object.entries(map)) {
+          const bookmarkIds = preview.details
+            .filter(d => (d.scopeFolderId || '') === sid && d.category === name)
+            .map(d => d.bookmark.id);
+          categoriesArr.push({
+            id: folder.id,
+            name,
+            bookmarkIds,
+            keywords: [],
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
 
       await chrome.storage.local.set({
         organizedBookmarks: organizedBookmarkIds,
@@ -1894,33 +1925,40 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
 
 // 根据AI预览计划执行移动
 async function organizeByPlan(plan) {
-  // 计划格式直接复用预览结构：{ total, classified, categories: { name: {count, bookmarks[]} }, details }
-  // 创建需要的文件夹
-  const categoryFolders = {};
-  // 兼容中英文“其他”分类
+  // 计划格式直接复用预览结构：{ total, classified, categories: { name: {count, bookmarks[]} }, details, meta }
+  // 创建需要的文件夹（支持多范围）
   const otherCandidates = ['其他', 'Others'];
-  // 移除目标父目录：在整理范围下创建分类文件夹；若未指定范围则默认书签栏('1')
-  const parentId = plan?.meta?.scopeFolderId ? String(plan.meta.scopeFolderId) : '1';
-  let otherFolder = null;
-  for (const otherName of otherCandidates) {
-    const oc = plan.categories[otherName]?.count || 0;
-    if (oc > 0 && !categoryFolders[otherName]) {
-      otherFolder = await findOrCreateFolder(otherName, { parentId });
-      categoryFolders[otherName] = otherFolder;
+  const categoryFoldersByScope = {};
+  const categoriesPerScope = {};
+  // 为非“其他”类别按范围预创建文件夹
+  for (const { category, scopeFolderId } of plan.details || []) {
+    if (otherCandidates.includes(category)) continue;
+    const sid = scopeFolderId || '';
+    if (!categoriesPerScope[sid]) categoriesPerScope[sid] = new Set();
+    categoriesPerScope[sid].add(category);
+  }
+  for (const [sid, set] of Object.entries(categoriesPerScope)) {
+    const parentId = sid ? String(sid) : '1';
+    if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
+    for (const category of set) {
+      const folder = await findOrCreateFolder(category, { parentId });
+      categoryFoldersByScope[sid][category] = folder;
     }
   }
-  for (const [category, data] of Object.entries(plan.categories)) {
-    if (otherCandidates.includes(category)) continue;
-    if (!data || data.count === 0) continue;
-    const folder = await findOrCreateFolder(category, { parentId });
-    categoryFolders[category] = folder;
-  }
 
-  // 执行移动
+  // 执行移动，遇到“其他”时懒创建
   let moved = 0;
   const oldParentCandidates = new Set();
-  for (const { bookmark, category } of plan.details) {
-    const targetFolder = categoryFolders[category];
+  for (const { bookmark, category, scopeFolderId } of plan.details || []) {
+    const sid = scopeFolderId || '';
+    if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
+    let targetFolder = categoryFoldersByScope[sid][category];
+    if (!targetFolder && otherCandidates.includes(category)) {
+      const parentId = sid ? String(sid) : '1';
+      const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
+      categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      targetFolder = categoryFoldersByScope[sid][otherName];
+    }
     if (!targetFolder) continue;
     if (bookmark.parentId !== targetFolder.id) {
       if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
@@ -1932,22 +1970,25 @@ async function organizeByPlan(plan) {
   const results = { ...plan, moved };
   // 同步存储
   try {
-    const organizedBookmarkIds = plan.details
-      .filter(({ category }) => Boolean(categoryFolders[category]))
+    const organizedBookmarkIds = (plan.details || [])
+      .filter(({ category, scopeFolderId }) => Boolean(categoryFoldersByScope[scopeFolderId || '']?.[category]))
       .map(({ bookmark }) => bookmark.id);
 
-    const categoriesArr = Object.entries(categoryFolders).map(([name, folder]) => {
-      const bookmarkIds = plan.details
-        .filter(d => d.category === name)
-        .map(d => d.bookmark.id);
-      return {
-        id: folder.id,
-        name,
-        bookmarkIds,
-        keywords: [],
-        createdAt: new Date().toISOString()
-      };
-    });
+    const categoriesArr = [];
+    for (const [sid, map] of Object.entries(categoryFoldersByScope)) {
+      for (const [name, folder] of Object.entries(map)) {
+        const bookmarkIds = (plan.details || [])
+          .filter(d => (d.scopeFolderId || '') === sid && d.category === name)
+          .map(d => d.bookmark.id);
+        categoriesArr.push({
+          id: folder.id,
+          name,
+          bookmarkIds,
+          keywords: [],
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
 
     await chrome.storage.local.set({
       organizedBookmarks: organizedBookmarkIds,
@@ -1971,7 +2012,7 @@ async function organizeByPlan(plan) {
 }
 
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
-async function organizePlanByAiInference(scopeFolderId = '') {
+async function organizePlanByAiInference(scopeFolderIds = []) {
   // 读取设置以获取 AI 参数和语言
   const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
   if (!settings.enableAI) {
@@ -1982,19 +2023,28 @@ async function organizePlanByAiInference(scopeFolderId = '') {
   }
 
   // 拉取并扁平化书签
-  let bookmarksTree;
+  let bookmarksTrees = [];
   try {
-    if (scopeFolderId) {
-      bookmarksTree = await chrome.bookmarks.getSubTree(scopeFolderId);
+    const ids = Array.isArray(scopeFolderIds) ? scopeFolderIds.map(id => String(id)).filter(Boolean) : [];
+    if (ids.length > 0) {
+      for (const id of ids) {
+        const tree = await chrome.bookmarks.getSubTree(id);
+        bookmarksTrees.push({ scopeId: id, tree });
+      }
     } else {
-      bookmarksTree = await chrome.bookmarks.getTree();
+      const tree = await chrome.bookmarks.getTree();
+      bookmarksTrees.push({ scopeId: '', tree });
     }
   } catch (e) {
     throw new Error('无法读取书签');
   }
-  const flat = flattenBookmarks(bookmarksTree).filter(b => b.url);
+  const flatRaw = [];
+  for (const { scopeId, tree } of bookmarksTrees) {
+    const flat = flattenBookmarks(tree).filter(b => b.url);
+    flat.forEach(b => flatRaw.push({ ...b, _originScopeId: scopeId }));
+  }
 
-  const items = flat.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
+  const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
   const language = settings.classificationLanguage || 'auto';
 
   // 分批与并发（避免一次请求过大）
@@ -2041,36 +2091,36 @@ async function organizePlanByAiInference(scopeFolderId = '') {
   }
 
   // 构建计划结构
-  const plan = { total: flat.length, classified: 0, categories: {}, details: [] };
+  const plan = { total: flatRaw.length, classified: 0, categories: {}, details: [] };
   // 先为推理出的类别建占位
   for (const name of allCategories) {
     plan.categories[name] = { count: 0, bookmarks: [] };
   }
 
-  const idToBookmark = new Map(flat.map(b => [b.id, b]));
+  const idToBookmark = new Map(flatRaw.map(b => [b.id, b]));
   for (const a of assignments) {
     const b = idToBookmark.get(a.id);
     if (!b) continue;
     const isLow = lowIds.has(a.id);
     const target = isLow ? '其他' : a.to_key;
     if (!plan.categories[target]) plan.categories[target] = { count: 0, bookmarks: [] };
-    plan.details.push({ bookmark: b, category: target });
+    plan.details.push({ bookmark: b, category: target, scopeFolderId: b._originScopeId || '' });
     plan.categories[target].count++;
     plan.categories[target].bookmarks.push(b);
   }
   // 对于未出现在 assignments 的书签，归入 “其他”
   const assignedIds = new Set(assignments.map(a => a.id));
-  for (const b of flat) {
+  for (const b of flatRaw) {
     if (assignedIds.has(b.id)) continue;
     if (!plan.categories['其他']) plan.categories['其他'] = { count: 0, bookmarks: [] };
-    plan.details.push({ bookmark: b, category: '其他' });
+    plan.details.push({ bookmark: b, category: '其他', scopeFolderId: b._originScopeId || '' });
     plan.categories['其他'].count++;
     plan.categories['其他'].bookmarks.push(b);
   }
 
   plan.classified = Object.keys(plan.categories).reduce((sum, k) => sum + (k !== '其他' ? plan.categories[k].count : 0), 0);
   // 附带元信息，便于前端确认时传递范围
-  return { ...plan, meta: { scopeFolderId: scopeFolderId || '' } };
+  return { ...plan, meta: { scopeFolderIds: Array.isArray(scopeFolderIds) ? scopeFolderIds : [] } };
 }
 
 // 删除指定ID集合中已变为空的书签目录（避开系统目录）

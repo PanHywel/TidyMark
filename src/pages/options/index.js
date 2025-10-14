@@ -73,7 +73,9 @@ class OptionsManager {
           'deadScanDuplicates',
           'deadScanFolderId',
           // 整理范围（移除目标父目录）
-          'organizeScopeFolderId'
+          'organizeScopeFolderId',
+          // 多选整理范围（新增）
+          'organizeScopeFolderIds'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -110,7 +112,8 @@ class OptionsManager {
           'deadIgnorePrivateIp',
           'deadScanDuplicates',
           'deadScanFolderId',
-          'organizeScopeFolderId'
+          'organizeScopeFolderId',
+          'organizeScopeFolderIds'
         ];
         
         keys.forEach(key => {
@@ -207,7 +210,11 @@ class OptionsManager {
           return 8000;
         })(),
         deadIgnorePrivateIp: result.deadIgnorePrivateIp !== undefined ? !!result.deadIgnorePrivateIp : false,
-        deadScanDuplicates: result.deadScanDuplicates !== undefined ? !!result.deadScanDuplicates : false
+        deadScanDuplicates: result.deadScanDuplicates !== undefined ? !!result.deadScanDuplicates : false,
+        // 多选整理范围（为空表示全部）
+        organizeScopeFolderIds: Array.isArray(result.organizeScopeFolderIds)
+          ? result.organizeScopeFolderIds.map(v => String(v))
+          : (result.organizeScopeFolderId ? [String(result.organizeScopeFolderId)] : [])
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -1021,11 +1028,11 @@ class OptionsManager {
       // 先弹出参数确认弹窗，仅选择整理范围
       const params = await this.showOrganizeParamsDialog();
       if (!params) return; // 用户取消
-      const { scopeFolderId } = params;
+      const { scopeFolderIds = [] } = params;
       if (typeof chrome !== 'undefined' && chrome?.runtime) {
         previewResponse = await chrome.runtime.sendMessage({
           action: 'previewOrganize',
-          scopeFolderId: scopeFolderId || ''
+          scopeFolderIds
         });
       } else {
         throw new Error('当前不在扩展环境，无法执行');
@@ -1046,7 +1053,7 @@ class OptionsManager {
       // 将预览内嵌到“整理”标签，不再使用弹窗
       // 记录当前选择至计划元信息，便于确认时传递
       const meta = {
-        scopeFolderId: (params && params.scopeFolderId) || ''
+        scopeFolderIds: scopeFolderIds
       };
       const planWithMeta = { ...plan, meta };
       this.organizePreviewPlan = planWithMeta;
@@ -1086,15 +1093,15 @@ class OptionsManager {
       // 先弹出参数确认弹窗，仅选择整理范围
       const params = await this.showOrganizeParamsDialog();
       if (!params) return; // 用户取消
-      const { scopeFolderId } = params;
+      const { scopeFolderIds = [] } = params;
       if (typeof chrome === 'undefined' || !chrome?.runtime) {
         throw new Error('当前不在扩展环境，无法执行');
       }
-      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderId: scopeFolderId || '' });
+      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds });
       if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
       // 记录当前选择至计划元信息，便于确认时传递
-      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderId: scopeFolderId || '' } };
-      this._lastOrganizeParams = { scopeFolderId };
+      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds } };
+      this._lastOrganizeParams = { scopeFolderIds };
       // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
@@ -1427,7 +1434,7 @@ class OptionsManager {
               const last = this._lastOrganizeParams || {};
               const planToRun = {
                 ...preview,
-                meta: { ...(preview.meta || {}), scopeFolderId: last.scopeFolderId || '' }
+                meta: { ...(preview.meta || {}), scopeFolderIds: Array.isArray(last.scopeFolderIds) ? last.scopeFolderIds : [] }
               };
               const runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan: planToRun });
               if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
@@ -1616,7 +1623,7 @@ class OptionsManager {
     // 其余逻辑由事件委托处理
   }
 
-  // 弹出整理参数选择弹窗（范围/目标父目录），返回 { scopeFolderId, targetParentId } 或 null
+  // 弹出整理参数选择弹窗（范围/目标父目录），返回 { scopeFolderIds } 或 null
   async showOrganizeParamsDialog() {
     const title = window.I18n ? (window.I18n.t('organize.confirm.title') || '确认整理参数') : '确认整理参数';
     const scopeLabel = window.I18n ? (window.I18n.t('organize.scope.label') || '整理范围') : '整理范围';
@@ -1625,20 +1632,32 @@ class OptionsManager {
     let folders = [];
     try { folders = await this.getAllFolderPaths(); } catch (e) { console.warn('加载文件夹列表失败', e); }
 
-    const buildOptions = (defaultLabel) => {
-      const opts = [`<option value="">${this.escapeHtml(defaultLabel)}</option>`];
+    // 打开时不进行任何默认勾选
+    const preselected = [];
+    const buildOptions = () => {
+      const items = [];
       for (const f of folders) {
-        opts.push(`<option value="${this.escapeHtml(String(f.id))}">${this.escapeHtml(f.path)}</option>`);
+        const inputId = `dlgScope_${this.escapeHtml(String(f.id))}`;
+        items.push(`
+          <label for="${inputId}" style="display:block;margin:6px 0;cursor:pointer;color:#374151;">
+            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" style="margin-right:8px;vertical-align:middle;"/>
+            <span style="vertical-align:middle;">${this.escapeHtml(f.path)}</span>
+          </label>`);
       }
-      return opts.join('');
+      return items.join('');
     };
 
     const messageHtml = `
-      <div class="form-grid">
-        <label class="setting-label" style="display:block;margin-bottom:8px;">
-          <span>${this.escapeHtml(scopeLabel)}</span>
-          <select id="dlgScope" class="form-select">${buildOptions(allText)}</select>
-        </label>
+      <div style="width:100%;">
+        <div style="display:block;margin-bottom:8px;">
+          <span style="font-weight:600;color:#111827;">${this.escapeHtml(scopeLabel)}（可多选，留空表示全部）</span>
+          <div style="margin:6px 0 10px;color:#6B7280;font-size:12px;">
+            勾选需要整理的范围；不勾选表示整理全部书签。
+          </div>
+          <div id="dlgScopes" style="width:100%;max-height:320px;overflow:auto;border:1px solid #E5E7EB;border-radius:8px;padding:8px;box-sizing:border-box;">
+            ${buildOptions()}
+          </div>
+        </div>
       </div>`;
 
     const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
@@ -1646,13 +1665,14 @@ class OptionsManager {
     // 显示通用确认弹窗
     const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
     if (!confirmed) return null;
-    const dlgScope = document.getElementById('dlgScope');
-    const scopeFolderId = dlgScope ? String(dlgScope.value || '').trim() : '';
-    // 仅本次执行使用，不强制持久化，但可同步设置以便下次默认
-    this.settings.organizeScopeFolderId = scopeFolderId || '';
+    const dlgScopes = document.getElementById('dlgScopes');
+    const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
+    // 同步设置以便下次默认（保持旧字段兼容）
+    this.settings.organizeScopeFolderIds = scopeFolderIds;
+    this.settings.organizeScopeFolderId = scopeFolderIds[0] || '';
     try { await this.saveSettings(); } catch (e) {}
-    this._lastOrganizeParams = { scopeFolderId };
-    return { scopeFolderId };
+    this._lastOrganizeParams = { scopeFolderIds };
+    return { scopeFolderIds };
   }
 
   // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
@@ -3097,11 +3117,45 @@ class OptionsManager {
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
 
+      // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
+      let dlgScopesEl = msgEl.querySelector('#dlgScopes');
+      let dlgScopesMouseDownHandler = null;
+      let dlgScopesClickHandler = null;
+      if (dlgScopesEl && dlgScopesEl.multiple) {
+        dlgScopesMouseDownHandler = (e) => {
+          const target = e.target;
+          if (target && target.tagName === 'OPTION' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            target.selected = !target.selected;
+          }
+        };
+        dlgScopesEl.addEventListener('mousedown', dlgScopesMouseDownHandler);
+        dlgScopesClickHandler = (e) => {
+          const target = e.target;
+          if (target && target.tagName === 'OPTION' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            e.stopPropagation();
+            target.selected = !target.selected;
+          }
+        };
+        dlgScopesEl.addEventListener('click', dlgScopesClickHandler);
+      }
+
       const cleanup = () => {
         okBtn.onclick = null;
         cancelBtn.onclick = null;
         closeBtn.onclick = null;
         modal.onclick = null;
+        if (dlgScopesEl) {
+          if (dlgScopesMouseDownHandler) {
+            dlgScopesEl.removeEventListener('mousedown', dlgScopesMouseDownHandler);
+            dlgScopesMouseDownHandler = null;
+          }
+          if (dlgScopesClickHandler) {
+            dlgScopesEl.removeEventListener('click', dlgScopesClickHandler);
+            dlgScopesClickHandler = null;
+          }
+        }
         modal.classList.remove('show');
         modal.style.display = 'none';
       };
