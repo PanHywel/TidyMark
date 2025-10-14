@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.7 — 2025-10-14
+
+- Docs: split README into bilingual files; English default (`README.md`) with top language switch; add Chinese file (`README.zh-CN.md`).
+- Options: fix footer version text to use i18n (`footer.app`) and append version; ensure language change triggers a delayed refresh for non-reactive texts.
+- i18n: add missing `about.*` keys across locales for Options page content.
+- No breaking changes.
+
 ## v1.4.6 — 2025-10-14
 
 - Options: add clearer prompt textareas with monospace styling and better readability.
