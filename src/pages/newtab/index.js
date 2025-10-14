@@ -922,6 +922,7 @@
   let categoryOrder = [];
   let allBookmarks = [];
   let inputDebounceTimer = null;
+  let dragGhostEl = null;
 
   async function loadCategoryOrder() {
     try {
@@ -1188,6 +1189,103 @@
   }
 
   let dragSrcSection = null;
+  // 通用：为任意 .section 启用拖拽（基于其父容器重排）
+  function enableDragOnSection(section) {
+    if (!section || !section.classList || !section.classList.contains('section')) return;
+    const header = section.querySelector('.section-header');
+    const handle = section.querySelector('.drag-handle');
+    if (!header) return;
+    section.dataset.key = section.querySelector('.section-title')?.textContent || section.id || '';
+    if (handle) handle.draggable = true;
+    header.draggable = true;
+
+    const onDragStart = (e) => {
+      dragSrcSection = section;
+      section.classList.add('dragging');
+      document.body.classList.add('drag-active');
+      e.dataTransfer.setData('text/plain', section.dataset.key);
+      e.dataTransfer.effectAllowed = 'move';
+      // 自定义拖拽预览
+      try {
+        const dragTitle = section.querySelector('.section-title')?.textContent || section.dataset.key || '';
+        dragGhostEl = document.createElement('div');
+        dragGhostEl.textContent = dragTitle;
+        dragGhostEl.style.position = 'fixed';
+        dragGhostEl.style.top = '-1000px';
+        dragGhostEl.style.left = '-1000px';
+        dragGhostEl.style.padding = '6px 10px';
+        dragGhostEl.style.borderRadius = '8px';
+        dragGhostEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--card') || '#151922';
+        dragGhostEl.style.border = `1px solid ${getComputedStyle(document.documentElement).getPropertyValue('--border') || '#232838'}`;
+        dragGhostEl.style.boxShadow = getComputedStyle(document.documentElement).getPropertyValue('--shadow') || '0 8px 24px rgba(0,0,0,0.25)';
+        dragGhostEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--fg') || '#e6e8ea';
+        dragGhostEl.style.font = '600 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, PingFang SC, Microsoft YaHei, sans-serif';
+        document.body.appendChild(dragGhostEl);
+        if (e.dataTransfer && e.dataTransfer.setDragImage) {
+          e.dataTransfer.setDragImage(dragGhostEl, 10, 10);
+        }
+      } catch (_) {}
+    };
+    if (handle) handle.addEventListener('dragstart', onDragStart);
+    header.addEventListener('dragstart', onDragStart);
+
+    const decideBefore = (clientY) => {
+      const rect = section.getBoundingClientRect();
+      const offsetY = clientY - rect.top;
+      const threshold = Math.max(20, Math.min(rect.height * 0.33, 60));
+      return offsetY < threshold;
+    };
+
+    const sameParent = (other) => other && other.parentElement === section.parentElement;
+
+    section.addEventListener('dragenter', (e) => {
+      if (!dragSrcSection || dragSrcSection === section || !sameParent(dragSrcSection)) return;
+      const toBefore = decideBefore(e.clientY);
+      section.classList.toggle('drop-before', toBefore);
+      section.classList.toggle('drop-after', !toBefore);
+    });
+    section.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!dragSrcSection || !sameParent(dragSrcSection)) return;
+      const toBefore = decideBefore(e.clientY);
+      section.classList.toggle('drop-before', toBefore);
+      section.classList.toggle('drop-after', !toBefore);
+    });
+    const autoScroll = (e) => {
+      const margin = 48; const speed = 12;
+      const y = e.clientY; const vh = window.innerHeight;
+      if (y < margin) window.scrollBy({ top: -speed, behavior: 'auto' });
+      else if (y > vh - margin) window.scrollBy({ top: speed, behavior: 'auto' });
+    };
+    document.addEventListener('dragover', autoScroll);
+    section.addEventListener('dragleave', () => {
+      section.classList.remove('drop-before', 'drop-after');
+    });
+    section.addEventListener('drop', (e) => {
+      e.preventDefault();
+      section.classList.remove('drop-before', 'drop-after');
+      if (dragSrcSection && dragSrcSection !== section && sameParent(dragSrcSection)) {
+        const toBefore = decideBefore(e.clientY);
+        const container = section.parentElement;
+        if (toBefore) container.insertBefore(dragSrcSection, section);
+        else container.insertBefore(dragSrcSection, section.nextSibling);
+        // 顶层模块暂不做持久化；仅类别顺序持久化
+      }
+    });
+    const onDragEnd = () => {
+      section.classList.remove('dragging');
+      document.body.classList.remove('drag-active');
+      const container = section.parentElement;
+      if (container) container.querySelectorAll('.section').forEach(s => s.classList.remove('drop-before', 'drop-after'));
+      if (dragGhostEl && dragGhostEl.parentNode) dragGhostEl.parentNode.removeChild(dragGhostEl);
+      dragGhostEl = null;
+      dragSrcSection = null;
+      document.removeEventListener('dragover', autoScroll);
+    };
+    if (handle) handle.addEventListener('dragend', onDragEnd);
+    header.addEventListener('dragend', onDragEnd);
+  }
 
   function renderCategories(categories) {
     elSections.innerHTML = '';
@@ -1280,32 +1378,82 @@
         li.appendChild(link);
         list.appendChild(li);
       });
-      // 绑定拖拽信息（仅图标可拖拽）
+      // 绑定拖拽信息（拖拽：图标或整个区块头部均可）
       section.dataset.key = title.textContent;
       handle.draggable = true;
-      handle.addEventListener('dragstart', (e) => {
+      header.draggable = true;
+      const onDragStart = (e) => {
         dragSrcSection = section;
         section.classList.add('dragging');
+        document.body.classList.add('drag-active');
         e.dataTransfer.setData('text/plain', section.dataset.key);
         e.dataTransfer.effectAllowed = 'move';
+        // 自定义拖拽预览
+        try {
+          const dragTitle = section.querySelector('.section-title')?.textContent || section.dataset.key || '';
+          dragGhostEl = document.createElement('div');
+          dragGhostEl.textContent = dragTitle;
+          dragGhostEl.style.position = 'fixed';
+          dragGhostEl.style.top = '-1000px';
+          dragGhostEl.style.left = '-1000px';
+          dragGhostEl.style.padding = '6px 10px';
+          dragGhostEl.style.borderRadius = '8px';
+          dragGhostEl.style.background = getComputedStyle(document.documentElement).getPropertyValue('--card') || '#151922';
+          dragGhostEl.style.border = `1px solid ${getComputedStyle(document.documentElement).getPropertyValue('--border') || '#232838'}`;
+          dragGhostEl.style.boxShadow = getComputedStyle(document.documentElement).getPropertyValue('--shadow') || '0 8px 24px rgba(0,0,0,0.25)';
+          dragGhostEl.style.color = getComputedStyle(document.documentElement).getPropertyValue('--fg') || '#e6e8ea';
+          dragGhostEl.style.font = '600 13px/1.4 -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, PingFang SC, Microsoft YaHei, sans-serif';
+          document.body.appendChild(dragGhostEl);
+          if (e.dataTransfer && e.dataTransfer.setDragImage) {
+            e.dataTransfer.setDragImage(dragGhostEl, 10, 10);
+          }
+        } catch (_) {}
+      };
+      handle.addEventListener('dragstart', onDragStart);
+      header.addEventListener('dragstart', onDragStart);
+
+      const decideBefore = (clientY) => {
+        const rect = section.getBoundingClientRect();
+        const offsetY = clientY - rect.top;
+        const threshold = Math.max(20, Math.min(rect.height * 0.33, 60));
+        return offsetY < threshold;
+      };
+
+      section.addEventListener('dragenter', (e) => {
+        if (!dragSrcSection || dragSrcSection === section || dragSrcSection.parentElement !== elSections) return;
+        const toBefore = decideBefore(e.clientY);
+        section.classList.toggle('drop-before', toBefore);
+        section.classList.toggle('drop-after', !toBefore);
       });
       section.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        const rect = section.getBoundingClientRect();
-        const toBefore = (e.clientY - rect.top) < rect.height / 2;
+        if (!dragSrcSection || dragSrcSection.parentElement !== elSections) return;
+        const toBefore = decideBefore(e.clientY);
         section.classList.toggle('drop-before', toBefore);
         section.classList.toggle('drop-after', !toBefore);
       });
+      // 视口边缘自动滚动，提升长列表拖拽体验
+      const autoScroll = (e) => {
+        const margin = 48; // 边缘触发区
+        const speed = 12;  // 滚动速度
+        const y = e.clientY;
+        const vh = window.innerHeight;
+        if (y < margin) {
+          window.scrollBy({ top: -speed, behavior: 'auto' });
+        } else if (y > vh - margin) {
+          window.scrollBy({ top: speed, behavior: 'auto' });
+        }
+      };
+      document.addEventListener('dragover', autoScroll);
       section.addEventListener('dragleave', () => {
         section.classList.remove('drop-before', 'drop-after');
       });
       section.addEventListener('drop', (e) => {
         e.preventDefault();
         section.classList.remove('drop-before', 'drop-after');
-        if (dragSrcSection && dragSrcSection !== section) {
-          const rect = section.getBoundingClientRect();
-          const toBefore = (e.clientY - rect.top) < rect.height / 2;
+        if (dragSrcSection && dragSrcSection !== section && dragSrcSection.parentElement === elSections) {
+          const toBefore = decideBefore(e.clientY);
           if (toBefore) {
             elSections.insertBefore(dragSrcSection, section);
           } else {
@@ -1314,11 +1462,19 @@
           persistCurrentCategoryOrder();
         }
       });
-      handle.addEventListener('dragend', () => {
+      const onDragEnd = () => {
         section.classList.remove('dragging');
+        document.body.classList.remove('drag-active');
         dragSrcSection = null;
         elSections.querySelectorAll('.section').forEach(s => s.classList.remove('drop-before', 'drop-after'));
-      });
+        document.removeEventListener('dragover', autoScroll);
+        if (dragGhostEl && dragGhostEl.parentNode) {
+          dragGhostEl.parentNode.removeChild(dragGhostEl);
+        }
+        dragGhostEl = null;
+      };
+      handle.addEventListener('dragend', onDragEnd);
+      header.addEventListener('dragend', onDragEnd);
 
       section.appendChild(header);
       section.appendChild(list);
@@ -1598,6 +1754,8 @@
 
       section.appendChild(header);
       section.appendChild(list);
+      // 启用顶层模块拖拽（在 main 容器内重排）
+      enableDragOnSection(section);
       if (elMain && elSixty) {
         elMain.insertBefore(section, elSixty);
       } else if (elMain && elSections) {
@@ -1637,4 +1795,6 @@
       });
     }
   });
+  // 启用 60s 顶层模块拖拽（在 main 容器内重排）
+  if (elSixty) enableDragOnSection(elSixty);
 })();

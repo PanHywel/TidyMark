@@ -213,3 +213,11 @@
 
 ### Fixed
 - 优化副标题与天气栏的并排显示与换行行为。
+## v1.4.5
+
+- Drag UX improvements on newtab:
+  - Clearer drop indicators with explicit top/bottom insertion bars.
+  - More reliable placement using a 33% threshold (20–60px guard).
+  - Enabled dragging for “60s 读懂世界” and “热门书签 Top N” modules within the main area.
+  - Prevented cross-container drops into the bookmarks list to avoid misplacement.
+- No functional changes to data or features; README unchanged.
