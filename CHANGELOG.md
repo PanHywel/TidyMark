@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.9 — 2025-10-14
+
+- New Tab: autofocus search input and add JS fallback focus to ensure input is focused on open across browsers.
+- No breaking changes; documentation unchanged.
+
 ## v1.4.7 — 2025-10-14
 
 - Docs: split README into bilingual files; English default (`README.md`) with top language switch; add Chinese file (`README.zh-CN.md`).
