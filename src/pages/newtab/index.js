@@ -285,6 +285,15 @@
   await loadTopVisitedPreference();
   await loadVisitStats();
 
+  // 兜底：确保搜索输入在页面初始化后获得焦点（部分场景下浏览器可能忽略 HTML 的 autofocus）
+  try {
+    setTimeout(() => {
+      if (elInput && typeof elInput.focus === 'function') {
+        elInput.focus({ preventScroll: true });
+      }
+    }, 0);
+  } catch {}
+
   // 书签列表是否展示（默认不展示）
   function applyShowBookmarks(show) {
     const visible = !!show;
