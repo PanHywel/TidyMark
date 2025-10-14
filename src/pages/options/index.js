@@ -142,7 +142,15 @@ class OptionsManager {
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
         wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : true,
-        sixtySecondsEnabled: result.sixtySecondsEnabled !== undefined ? !!result.sixtySecondsEnabled : true,
+        // 在非中文环境默认关闭 60s：依据已初始化的 I18n 语言
+        sixtySecondsEnabled: (() => {
+          const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+            ? window.I18n.getLanguageSync()
+            : (navigator.language || 'en');
+          const isZh = String(lang).toLowerCase().startsWith('zh');
+          const explicit = result.sixtySecondsEnabled;
+          return explicit !== undefined ? !!explicit : isZh;
+        })(),
         searchUnfocusedOpacity: (() => {
           const v = result.searchUnfocusedOpacity;
           const num = typeof v === 'string' ? parseFloat(v) : v;
@@ -216,7 +224,13 @@ class OptionsManager {
         classificationLanguage: 'auto',
         maxCategories: undefined,
         wallpaperEnabled: true,
-        sixtySecondsEnabled: true,
+        // 在非中文环境默认关闭 60s
+        sixtySecondsEnabled: (() => {
+          const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+            ? window.I18n.getLanguageSync()
+            : (navigator.language || 'en');
+          return String(lang).toLowerCase().startsWith('zh');
+        })(),
         searchUnfocusedOpacity: 0.86,
         bookmarksUnfocusedOpacity: 0.86,
         topVisitedUnfocusedOpacity: 0.86,
@@ -257,10 +271,10 @@ class OptionsManager {
           localStorage.setItem(key, JSON.stringify(this.settings[key]));
         });
       }
-      this.showMessage('设置已保存', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('options.save.success') : '设置已保存'), 'success');
     } catch (error) {
-      console.error('保存设置失败:', error);
-      this.showMessage('保存设置失败', 'error');
+    console.error((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败') + ':', error);
+    this.showMessage((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败'), 'error');
     }
   }
 
@@ -348,10 +362,10 @@ class OptionsManager {
               document.execCommand('copy');
               document.body.removeChild(ta);
             }
-            this.showMessage('提示词已复制', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.copy.success') : '提示词已复制'), 'success');
           } catch (e) {
             console.warn('复制失败', e);
-            this.showMessage('复制失败，请手动选择复制', 'error');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.copy.fail') : '复制失败，请手动选择复制'), 'error');
           }
         });
       }
@@ -361,7 +375,7 @@ class OptionsManager {
           this.settings.aiPromptOrganize = def;
           aiPromptOrganizeEl.value = def;
           this.saveSettings();
-          this.showMessage('已重置为默认提示词', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.reset.success') : '已重置为默认提示词'), 'success');
         });
       }
     }
@@ -388,10 +402,10 @@ class OptionsManager {
               document.execCommand('copy');
               document.body.removeChild(ta);
             }
-            this.showMessage('提示词已复制', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.copy.success') : '提示词已复制'), 'success');
           } catch (e) {
             console.warn('复制失败', e);
-            this.showMessage('复制失败，请手动选择复制', 'error');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.copy.fail') : '复制失败，请手动选择复制'), 'error');
           }
         });
       }
@@ -401,7 +415,7 @@ class OptionsManager {
           this.settings.aiPromptInfer = def;
           aiPromptInferEl.value = def;
           this.saveSettings();
-          this.showMessage('已重置为默认提示词', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('ai.prompt.reset.success') : '已重置为默认提示词'), 'success');
         });
       }
     }
@@ -684,8 +698,8 @@ class OptionsManager {
     if (deadFolderScope) {
       try {
         const folders = await this.getAllFolderPaths();
-        // 清空并填充选项
-        deadFolderScope.innerHTML = '<option value="">全部书签</option>' +
+        // 清空并填充选项（支持国际化）
+        deadFolderScope.innerHTML = `<option value="">${window.I18n ? (window.I18n.t('dead.folder.option.all') || '全部书签') : '全部书签'}</option>` +
           folders.map(f => `<option value="${this.escapeHtml(String(f.id))}">${this.escapeHtml(f.path)}</option>`).join('');
         // 初始化为当前设置值
         const initVal = this.settings.deadScanFolderId ? String(this.settings.deadScanFolderId) : '';
@@ -811,6 +825,20 @@ class OptionsManager {
     if (githubSyncBtn) {
       githubSyncBtn.addEventListener('click', () => {
         this.syncToGithub();
+      });
+    }
+
+    // GitHub 配置备份/导入按钮事件
+    const githubConfigSyncBtn = document.getElementById('githubConfigSyncBtn');
+    if (githubConfigSyncBtn) {
+      githubConfigSyncBtn.addEventListener('click', () => {
+        this.syncConfigToGithub();
+      });
+    }
+    const githubConfigImportBtn = document.getElementById('githubConfigImportBtn');
+    if (githubConfigImportBtn) {
+      githubConfigImportBtn.addEventListener('click', () => {
+        this.importConfigFromGithub();
       });
     }
 
@@ -1003,7 +1031,7 @@ class OptionsManager {
       // 将预览内嵌到“整理”标签，不再使用弹窗
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
-      this.showMessage('预览已生成，请在下方确认', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('preview.generated.simple') : '预览已生成，请在下方确认'), 'success');
       // inline status banner removed; rely on global message only
     } catch (e) {
       console.error('[Options] organizeFromSettings 失败:', e);
@@ -1561,14 +1589,14 @@ class OptionsManager {
         await new Promise(resolve => setTimeout(resolve, 1200));
       }
 
-      this.showMessage('备份导出成功', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.success') : '备份导出成功'), 'success');
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = original;
       }
     } catch (error) {
       console.error('备份失败:', error);
-      this.showMessage('备份失败，请重试', 'error');
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.fail') : '备份失败，请重试'), 'error');
       const btn = document.getElementById('quickBackupBtn');
       if (btn) {
         btn.disabled = false;
@@ -1695,23 +1723,28 @@ class OptionsManager {
     const nameTranslated = (window.I18n && window.I18n.translateCategoryByName)
       ? window.I18n.translateCategoryByName(rule.category)
       : rule.category;
+    const tEdit = window.I18n ? (window.I18n.t('common.edit') || '编辑') : '编辑';
+    const tDelete = window.I18n ? (window.I18n.t('common.delete') || '删除') : '删除';
+    const tKeywordsLabel = window.I18n ? (window.I18n.t('modal.rule.keywords.label') || '关键词') : '关键词';
+    const tEditTitle = window.I18n ? (window.I18n.t('rules.edit') || '编辑规则') : '编辑规则';
+    const tDeleteTitle = window.I18n ? (window.I18n.t('rules.delete') || '删除规则') : '删除规则';
     div.innerHTML = `
       <div class="rule-content">
         <div class="rule-header">
           <h3 class="rule-category">${nameTranslated}</h3>
           <div class="rule-actions">
-            <button class="btn btn-sm btn-outline edit-rule-btn" title="编辑规则">
+            <button class="btn btn-sm btn-outline edit-rule-btn" title="${tEditTitle}">
               <span class="icon">✏️</span>
-              编辑
+              ${tEdit}
             </button>
-            <button class="btn btn-sm btn-outline btn-danger delete-rule-btn" title="删除规则">
+            <button class="btn btn-sm btn-outline btn-danger delete-rule-btn" title="${tDeleteTitle}">
               <span class="icon">🗑️</span>
-              删除
+              ${tDelete}
             </button>
           </div>
         </div>
         <div class="rule-keywords">
-          <span class="keywords-label">关键词：</span>
+          <span class="keywords-label">${tKeywordsLabel}：</span>
           <div class="keywords-list">
             ${rule.keywords.map(keyword => `<span class="keyword-tag">${keyword}</span>`).join('')}
           </div>
@@ -1858,6 +1891,7 @@ class OptionsManager {
     const autoDaily = document.getElementById('githubAutoSyncDaily');
     const autoOnPopup = document.getElementById('githubAutoSyncOnPopup');
     const statusEl = document.getElementById('githubSyncStatus');
+    const configStatusEl = document.getElementById('githubConfigStatus');
 
     if (tokenInput) tokenInput.value = this.settings.githubToken || '';
     if (ownerInput) ownerInput.value = this.settings.githubOwner || '';
@@ -2373,11 +2407,11 @@ class OptionsManager {
 
     // 设置弹框标题和初始值
     if (rule) {
-      modalTitle.textContent = '编辑分类规则';
+      modalTitle.textContent = window.I18n ? (window.I18n.t('rules.edit') || '编辑分类规则') : '编辑分类规则';
       categoryInput.value = rule.category;
       keywordsInput.value = rule.keywords.join(', ');
     } else {
-      modalTitle.textContent = '添加分类规则';
+      modalTitle.textContent = window.I18n ? (window.I18n.t('modal.rule.title') || '添加分类规则') : '添加分类规则';
       categoryInput.value = '';
       keywordsInput.value = '';
     }
@@ -2452,7 +2486,7 @@ class OptionsManager {
       this.updateClassificationRules();
       
       closeModal();
-      this.showMessage(index >= 0 ? '规则已更新' : '规则已添加', 'success');
+    this.showMessage(index >= 0 ? (window.I18n ? window.I18n.t('rules.update.success') : '规则已更新') : (window.I18n ? window.I18n.t('rules.add.success') : '规则已添加'), 'success');
     };
 
     // 绑定事件
@@ -2495,7 +2529,7 @@ class OptionsManager {
   // 删除规则
   async deleteRule(index) {
     const ok = await this.showConfirmDialog({
-      title: '删除规则',
+      title: window.I18n ? (window.I18n.t('rules.delete') || '删除规则') : '删除规则',
       message: '确定要删除这个分类规则吗？',
       okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
       cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
@@ -2511,7 +2545,7 @@ class OptionsManager {
   // 重置为默认规则
   async resetToDefaultRules() {
     const ok = await this.showConfirmDialog({
-      title: '重置规则',
+      title: window.I18n ? (window.I18n.t('rules.reset') || '重置规则') : '重置规则',
       message: '确定要重置为默认分类规则吗？这将覆盖所有现有规则。',
       okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
       cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
@@ -2521,7 +2555,7 @@ class OptionsManager {
       this.settings.classificationRules = this.classificationRules;
       this.saveSettings();
       this.updateClassificationRules();
-      this.showMessage('已重置为默认规则', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('rules.reset.success') : '已重置为默认规则'), 'success');
     }
   }
 
@@ -2623,10 +2657,10 @@ class OptionsManager {
       a.click();
       
       URL.revokeObjectURL(url);
-      this.showMessage('备份导出成功', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.success') : '备份导出成功'), 'success');
     } catch (error) {
-      console.error('导出备份失败:', error);
-      this.showMessage('导出备份失败', 'error');
+    console.error((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败') + ':', error);
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败'), 'error');
     }
   }
 
@@ -2657,11 +2691,11 @@ class OptionsManager {
         if (ok) {
           // 这里应该实现实际的导入逻辑
           // 由于Chrome扩展API的限制，实际实现会更复杂
-          this.showMessage('备份导入功能正在开发中', 'info');
+    this.showMessage((window.I18n ? window.I18n.t('backup.import.dev') : '备份导入功能正在开发中'), 'info');
         }
       } catch (error) {
-        console.error('导入备份失败:', error);
-        this.showMessage('导入备份失败: ' + error.message, 'error');
+    console.error((window.I18n ? window.I18n.t('backup.import.fail') : '导入备份失败') + ':', error);
+    this.showMessage((window.I18n ? window.I18n.tf('backup.import.fail', { error: error.message }) : ('导入备份失败: ' + error.message)), 'error');
       }
     };
     
@@ -2695,7 +2729,7 @@ class OptionsManager {
     const dualUpload = !!this.settings.githubDualUpload;
 
     if (!token || !owner || !repo) {
-      this.showMessage('请填写完整的 GitHub 配置', 'error');
+    this.showMessage((window.I18n ? window.I18n.t('sync.github.config.incomplete') : '请填写完整的 GitHub 配置'), 'error');
       setStatus('配置不完整');
       return;
     }
@@ -2718,7 +2752,7 @@ class OptionsManager {
         }
         console.log('[Options] 收到 syncGithubBackup 回调：', response);
         if (response && response.success) {
-          this.showMessage('已同步到 GitHub', 'success');
+    this.showMessage((window.I18n ? window.I18n.t('sync.github.done') : '已同步到 GitHub'), 'success');
           setStatus('同步成功');
         } else {
           const errRaw = (response && response.error) ? String(response.error) : '未知错误';
@@ -2728,7 +2762,115 @@ class OptionsManager {
         }
       });
     } catch (e) {
-      this.showMessage('同步过程中出现异常：' + e.message, 'error');
+    this.showMessage((window.I18n ? window.I18n.tf('sync.github.error', { error: e.message }) : ('同步过程中出现异常：' + e.message)), 'error');
+      setStatus('同步失败');
+    }
+  }
+
+  // 触发配置备份上传到 GitHub
+  async syncConfigToGithub() {
+    const statusEl = document.getElementById('githubConfigStatus');
+    const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+
+    // 预览/非扩展环境防护
+    if (!(window.chrome && chrome.runtime && chrome.runtime.id)) {
+      const msg = window.I18n ? (window.I18n.t('sync.github.env.notAvailable') || '当前为预览页面，无法调用扩展后台。请在浏览器扩展环境中操作。') : '当前为预览页面，无法调用扩展后台。请在浏览器扩展环境中操作。';
+      this.showMessage(msg, 'warning');
+      setStatus(msg);
+      return;
+    }
+
+    const token = (this.settings.githubToken || '').trim();
+    const owner = (this.settings.githubOwner || '').trim();
+    const repo = (this.settings.githubRepo || '').trim();
+
+    if (!token || !owner || !repo) {
+      this.showMessage((window.I18n ? window.I18n.t('sync.github.config.incomplete') : '请填写完整的 GitHub 配置'), 'error');
+      setStatus('配置不完整');
+      return;
+    }
+
+    setStatus(window.I18n ? (window.I18n.t('sync.github.config.uploading') || '正在备份配置到 GitHub…') : '正在备份配置到 GitHub…');
+    try {
+      chrome.runtime.sendMessage({
+        action: 'syncGithubConfig',
+        payload: { token, owner, repo }
+      }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          console.error('[Options] sendMessage 回调 lastError:', chrome.runtime.lastError);
+        }
+        if (response && response.success) {
+          this.showMessage((window.I18n ? (window.I18n.t('sync.github.config.success') || '配置同步成功') : '配置同步成功'), 'success');
+          setStatus(window.I18n ? (window.I18n.t('sync.github.config.status.success') || '配置同步成功') : '配置同步成功');
+        } else {
+          const errRaw = (response && response.error) ? String(response.error) : '未知错误';
+          if (/^未知操作/.test(errRaw)) {
+            const msg = window.I18n ? (window.I18n.t('sync.github.config.unsupported') || '当前版本或环境不支持配置同步功能，请更新或在扩展环境中重试。') : '当前版本或环境不支持配置同步功能，请更新或在扩展环境中重试。';
+            this.showMessage(msg, 'warning');
+            setStatus(msg);
+            return;
+          }
+          const friendly = this._formatGithubSyncError(errRaw, { owner, repo });
+          this.showMessage((window.I18n ? window.I18n.tf('sync.github.config.fail', { error: friendly.message }) : ('配置同步失败：' + friendly.message)), 'error');
+          setStatus((friendly && friendly.summary) ? friendly.summary : (window.I18n ? window.I18n.tf('sync.github.config.fail', { error: errRaw }) : ('配置同步失败：' + errRaw)));
+        }
+      });
+    } catch (e) {
+      this.showMessage((window.I18n ? window.I18n.tf('sync.github.config.fail', { error: e.message }) : ('配置同步失败：' + e.message)), 'error');
+      setStatus('同步失败');
+    }
+  }
+
+  // 从 GitHub 拉取配置并导入
+  async importConfigFromGithub() {
+    const statusEl = document.getElementById('githubConfigStatus');
+    const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+
+    // 预览/非扩展环境防护
+    if (!(window.chrome && chrome.runtime && chrome.runtime.id)) {
+      const msg = window.I18n ? (window.I18n.t('sync.github.env.notAvailable') || '当前为预览页面，无法调用扩展后台。请在浏览器扩展环境中操作。') : '当前为预览页面，无法调用扩展后台。请在浏览器扩展环境中操作。';
+      this.showMessage(msg, 'warning');
+      setStatus(msg);
+      return;
+    }
+
+    const token = (this.settings.githubToken || '').trim();
+    const owner = (this.settings.githubOwner || '').trim();
+    const repo = (this.settings.githubRepo || '').trim();
+
+    if (!token || !owner || !repo) {
+      this.showMessage((window.I18n ? window.I18n.t('sync.github.config.incomplete') : '请填写完整的 GitHub 配置'), 'error');
+      setStatus('配置不完整');
+      return;
+    }
+
+    setStatus(window.I18n ? (window.I18n.t('sync.github.config.importing') || '正在从 GitHub 同步配置…') : '正在从 GitHub 同步配置…');
+    try {
+      chrome.runtime.sendMessage({
+        action: 'importGithubConfig',
+        payload: { token, owner, repo }
+      }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          console.error('[Options] sendMessage 回调 lastError:', chrome.runtime.lastError);
+        }
+        if (response && response.success) {
+          this.showMessage((window.I18n ? (window.I18n.t('sync.github.config.success') || '配置同步成功') : '配置同步成功'), 'success');
+          setStatus(window.I18n ? (window.I18n.t('sync.github.config.status.success') || '配置同步成功') : '配置同步成功');
+        } else {
+          const errRaw = (response && response.error) ? String(response.error) : '未知错误';
+          if (/^未知操作/.test(errRaw)) {
+            const msg = window.I18n ? (window.I18n.t('sync.github.config.unsupported') || '当前版本或环境不支持配置同步功能，请更新或在扩展环境中重试。') : '当前版本或环境不支持配置同步功能，请更新或在扩展环境中重试。';
+            this.showMessage(msg, 'warning');
+            setStatus(msg);
+            return;
+          }
+          const friendly = this._formatGithubSyncError(errRaw, { owner, repo });
+          this.showMessage((window.I18n ? window.I18n.tf('sync.github.config.fail', { error: friendly.message }) : ('配置同步失败：' + friendly.message)), 'error');
+          setStatus((friendly && friendly.summary) ? friendly.summary : (window.I18n ? window.I18n.tf('sync.github.config.fail', { error: errRaw }) : ('配置同步失败：' + errRaw)));
+        }
+      });
+    } catch (e) {
+      this.showMessage((window.I18n ? window.I18n.tf('sync.github.config.fail', { error: e.message }) : ('配置同步失败：' + e.message)), 'error');
       setStatus('同步失败');
     }
   }
@@ -2916,7 +3058,7 @@ class OptionsManager {
     placeholder.value = '';
     placeholder.disabled = true;
     placeholder.selected = true;
-    placeholder.textContent = '请选择模型';
+    placeholder.textContent = window.I18n ? (window.I18n.t('ai.model.placeholder') || '请选择模型') : '请选择模型';
     aiModel.appendChild(placeholder);
     models.forEach(m => {
       const opt = document.createElement('option');
@@ -3064,8 +3206,11 @@ Return only a valid JSON object strictly following the above format — no markd
     const setFooter = (ver) => {
       const footerP = document.querySelector('.footer .footer-info p[data-i18n="footer.app"]');
       if (footerP) {
-        // 保持中文描述，但替换版本号为动态值
-        footerP.textContent = `TidyMark - 智能书签管理扩展 v${ver || ''}`.trim();
+        // 使用当前语言的文案，再拼接版本号
+        const baseText = (window.I18n && typeof window.I18n.t === 'function')
+          ? window.I18n.t('footer.app')
+          : 'TidyMark - Smart Bookmark Manager';
+        footerP.textContent = `${baseText} v${ver || ''}`.trim();
       }
     };
     try {
@@ -3118,6 +3263,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (window.I18n) {
         await window.I18n.setLanguage(lang);
       }
+      // 部分文案为一次性渲染，切换语言后刷新页面以确保全部更新
+      setTimeout(() => {
+        try {
+          location.reload();
+        } catch {}
+      }, 100);
     });
   }
 });

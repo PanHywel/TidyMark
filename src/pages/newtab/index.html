@@ -3,21 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TidyMark 导航</title>
+  <title data-i18n="newtab.title">TidyMark 导航</title>
   <link rel="stylesheet" href="index.css" />
 </head>
 <body>
   <div class="page">
     <div class="topbar">
       <div class="theme-dropdown">
-        <button type="button" id="theme-toggle-btn" class="theme-btn" title="主题">
-          <span class="sr-only">主题</span>
+        <button type="button" id="theme-toggle-btn" class="theme-btn" data-i18n-title="newtab.theme">
+          <span class="sr-only" data-i18n="newtab.theme">主题</span>
           <!-- 图标由脚本根据当前模式填充 -->
         </button>
         <div class="dropdown-menu" id="theme-menu" hidden>
-          <button type="button" class="dropdown-item" data-mode="system">系统</button>
-          <button type="button" class="dropdown-item" data-mode="light">明亮</button>
-          <button type="button" class="dropdown-item" data-mode="dark">暗色</button>
+          <button type="button" class="dropdown-item" data-mode="system" data-i18n="newtab.theme.system">系统</button>
+          <button type="button" class="dropdown-item" data-mode="light" data-i18n="newtab.theme.light">明亮</button>
+          <button type="button" class="dropdown-item" data-mode="dark" data-i18n="newtab.theme.dark">暗色</button>
         </div>
       </div>
       <!-- 书签收起/展开按钮已移除，改用选项页配置是否展示书签列表（默认不展示） -->
@@ -26,7 +26,7 @@
       <div class="header-content">
         <div class="time" id="current-time">--:--</div>
         <div class="subtitle">
-          <span id="subtitle-main">愿你高效、专注地浏览每一天</span>
+          <span id="subtitle-main" data-i18n="newtab.subtitle">愿你高效、专注地浏览每一天</span>
           <span id="weather-bar" class="weather-inline" aria-live="polite" hidden>
             <!-- 天气信息由脚本填充 -->
           </span>
@@ -36,14 +36,14 @@
 
     <main class="main">
       <form id="search-form" class="search" autocomplete="off">
-        <select id="search-engine" class="engine-select" aria-label="搜索引擎">
-          <option value="google">Google</option>
-          <option value="bing">Bing</option>
-          <option value="duck">DuckDuckGo</option>
-          <option value="baidu">百度</option>
+        <select id="search-engine" class="engine-select" data-i18n-aria-label="search.engine.label" aria-label="搜索引擎">
+          <option value="google" data-i18n="search.engine.google">Google</option>
+          <option value="bing" data-i18n="search.engine.bing">Bing</option>
+          <option value="duck" data-i18n="search.engine.duck">DuckDuckGo</option>
+          <option value="baidu" data-i18n="search.engine.baidu">百度</option>
         </select>
-        <input id="search-input" type="text" placeholder="搜索或输入网址（“#”开头进行书签搜索）" aria-label="搜索" />
-        <button type="submit" title="搜索">搜索</button>
+        <input id="search-input" type="text" data-i18n-placeholder="newtab.search.placeholder" placeholder="搜索或输入网址（“#”开头进行书签搜索）" data-i18n-aria-label="newtab.search.title" aria-label="搜索" />
+        <button type="submit" data-i18n-title="newtab.search.title" title="搜索" data-i18n="newtab.search.title">搜索</button>
       </form>
       
       <!-- 60s 读懂世界（可配置开关） -->
@@ -51,7 +51,7 @@
         <div class="section-header">
           <div class="section-head-left">
             <span class="drag-handle" aria-hidden="true">⋮⋮</span>
-            <div class="section-title">60s 读懂世界</div>
+            <div class="section-title" data-i18n="newtab.readworld.title">60s 读懂世界</div>
           </div>
           <div class="section-head-right">
             <div class="section-count" id="sixty-date">--</div>
@@ -66,14 +66,14 @@
       <section class="bookmarks" id="bookmark-sections" aria-live="polite">
         <!-- 动态渲染书签分类与列表 -->
       </section>
-      <div class="bookmarks-placeholder" id="bookmarks-placeholder" hidden>
+      <div class="bookmarks-placeholder" id="bookmarks-placeholder" hidden data-i18n="newtab.bookmarks.hidden.tip">
         书签列表已隐藏。可在“设置 → 导航页”中打开显示。
       </div>
     </main>
 
     <!-- 底部品牌已移除 -->
   </div>
-
+  <script src="../../../services/i18n.js"></script>
   <script src="index.js"></script>
 </body>
 </html>

@@ -1,6 +1,13 @@
 // newtab.js - 简洁导航页逻辑
 
 (async function () {
+  // Initialize i18n for New Tab page
+  try {
+    if (window.I18n) {
+      await window.I18n.init();
+    }
+  } catch {}
+
   // 访问统计与热门栏目配置
   let visitStats = { byCategory: {}, byBookmark: {}, lastByBookmark: {} };
   let navShowTopVisited = false;
@@ -113,13 +120,13 @@
         try {
           const url = `${preferred}/v2/bing`;
           const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
-          if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
+          if (!resp.ok) throw new Error(window.I18n ? window.I18n.tf('newtab.wallpaper.serviceStatus', { status: resp.status }) : `壁纸服务返回状态 ${resp.status}`);
           const json = await resp.json();
-          if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
-          if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
+          if (!json || typeof json !== 'object') throw new Error(window.I18n ? window.I18n.t('newtab.wallpaper.notJson') : '壁纸响应非JSON');
+          if (json.code !== 200) throw new Error(window.I18n ? window.I18n.tf('newtab.wallpaper.errorCode', { code: json.code }) : `壁纸服务错误码 ${json.code}`);
           const d = json.data || {};
           const cover = d.cover_4k || d.cover;
-          if (!cover) throw new Error('未提供壁纸链接');
+          if (!cover) throw new Error(window.I18n ? window.I18n.t('newtab.wallpaper.noUrl') : '未提供壁纸链接');
           await setPreferredSixtyInstance(preferred);
           return {
             title: d.title,
@@ -142,13 +149,13 @@
       try {
         const url = `${base}/v2/bing`;
         const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
-        if (!resp.ok) throw new Error(`壁纸服务返回状态 ${resp.status}`);
+        if (!resp.ok) throw new Error(window.I18n ? window.I18n.tf('newtab.wallpaper.serviceStatus', { status: resp.status }) : `壁纸服务返回状态 ${resp.status}`);
         const json = await resp.json();
-        if (!json || typeof json !== 'object') throw new Error('壁纸响应非JSON');
-        if (json.code !== 200) throw new Error(`壁纸服务错误码 ${json.code}`);
+        if (!json || typeof json !== 'object') throw new Error(window.I18n ? window.I18n.t('newtab.wallpaper.notJson') : '壁纸响应非JSON');
+        if (json.code !== 200) throw new Error(window.I18n ? window.I18n.tf('newtab.wallpaper.errorCode', { code: json.code }) : `壁纸服务错误码 ${json.code}`);
         const d = json.data || {};
         const cover = d.cover_4k || d.cover;
-        if (!cover) throw new Error('未提供壁纸链接');
+        if (!cover) throw new Error(window.I18n ? window.I18n.t('newtab.wallpaper.noUrl') : '未提供壁纸链接');
         await setPreferredSixtyInstance(base);
         return {
           title: d.title,
@@ -168,11 +175,11 @@
     try {
       const url = 'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&uhd=1';
       const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
-      if (!resp.ok) throw new Error(`Bing 接口返回状态 ${resp.status}`);
+      if (!resp.ok) throw new Error(window.I18n ? window.I18n.tf('newtab.bing.status', { status: resp.status }) : `Bing 接口返回状态 ${resp.status}`);
       const json = await resp.json();
       const img = json && Array.isArray(json.images) ? json.images[0] : null;
       const rel = img && (img.url || '');
-      if (!rel) throw new Error('Bing 接口未提供图片URL');
+      if (!rel) throw new Error(window.I18n ? window.I18n.t('newtab.bing.noUrl') : 'Bing 接口未提供图片URL');
       const cover = `https://www.bing.com${rel}`;
       return {
         title: img && (img.title || ''),
@@ -220,7 +227,7 @@
         document.body.classList.remove('has-wallpaper');
       }
     } catch (err) {
-      console.warn('加载壁纸失败', err);
+      console.warn(window.I18n ? window.I18n.t('newtab.wallpaper.loadFail') : '加载壁纸失败', err);
       if (document && document.body) {
         document.body.style.backgroundImage = 'none';
         document.body.classList.remove('has-wallpaper');
@@ -245,19 +252,25 @@
     if (!elWallpaperBtn) return;
     elWallpaperBtn.classList.toggle('active', !!wallpaperEnabled);
     // 简单图标即可，保留 🖼️ 文本
-    elWallpaperBtn.title = wallpaperEnabled ? '壁纸：已开启' : '壁纸：已关闭';
+    elWallpaperBtn.title = wallpaperEnabled 
+      ? (window.I18n ? window.I18n.t('newtab.wallpaper.on') : '壁纸：已开启')
+      : (window.I18n ? window.I18n.t('newtab.wallpaper.off') : '壁纸：已关闭');
   }
 
   // 壁纸偏好由设置页控制；新标签页不再提供按钮切换
 
-  // 时间实时更新
+  // 时间实时更新（跟随当前语言环境）
   function updateTime() {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     const ss = String(now.getSeconds()).padStart(2, '0');
-    const dd = now.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    const wk = now.toLocaleDateString(undefined, { weekday: 'short' }); // 例：周一 / Mon
+    const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+      ? window.I18n.getLanguageSync()
+      : (navigator.language || 'en');
+    const locale = String(lang || 'en');
+    const dd = now.toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+    const wk = now.toLocaleDateString(locale, { weekday: 'short' }); // 例：周一 / Mon
     elTime.textContent = `${hh}:${mm}:${ss} ${wk}`;
     elTime.title = dd;
   }
@@ -314,6 +327,10 @@
       if (area === 'sync' && (changes.searchUnfocusedOpacity || changes.bookmarksUnfocusedOpacity || changes.sixtyUnfocusedOpacity || changes.topVisitedUnfocusedOpacity)) {
         loadOpacityPreferences();
       }
+      // 语言变化（Options 页切换语言时）
+      if (area === 'local' && changes.language) {
+        updateLocaleVisibility();
+      }
     });
   }
   // 监听本地存储变化（同源预览环境）
@@ -340,6 +357,9 @@
     }
     if (e.key === 'searchUnfocusedOpacity' || e.key === 'bookmarksUnfocusedOpacity' || e.key === 'sixtyUnfocusedOpacity' || e.key === 'topVisitedUnfocusedOpacity') {
       loadOpacityPreferences();
+    }
+    if (e.key === 'tidymark_language' || e.key === 'language') {
+      updateLocaleVisibility();
     }
   });
 
@@ -395,6 +415,16 @@
   const SIXTY_CACHE_KEY = 'sixty_seconds_cache_v1';
   const DEFAULT_SUBTITLE = '愿你高效、专注地浏览每一天';
   let currentSixtyTip = '';
+
+  // 乱码修复：检测典型 UTF-8 被按 Latin-1 误解码的模式，并尽可能还原
+  function fixMojibake(s) {
+    try {
+      const t = String(s);
+      return /[ÃÂâæÊÐÑÒ]/.test(t) ? decodeURIComponent(escape(t)) : t;
+    } catch {
+      return s;
+    }
+  }
 
   async function getCachedSixty() {
     try {
@@ -483,9 +513,9 @@
       const dateText = [data.date, data.day_of_week, data.lunar_date].filter(Boolean).join(' · ');
       elSixtyDate.textContent = dateText || '--';
       const cover = data.cover || data.image || '';
-      const tip = data.tip || '';
+      const tip = fixMojibake(data.tip || '');
       const link = data.link || '';
-      const news = Array.isArray(data.news) ? data.news : [];
+      const news = Array.isArray(data.news) ? data.news.map(n => fixMojibake(n)) : [];
       const newsItems = news.slice(0, 8).map(n => `
         <li>
           <span class="sixty-bullet" aria-hidden="true"></span>
@@ -526,16 +556,37 @@
       }
 
       // 更新副标题为 60s 提示（如存在）
-      currentSixtyTip = tip || '';
+      currentSixtyTip = fixMojibake(tip || '');
       renderSubtitle();
     } catch {}
   }
 
   let sixtyEnabled = true;
+  const _lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+    ? window.I18n.getLanguageSync()
+    : (navigator.language || 'en');
+  let _isZh = String(_lang).toLowerCase().startsWith('zh');
+
+  function updateLocaleVisibility() {
+    try {
+      const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+        ? window.I18n.getLanguageSync()
+        : (navigator.language || 'en');
+      _isZh = String(lang).toLowerCase().startsWith('zh');
+      // 非中文环境：强制隐藏 60s 与副标题；中文环境：依据用户偏好恢复
+      if (!_isZh) {
+        applySixtyEnabled(false);
+        if (elSubtitleMain) elSubtitleMain.hidden = true;
+      } else {
+        loadSixtyPreference();
+        renderSubtitle();
+      }
+    } catch {}
+  }
 
   function applySixtyEnabled(enabled) {
     sixtyEnabled = !!enabled;
-    if (elSixty) elSixty.hidden = !sixtyEnabled;
+    if (elSixty) elSixty.hidden = !sixtyEnabled || !_isZh;
     // 根据开关与提示内容，更新副标题文本
     renderSubtitle();
     if (sixtyEnabled) {
@@ -547,17 +598,17 @@
   }
 
   async function loadSixtyPreference() {
-    let enabled = true;
+    let enabled = _isZh; // 非中文默认关闭
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
         const { sixtySecondsEnabled } = await chrome.storage.sync.get(['sixtySecondsEnabled']);
-        enabled = sixtySecondsEnabled !== undefined ? !!sixtySecondsEnabled : true;
+        enabled = sixtySecondsEnabled !== undefined ? !!sixtySecondsEnabled : _isZh;
       } else if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem('sixtySecondsEnabled');
         if (raw != null) {
           try { enabled = !!JSON.parse(raw); } catch { enabled = raw === 'true'; }
         } else {
-          enabled = true;
+          enabled = _isZh;
         }
       }
     } catch {}
@@ -605,6 +656,12 @@
   function renderSubtitle() {
     if (!elSubtitleMain) return;
     const t = (currentSixtyTip || '').trim();
+    // 非中文环境始终隐藏副标题
+    if (!_isZh) {
+      elSubtitleMain.hidden = true;
+      return;
+    }
+    elSubtitleMain.hidden = false;
     if (sixtyEnabled && t) {
       elSubtitleMain.textContent = t;
       elSubtitleMain.title = t;
@@ -681,28 +738,7 @@
 
   function renderWeather(data) {
     if (!elWeather) return;
-    if (!data) {
-      elWeather.innerHTML = `
-        <span class="weather-desc">天气加载失败</span>
-        <button type="button" class="weather-refresh" id="weather-refresh-btn" title="刷新">↻ 刷新</button>
-      `;
-      elWeather.hidden = false;
-      const rbtn = document.getElementById('weather-refresh-btn');
-      if (rbtn) {
-        rbtn.onclick = () => loadWeather(true);
-      }
-      // 点击天气区域弹出设置
-      elWeather.onclick = async (e) => {
-        if (e.target && e.target.id === 'weather-refresh-btn') return;
-        const val = prompt('请输入城市名称（例如：南京、雨花台）', '');
-        if (val !== null) {
-          const city = (val || '').trim();
-          await saveWeatherCity(city);
-          loadWeather(true);
-        }
-      };
-      return;
-    }
+    if (!data) { elWeather.hidden = true; return; }
     const city = data.city || data.location || data.name || '—';
     const desc = data.desc || data.type || data.weather || (data.text || '');
     const temp = data.temp || data.temperature || data.tempC || data.now?.temp || data.data?.temp || '';
@@ -716,7 +752,7 @@
         <span class="weather-temp">${tempStr}</span>
         <span class="weather-desc">${desc || ''}${tips ? ' · ' + tips : ''}</span>
       </div>
-      <button type="button" class="weather-refresh" id="weather-refresh-btn" title="刷新">↻ 刷新</button>
+      <button type="button" class="weather-refresh" id="weather-refresh-btn" title="${(window.I18n ? window.I18n.t('newtab.weather.refresh') : 'Refresh')}">↻ ${(window.I18n ? window.I18n.t('newtab.weather.refresh') : '刷新')}</button>
     `;
     elWeather.hidden = false;
     const rbtn = document.getElementById('weather-refresh-btn');
@@ -729,7 +765,8 @@
     // 点击天气区域弹出设置
     elWeather.onclick = async (e) => {
       if (e.target && e.target.id === 'weather-refresh-btn') return;
-      const val = prompt('请输入城市名称（例如：南京、雨花台）', city === '—' ? '' : city);
+      const promptText = (window.I18n ? window.I18n.t('newtab.weather.prompt') : 'Enter city name (e.g., Nanjing)');
+      const val = prompt(promptText, city === '—' ? '' : city);
       if (val !== null) {
         const nextCity = (val || '').trim();
         await saveWeatherCity(nextCity);
@@ -749,6 +786,56 @@
   }
 
   async function fetchWeather(city) {
+    // 根据语言选择数据源：非中文环境优先使用海外免费 API（Open-Meteo）
+    const _lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+      ? window.I18n.getLanguageSync()
+      : (navigator.language || 'en');
+    const _isZh = String(_lang).toLowerCase().startsWith('zh');
+
+    // Open-Meteo weathercode 本地化映射
+    function mapWeatherCodeLocalized(c, locale) {
+      const maps = {
+        'zh-CN': { 0: '晴', 1: '少云', 2: '多云', 3: '阴', 45: '雾', 48: '雾', 51: '毛毛雨', 53: '毛毛雨', 55: '毛毛雨', 56: '冻毛毛雨', 57: '冻毛毛雨', 61: '小雨', 63: '中雨', 65: '大雨', 66: '冻雨', 67: '冻雨', 71: '小雪', 73: '中雪', 75: '大雪', 77: '雪粒', 80: '阵雨', 81: '阵雨', 82: '阵雨', 85: '阵雪', 86: '阵雪', 95: '雷暴', 96: '雷暴冰雹', 99: '强雷暴冰雹', unknown: '未知' },
+        'zh-TW': { 0: '晴', 1: '少雲', 2: '多雲', 3: '陰', 45: '霧', 48: '霧', 51: '毛毛雨', 53: '毛毛雨', 55: '毛毛雨', 56: '凍毛毛雨', 57: '凍毛毛雨', 61: '小雨', 63: '中雨', 65: '大雨', 66: '凍雨', 67: '凍雨', 71: '小雪', 73: '中雪', 75: '大雪', 77: '雪粒', 80: '陣雨', 81: '陣雨', 82: '陣雨', 85: '陣雪', 86: '陣雪', 95: '雷暴', 96: '雷暴冰雹', 99: '強雷暴冰雹', unknown: '未知' },
+        'en': { 0: 'Clear', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Depositing rime fog', 51: 'Light drizzle', 53: 'Moderate drizzle', 55: 'Dense drizzle', 56: 'Light freezing drizzle', 57: 'Dense freezing drizzle', 61: 'Slight rain', 63: 'Moderate rain', 65: 'Heavy rain', 66: 'Light freezing rain', 67: 'Heavy freezing rain', 71: 'Slight snow', 73: 'Moderate snow', 75: 'Heavy snow', 77: 'Snow grains', 80: 'Rain showers', 81: 'Rain showers', 82: 'Violent rain showers', 85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with heavy hail', unknown: 'Unknown' },
+        'ru': { 0: 'Ясно', 1: 'Преимущественно ясно', 2: 'Переменная облачность', 3: 'Пасмурно', 45: 'Туман', 48: 'Изморозь', 51: 'Слабая морось', 53: 'Умеренная морось', 55: 'Сильная морось', 56: 'Ледяная морось', 57: 'Сильная ледяная морось', 61: 'Слабый дождь', 63: 'Умеренный дождь', 65: 'Сильный дождь', 66: 'Ледяной дождь', 67: 'Сильный ледяной дождь', 71: 'Слабый снег', 73: 'Умеренный снег', 75: 'Сильный снег', 77: 'Снежные зерна', 80: 'Ливни', 81: 'Ливни', 82: 'Сильные ливни', 85: 'Снегопады', 86: 'Снегопады', 95: 'Гроза', 96: 'Гроза с градом', 99: 'Сильная гроза с градом', unknown: 'Неизвестно' }
+      };
+      const dict = maps[locale] || maps['en'];
+      return dict[c] || dict.unknown;
+    }
+
+    // 非中文环境：直接走 Open-Meteo
+    if (!_isZh) {
+      if (!city) throw new Error('No city specified');
+      // 1) 城市地理编码（按当前语言，失败回退英文）
+      const geoLang = (() => {
+        const l = String(_lang || 'en');
+        if (l.startsWith('ru')) return 'ru';
+        if (l.startsWith('zh')) return l;
+        return 'en';
+      })();
+      let gResp = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=${encodeURIComponent(geoLang)}`, { cache: 'no-store' });
+      if (!gResp.ok) {
+        gResp = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en`, { cache: 'no-store' });
+        if (!gResp.ok) throw new Error(`Geo HTTP ${gResp.status}`);
+      }
+      const gJson = await gResp.json();
+      const place = Array.isArray(gJson.results) && gJson.results[0];
+      if (!place) throw new Error('No geocoding result');
+      const lat = place.latitude;
+      const lon = place.longitude;
+      const displayName = [place.admin1 || '', place.name || '', place.country || ''].filter(Boolean).join(' ');
+      // 2) 当前天气
+      const wResp = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`, { cache: 'no-store' });
+      if (!wResp.ok) throw new Error(`Weather HTTP ${wResp.status}`);
+      const wJson = await wResp.json();
+      const cur = wJson.current_weather || {};
+      const temp = typeof cur.temperature === 'number' ? Math.round(cur.temperature) : '';
+      const code = cur.weathercode;
+      const desc = mapWeatherCodeLocalized(code, geoLang.startsWith('zh') ? geoLang : (geoLang || 'en'));
+      return { __provider: 'open-meteo', city: displayName || city, temp, desc };
+    }
+
     // 60s v2 天气：优先首选实例，失败再回退
     let lastError = null;
     const candidates = [...SIXTY_INSTANCES];
@@ -814,23 +901,7 @@
       const cur = wJson.current_weather || {};
       const temp = typeof cur.temperature === 'number' ? Math.round(cur.temperature) : '';
       const code = cur.weathercode;
-      function mapWeatherCode(c) {
-        const m = {
-          0: '晴', 1: '少云', 2: '多云', 3: '阴',
-          45: '雾', 48: '雾',
-          51: '毛毛雨', 53: '毛毛雨', 55: '毛毛雨',
-          56: '冻毛毛雨', 57: '冻毛毛雨',
-          61: '小雨', 63: '中雨', 65: '大雨',
-          66: '冻雨', 67: '冻雨',
-          71: '小雪', 73: '中雪', 75: '大雪',
-          77: '雪粒',
-          80: '阵雨', 81: '阵雨', 82: '阵雨',
-          85: '阵雪', 86: '阵雪',
-          95: '雷暴', 96: '雷暴冰雹', 99: '强雷暴冰雹'
-        };
-        return m[c] || '未知';
-      }
-      const desc = mapWeatherCode(code);
+      const desc = mapWeatherCodeLocalized(code, 'zh-CN');
       // 返回拍平数据，供渲染/标准化直接使用
       return { __provider: 'open-meteo', city: displayName || city, temp, desc };
     } catch (e2) {
@@ -849,22 +920,10 @@
         }
         return;
       }
-      // 若未填写城市：直接提示用户设置城市，不进行默认请求
+      // 若未填写城市：不显示天气条
       let city = weatherCity || '';
       if (!city) {
-        if (elWeather) {
-          elWeather.innerHTML = `<span class="weather-desc">未设置城市</span>`;
-          elWeather.hidden = false;
-          // 点击天气区域弹出设置
-          elWeather.onclick = async () => {
-            const val = prompt('请输入城市名称（例如：南京、雨花台）', '');
-            if (val !== null) {
-              const nextCity = (val || '').trim();
-              await saveWeatherCity(nextCity);
-              loadWeather(true);
-            }
-          };
-        }
+        if (elWeather) { elWeather.hidden = true; }
         return;
       }
       if (!force) {
@@ -1692,10 +1751,10 @@
       handle.textContent = '🔥';
       const title = document.createElement('div');
       title.className = 'section-title';
-      title.textContent = `热门书签 Top ${top.length}`;
+      title.textContent = (window.I18n ? window.I18n.tf('newtab.topVisited.title', { n: top.length }) : `热门书签 Top ${top.length}`);
       const count = document.createElement('div');
       count.className = 'section-count';
-      count.textContent = `${bmEntries.length} 书签参与统计`;
+      count.textContent = (window.I18n ? window.I18n.tf('newtab.topVisited.count', { count: bmEntries.length }) : `${bmEntries.length} 书签参与统计`);
       headLeft.appendChild(handle);
       headLeft.appendChild(title);
       header.appendChild(headLeft);
@@ -1713,7 +1772,7 @@
         main.className = 'item-main';
         const t = document.createElement('div');
         t.className = 'title';
-        t.textContent = '暂无访问记录，点击书签后将统计';
+        t.textContent = (window.I18n ? window.I18n.t('newtab.topVisited.empty') : '暂无访问记录，点击书签后将统计');
         main.appendChild(t);
         tipBlock.appendChild(bullet);
         tipBlock.appendChild(main);

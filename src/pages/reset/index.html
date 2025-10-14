@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>重置 TidyMark</title>
+    <title data-i18n="reset.title">重置 TidyMark</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -23,14 +23,18 @@
     </style>
 </head>
 <body>
-    <h1>重置 TidyMark</h1>
-    <p>点击下面的按钮清除使用记录，重新显示首次使用引导</p>
-    <button onclick="resetTidyMark()">重置为首次使用</button>
+    <h1 data-i18n="reset.title">重置 TidyMark</h1>
+    <p data-i18n="reset.desc">点击下面的按钮清除使用记录，重新显示首次使用引导</p>
+    <button onclick="resetTidyMark()" data-i18n="reset.btn">重置为首次使用</button>
     
+    <script src="../../../services/i18n.js"></script>
     <script>
+        (async function(){
+          try { if (window.I18n) await window.I18n.init(); } catch {}
+        })();
         function resetTidyMark() {
             localStorage.removeItem('tidymark_hasUsedBefore');
-            alert('已重置！现在打开 TidyMark 弹窗将显示首次使用引导');
+            alert(window.I18n ? window.I18n.t('reset.alert') : '已重置！现在打开 TidyMark 弹窗将显示首次使用引导');
             window.open('/src/pages/popup/index.html', '_blank');
         }
     </script>

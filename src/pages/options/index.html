@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TidyMark - 设置</title>
+  <title data-i18n="options.title">TidyMark - 设置</title>
   <link rel="stylesheet" href="index.css">
 </head>
   <body>
@@ -29,9 +29,9 @@
 
     <!-- 导航标签 -->
     <nav class="tabs">
-      <button class="tab-btn active" data-tab="organize">整理</button>
+    <button class="tab-btn active" data-tab="organize" data-i18n="tabs.organize">整理</button>
       <button class="tab-btn" data-tab="deadlinks" data-i18n="tabs.dead">失效书签</button>
-      <button class="tab-btn" data-tab="nav">导航设置</button>
+      <button class="tab-btn" data-tab="nav" data-i18n="options.nav.tab">导航设置</button>
       <button class="tab-btn" data-tab="ai" data-i18n="tabs.ai">AI 分类助手</button>
       <button class="tab-btn" data-tab="rules" data-i18n="rules.header">分类规则管理</button>
         <button class="tab-btn" data-tab="sync" data-i18n="tabs.sync">同步导出</button>
@@ -42,18 +42,18 @@
     <section class="tab-content" id="nav">
       <div class="section">
         <div class="section-header">
-          <h2>🧭 导航设置</h2>
+          <h2 data-i18n="options.nav.header">🧭 导航设置</h2>
           <div class="section-description">
-            <p>配置新标签页显示模块与透明度等外观偏好</p>
+            <p data-i18n="options.nav.desc">配置新标签页显示模块与透明度等外观偏好</p>
           </div>
         </div>
       </div>
 
       <div class="section">
         <div class="section-header">
-          <h3>🧩 导航页小组件</h3>
+          <h3 data-i18n="options.nav.widgets.header">🧩 导航页小组件</h3>
           <div class="section-description">
-            <p>在新标签页显示可选信息模块</p>
+            <p data-i18n="options.nav.widgets.desc">在新标签页显示可选信息模块</p>
           </div>
         </div>
         <div class="setting-item">
@@ -61,24 +61,24 @@
             <label class="setting-label">
               <input type="checkbox" id="weatherEnabled">
               <span class="checkmark"></span>
-              <span>显示天气信息</span>
+              <span data-i18n="options.nav.weather.toggle">显示天气信息</span>
             </label>
-            <p class="setting-desc inline-hint">开启后，在新标签页顶部显示城市天气</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.weather.tip">开启后，在新标签页顶部显示城市天气</p>
           </div>
         </div>
         <div class="setting-item">
-          <label for="weatherCity">城市</label>
-          <input type="text" id="weatherCity" placeholder="如：北京、Shanghai、New York">
-          <p class="setting-desc">支持中文或英文城市名；留空将使用默认查询</p>
+          <label for="weatherCity" data-i18n="options.nav.weather.city.label">城市</label>
+          <input type="text" id="weatherCity" data-i18n-placeholder="options.nav.weather.city.placeholder" placeholder="如：北京、Shanghai、New York">
+          <p class="setting-desc" data-i18n="options.nav.weather.city.desc">支持中文或英文城市名；留空将使用默认查询</p>
         </div>
         <div class="setting-item">
           <div class="toggle-row">
             <label class="setting-label">
               <input type="checkbox" id="wallpaperEnabled">
               <span class="checkmark"></span>
-              <span>显示 Bing 壁纸背景</span>
+              <span data-i18n="options.nav.wallpaper.toggle">显示 Bing 壁纸背景</span>
             </label>
-            <p class="setting-desc inline-hint">开启后，新标签页将使用 Bing 每日壁纸作为背景</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.wallpaper.tip">开启后，新标签页将使用 Bing 每日壁纸作为背景</p>
           </div>
         </div>
 
@@ -87,34 +87,35 @@
             <label class="setting-label">
               <input type="checkbox" id="sixtySecondsEnabled">
               <span class="checkmark"></span>
-              <span>显示 60s 读懂世界</span>
+              <span data-i18n="options.nav.sixty.toggle">显示 60s 读懂世界</span>
             </label>
-            <p class="setting-desc inline-hint">开启后，在新标签页显示每日「60s读懂世界」新闻摘要</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.sixty.tip">开启后，在新标签页显示每日「60s读懂世界」新闻摘要</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.cnDefault.hint">非中文环境默认隐藏，可在此开启</p>
           </div>
         </div>
 
         <div class="setting-item">
-          <label>非聚焦透明度（导航页框）</label>
+          <label data-i18n="options.nav.opacity.header">非聚焦透明度（导航页框）</label>
           <div class="settings-grid">
             <div class="setting-item">
-              <label for="searchUnfocusedOpacity">搜索框透明度</label>
+              <label for="searchUnfocusedOpacity" data-i18n="options.nav.opacity.search.label">搜索框透明度</label>
               <input type="range" id="searchUnfocusedOpacity" min="0.6" max="1" step="0.02">
-              <p class="setting-desc">未聚焦/未悬停时：当前 <span id="searchUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+              <p class="setting-desc"><span data-i18n="options.nav.opacity.search.descPrefix">未聚焦/未悬停时：当前</span> <span id="searchUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
             <div class="setting-item">
-              <label for="bookmarksUnfocusedOpacity">书签框透明度</label>
+              <label for="bookmarksUnfocusedOpacity" data-i18n="options.nav.opacity.bookmarks.label">书签框透明度</label>
               <input type="range" id="bookmarksUnfocusedOpacity" min="0.6" max="1" step="0.02">
-              <p class="setting-desc">未悬停时：当前 <span id="bookmarksUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+              <p class="setting-desc"><span data-i18n="options.nav.opacity.bookmarks.descPrefix">未悬停时：当前</span> <span id="bookmarksUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
             <div class="setting-item">
-              <label for="sixtyUnfocusedOpacity">60s 栏目透明度</label>
+              <label for="sixtyUnfocusedOpacity" data-i18n="options.nav.opacity.sixty.label">60s 栏目透明度</label>
               <input type="range" id="sixtyUnfocusedOpacity" min="0.6" max="1" step="0.02">
-              <p class="setting-desc">未悬停时：当前 <span id="sixtyUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+              <p class="setting-desc"><span data-i18n="options.nav.opacity.sixty.descPrefix">未悬停时：当前</span> <span id="sixtyUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
             <div class="setting-item">
-              <label for="topVisitedUnfocusedOpacity">热门栏目透明度</label>
+              <label for="topVisitedUnfocusedOpacity" data-i18n="options.nav.opacity.topVisited.label">热门栏目透明度</label>
               <input type="range" id="topVisitedUnfocusedOpacity" min="0.6" max="1" step="0.02">
-              <p class="setting-desc">未悬停时：当前 <span id="topVisitedUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
+              <p class="setting-desc"><span data-i18n="options.nav.opacity.topVisited.descPrefix">未悬停时：当前</span> <span id="topVisitedUnfocusedOpacityValue">—</span>（0.60 - 1.00）</p>
             </div>
           </div>
         </div>
@@ -124,9 +125,9 @@
             <label class="setting-label">
               <input type="checkbox" id="showBookmarks">
               <span class="checkmark"></span>
-              <span>显示书签列表</span>
+              <span data-i18n="options.nav.bookmarks.toggle">显示书签列表</span>
             </label>
-            <p class="setting-desc inline-hint">默认不展示。开启后，新标签页显示书签列表。</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.bookmarks.tip">默认不展示。开启后，新标签页显示书签列表。</p>
           </div>
         </div>
 
@@ -135,21 +136,21 @@
             <label class="setting-label">
               <input type="checkbox" id="navShowTopVisited">
               <span class="checkmark"></span>
-              <span>显示热门栏目（访问频率 Top N）</span>
+              <span data-i18n="options.nav.topVisited.toggle">显示热门栏目（访问频率 Top N）</span>
             </label>
-            <p class="setting-desc inline-hint">开启后，在导航页顶部显示按访问次数排序的热门书签栏目</p>
+            <p class="setting-desc inline-hint" data-i18n="options.nav.topVisited.tip">开启后，在导航页顶部显示按访问次数排序的热门书签栏目</p>
           </div>
         </div>
         <div class="setting-item">
-          <label for="navTopVisitedCount">热门栏目数量（Top N）</label>
-          <input type="number" id="navTopVisitedCount" min="1" max="50" step="1" placeholder="10">
-          <p class="setting-desc">控制显示的热门栏目数量，建议 5-20</p>
+          <label for="navTopVisitedCount" data-i18n="options.nav.topVisited.count.label">热门栏目数量（Top N）</label>
+          <input type="number" id="navTopVisitedCount" min="1" max="50" step="1" data-i18n-placeholder="options.nav.topVisited.count.placeholder" placeholder="10">
+          <p class="setting-desc" data-i18n="options.nav.topVisited.count.desc">控制显示的热门栏目数量，建议 5-20</p>
         </div>
         <div class="section">
           <div class="section-header">
-            <h3>🗂️ 自动归档旧书签</h3>
+            <h3 data-i18n="options.archive.header">🗂️ 自动归档旧书签</h3>
             <div class="section-description">
-              <p>根据最近访问时间自动将不常访问的书签移动到“归档”文件夹（默认关闭）</p>
+              <p data-i18n="options.archive.desc">根据最近访问时间自动将不常访问的书签移动到“归档”文件夹（默认关闭）</p>
             </div>
           </div>
           <div class="setting-item">
@@ -157,15 +158,15 @@
               <label class="setting-label">
                 <input type="checkbox" id="autoArchiveOldBookmarks">
                 <span class="checkmark"></span>
-                <span>启用自动归档</span>
+                <span data-i18n="options.archive.toggle">启用自动归档</span>
               </label>
-              <p class="setting-desc inline-hint">开启后，扩展会定期将最近访问时间早于阈值的书签搬入“归档”；没有访问记录的书签将回退按添加时间判断。</p>
+    <p class="setting-desc inline-hint" data-i18n="options.archive.hint">开启后，扩展会定期将最近访问时间早于阈值的书签搬入“归档”；没有访问记录的书签将回退按添加时间判断。</p>
             </div>
           </div>
           <div class="setting-item">
-            <label for="archiveOlderThanDays">归档阈值（距今多少天前）</label>
+    <label for="archiveOlderThanDays" data-i18n="options.archive.threshold.label">归档阈值（距今多少天前）</label>
             <input type="number" id="archiveOlderThanDays" min="7" max="3650" step="1" placeholder="180">
-            <p class="setting-desc">按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。</p>
+    <p class="setting-desc" data-i18n="options.archive.threshold.desc">按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。</p>
           </div>
         </div>
       </div>
@@ -210,7 +211,7 @@
             <div class="setting-item">
               <label for="aiModel" data-i18n="ai.model.label">模型选择</label>
               <select id="aiModel">
-                <option value="" disabled selected>请选择模型</option>
+    <option value="" disabled selected data-i18n="ai.model.placeholder">请选择模型</option>
               </select>
               <p class="setting-desc" data-i18n="ai.model.desc">不同模型的准确性和成本不同</p>
             </div>
@@ -248,7 +249,7 @@
             </div>
           </div>
           <div class="setting-item" style="margin-top: 8px;">
-            <button class="btn btn-secondary" id="testAiConnection">测试链接</button>
+    <button class="btn btn-secondary" id="testAiConnection" data-i18n="ai.connection.test">测试链接</button>
             <span id="testResult" class="setting-desc inline-hint" style="margin-left: 10px;"></span>
           </div>
           
@@ -257,23 +258,23 @@
             <div class="settings-grid">
               <div class="setting-item" style="grid-column: 1 / -1;">
                 <label for="aiPromptOrganize" data-i18n="ai.prompt.organize.label">自动整理 AI 提示词</label>
-                <textarea id="aiPromptOrganize" class="form-textarea prompt-textarea" rows="8" placeholder="支持占位符：{{language}}、{{categoriesJson}}、{{itemsJson}}"></textarea>
-                <p class="input-hint">支持占位符：<code>{{language}}</code>、<code>{{categoriesJson}}</code>、<code>{{itemsJson}}</code></p>
-                <p class="input-hint">输出字段名不可更改，请保持与示例一致。</p>
+                <textarea id="aiPromptOrganize" class="form-textarea prompt-textarea" rows="8" data-i18n-placeholder="ai.prompt.organize.placeholder" placeholder="支持占位符：{{language}}、{{categoriesJson}}、{{itemsJson}}"></textarea>
+                <p class="input-hint"><span data-i18n="ai.prompt.support.title">支持占位符：</span><code>{{language}}</code>、<code>{{categoriesJson}}</code>、<code>{{itemsJson}}</code></p>
+                <p class="input-hint" data-i18n="ai.prompt.outputFields.tip">输出字段名不可更改，请保持与示例一致。</p>
                 <div class="prompt-actions">
-                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeCopy">复制</button>
-                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeReset">重置为默认</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeCopy" data-i18n="common.copy">复制</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeReset" data-i18n="common.resetDefault">重置为默认</button>
                 </div>
                 <p class="setting-desc warning-text" data-i18n="ai.prompt.warn.format">请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。</p>
               </div>
               <div class="setting-item" style="grid-column: 1 / -1;">
                 <label for="aiPromptInfer" data-i18n="ai.prompt.infer.label">AI 全量归类提示词</label>
-                <textarea id="aiPromptInfer" class="form-textarea prompt-textarea" rows="8" placeholder="支持占位符：{{language}}、{{itemsJson}}"></textarea>
-                <p class="input-hint">支持占位符：<code>{{language}}</code>、<code>{{itemsJson}}</code></p>
-                <p class="input-hint">输出字段名不可更改，请保持与示例一致。</p>
+                <textarea id="aiPromptInfer" class="form-textarea prompt-textarea" rows="8" data-i18n-placeholder="ai.prompt.infer.placeholder" placeholder="支持占位符：{{language}}、{{itemsJson}}"></textarea>
+                <p class="input-hint"><span data-i18n="ai.prompt.support.title">支持占位符：</span><code>{{language}}</code>、<code>{{itemsJson}}</code></p>
+                <p class="input-hint" data-i18n="ai.prompt.outputFields.tip">输出字段名不可更改，请保持与示例一致。</p>
                 <div class="prompt-actions">
-                  <button class="btn btn-sm btn-outline" id="aiPromptInferCopy">复制</button>
-                  <button class="btn btn-sm btn-outline" id="aiPromptInferReset">重置为默认</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptInferCopy" data-i18n="common.copy">复制</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptInferReset" data-i18n="common.resetDefault">重置为默认</button>
                 </div>
                 <p class="setting-desc warning-text" data-i18n="ai.prompt.warn.format">请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。</p>
               </div>
@@ -315,10 +316,10 @@
     <section class="tab-content active" id="organize">
       <div class="section">
       <div class="section-header">
-        <h2>🔧 整理操作</h2>
+        <h2 data-i18n="organize.header">🔧 整理操作</h2>
       <div class="section-actions">
-        <button class="btn btn-outline" id="quickBackupBtn">💾 备份书签</button>
-        <button class="btn btn-outline" id="quickGithubSyncBtn">☁️ 同步到 GitHub</button>
+        <button class="btn btn-outline" id="quickBackupBtn" data-i18n="organize.quickBackup.btn">💾 备份书签</button>
+        <button class="btn btn-outline" id="quickGithubSyncBtn" data-i18n="organize.quickGithubSync.btn">☁️ 同步到 GitHub</button>
         <button class="btn btn-accent" id="organizeFromSettings" data-i18n="ai.organize.btn">⚡ 自动整理</button>
         <button class="btn btn-accent" id="aiInferOrganizeBtn" data-i18n="ai.infer.btn">🤖 AI 全量归类</button>
       </div>
@@ -331,8 +332,8 @@
           <p data-i18n="organize.auto.hint">依「分类规则」生成预览并移动；如启用 AI，将进行二次优化。</p>
         </div>
         <div class="hint-card">
-          <div class="hint-title">🤖 AI 全量归类</div>
-          <p>对全部书签做 AI 推理给出建议，需先配置模型，更智能但可能耗时。</p>
+          <div class="hint-title" data-i18n="ai.infer.header">🤖 AI 全量归类</div>
+          <p data-i18n="ai.infer.desc">对全部书签做 AI 推理给出建议，需先配置模型，更智能但可能耗时。</p>
         </div>
       </div>
     </div>
@@ -363,30 +364,30 @@
           <p class="setting-desc inline-hint" data-i18n="dead.strict.desc">更严格：需多重验证均失败才判定失效，误报更少</p>
           <div class="scan-inline-controls">
             <label for="deadTimeoutMs" class="setting-label">
-              <span>超时</span>
+              <span data-i18n="dead.timeout.label">超时</span>
               <input type="range" id="deadTimeoutMs" min="1" max="60" step="1">
               <span class="value" id="deadTimeoutMsValue">—</span>
             </label>
             <label class="setting-label">
-              <span>限定文件夹</span>
+              <span data-i18n="dead.folder.label">限定文件夹</span>
               <select id="deadFolderScope">
-                <option value="">全部书签</option>
+                <option value="" data-i18n="dead.folder.option.all">全部书签</option>
               </select>
             </label>
             <label class="setting-label">
               <input type="checkbox" id="deadIgnorePrivateIp">
               <span class="checkmark"></span>
-              <span>忽略内网/本地地址</span>
+              <span data-i18n="dead.ignorePrivate.label">忽略内网/本地地址</span>
             </label>
             <label class="setting-label">
               <input type="checkbox" id="deadScanDuplicates">
               <span class="checkmark"></span>
-              <span>扫描重复书签</span>
+              <span data-i18n="dead.scanDuplicates.label">扫描重复书签</span>
             </label>
           </div>
-          <p class="setting-desc inline-hint">请求最大等待时间，范围 1–60 秒</p>
-          <p class="setting-desc inline-hint">跳过如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x</p>
-          <p class="setting-desc inline-hint">扫描重复书签：按 URL 分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走</p>
+          <p class="setting-desc inline-hint" data-i18n="dead.timeout.tip">请求最大等待时间，范围 1–60 秒</p>
+          <p class="setting-desc inline-hint" data-i18n="dead.ignorePrivate.tip">跳过如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x</p>
+          <p class="setting-desc inline-hint" data-i18n="dead.scanDuplicates.tip">扫描重复书签：按 URL 分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走</p>
           <button class="btn btn-primary" id="deadScanBtn" data-i18n="dead.scan.start">开始检测</button>
           <span id="deadScanProgress" class="inline-hint" aria-live="polite"></span>
         </div>
@@ -444,39 +445,46 @@
 
                 <label for="githubRepo" data-i18n="sync.github.repo.label">仓库名</label>
                 <input type="text" id="githubRepo" data-i18n-placeholder="sync.github.repo.ph" />
-                <p class="setting-desc full-row" id="githubPathHint">将在目标仓库创建备份文件；路径示例：<code>tidymark/backups/tidymark-backup.json</code> 或 <code>tidymark/backups/tidymark-bookmarks.html</code>。</p>
+  <p class="setting-desc full-row" id="githubPathHint" data-i18n="sync.github.path.hint">将在目标仓库创建备份文件；路径示例：<code>tidymark/backups/tidymark-backup.json</code> 或 <code>tidymark/backups/tidymark-bookmarks.html</code>。</p>
 
-                <label for="githubFormat">备份格式</label>
+  <label for="githubFormat" data-i18n="sync.github.format.label">备份格式</label>
                 <select id="githubFormat">
-                  <option value="json">JSON（插件备份）</option>
-                  <option value="html">HTML（Chrome 书签）</option>
+  <option value="json" data-i18n="sync.github.format.json">JSON（插件备份）</option>
+  <option value="html" data-i18n="sync.github.format.html">HTML（Chrome 书签）</option>
                 </select>
 
                 <label class="setting-label full-row" for="githubDualUpload">
                   <input type="checkbox" id="githubDualUpload" />
                   <span class="checkmark"></span>
-                  <span>同时上传两种格式</span>
+  <span data-i18n="sync.github.dualFormat">同时上传两种格式</span>
                 </label>
 
                 <label class="setting-label full-row" for="githubAutoSyncDaily">
                   <input type="checkbox" id="githubAutoSyncDaily" />
                   <span class="checkmark"></span>
-                  <span>自动同步到 GitHub（每日一次）</span>
+  <span data-i18n="sync.github.autoDaily">自动同步到 GitHub（每日一次）</span>
                 </label>
-                <p class="setting-desc full-row">说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。</p>
+  <p class="setting-desc full-row" data-i18n="sync.github.note">说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。</p>
               </div>
               <div class="action-row">
                 <button class="btn btn-accent" id="githubSyncBtn" data-i18n="sync.github.run">一键同步到 GitHub</button>
               </div>
               <p class="setting-desc" id="githubSyncStatus" data-i18n="sync.github.status.idle">尚未同步</p>
 
+              <div class="action-row">
+                <button class="btn btn-outline" id="githubConfigSyncBtn" data-i18n="sync.github.config.upload">备份配置到 GitHub</button>
+                <button class="btn btn-outline" id="githubConfigImportBtn" data-i18n="sync.github.config.import">从 GitHub 同步配置</button>
+              </div>
+              <p class="setting-desc" id="githubConfigStatus" data-i18n="sync.github.config.status.idle">尚未进行配置同步</p>
+
               <details style="margin-top:12px;">
-                <summary>GitHub 操作指南</summary>
+  <summary data-i18n="sync.github.guide.header">GitHub 操作指南</summary>
                 <ol class="setting-desc" style="margin-top:8px;">
-                  <li>创建或准备仓库：可在 GitHub 主页右上角 <em>+</em> → <em>New repository</em> 新建仓库，默认分支通常为 <code>main</code>。</li>
-                  <li>生成个人访问令牌（PAT）：进入个人设置 → <em>Developer settings</em> → <em>Personal access tokens</em>，创建令牌并至少勾选 <code>repo</code> 权限；复制令牌保存到 <em>GitHub Token</em> 字段。</li>
-                  <li>填写同步配置：Owner（用户名或组织名）、Repo（仓库名）、备份格式（JSON/HTML）。可启用“同时上传两种格式”以在仓库生成两份文件。</li>
-                  <li>验证与导入：点击“一键同步到 GitHub”后，到仓库查看文件是否更新。若选择或启用 HTML，同步的文件可在 Chrome 书签管理器导入（Chrome：书签管理器 → 右上角“⋮” → 导入书签）。</li>
+  <li data-i18n="sync.github.guide.security">安全提示：建议创建私人仓库，配置可能包含密钥等敏感信息，避免公开泄露。</li>
+  <li data-i18n="sync.github.guide.step1">创建或准备仓库：可在 GitHub 主页右上角 <em>+</em> → <em>New repository</em> 新建仓库，默认分支通常为 <code>main</code>。</li>
+  <li data-i18n="sync.github.guide.step2">生成个人访问令牌（PAT）：进入个人设置 → <em>Developer settings</em> → <em>Personal access tokens</em>，创建令牌并至少勾选 <code>repo</code> 权限；复制令牌保存到 <em>GitHub Token</em> 字段。</li>
+  <li data-i18n="sync.github.guide.step3">填写同步配置：Owner（用户名或组织名）、Repo（仓库名）、备份格式（JSON/HTML）。可启用“同时上传两种格式”以在仓库生成两份文件。</li>
+  <li data-i18n="sync.github.guide.step4">验证与导入：点击“一键同步到 GitHub”后，到仓库查看文件是否更新。若选择或启用 HTML，同步的文件可在 Chrome 书签管理器导入（Chrome：书签管理器 → 右上角“⋮” → 导入书签）。</li>
                 </ol>
               </details>
             </div>
@@ -581,23 +589,23 @@
         </div>
         <div class="info-card">
           <div class="card-header">
-            <h3>📘 关于 TidyMark</h3>
+            <h3 data-i18n="about.header">📘 关于 TidyMark</h3>
           </div>
           <div class="card-content">
             <div class="about-content">
-              <p>TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。</p>
+              <p data-i18n="about.desc">TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。</p>
               <div class="feature-list">
                 <div class="feature-item">
-                  <h4>🔄 智能整理</h4>
-                  <p>基于网站内容和用户习惯自动分类书签</p>
+                  <h4 data-i18n="about.smart.header">🔄 智能整理</h4>
+                  <p data-i18n="about.smart.desc">基于网站内容和用户习惯自动分类书签</p>
                 </div>
                 <div class="feature-item">
-                  <h4>💾 安全备份</h4>
-                  <p>支持一键备份，保护您的书签数据</p>
+                  <h4 data-i18n="about.backup.header">💾 安全备份</h4>
+                  <p data-i18n="about.backup.desc">支持一键备份，保护您的书签数据</p>
                 </div>
                 <div class="feature-item">
-                  <h4>🎯 自定义规则</h4>
-                  <p>创建个性化分类规则，满足不同需求</p>
+                  <h4 data-i18n="about.rules.header">🎯 自定义规则</h4>
+                  <p data-i18n="about.rules.desc">创建个性化分类规则，满足不同需求</p>
                 </div>
               </div>
             </div>
@@ -622,7 +630,7 @@
   <div class="modal-overlay" id="ruleModal" style="display: none;">
     <div class="modal-dialog">
       <div class="modal-header">
-        <h3 class="modal-title" id="modalTitle">添加分类规则</h3>
+<h3 class="modal-title" id="modalTitle" data-i18n="modal.rule.title">添加分类规则</h3>
         <button class="modal-close" id="modalClose">&times;</button>
       </div>
       <div class="modal-body">

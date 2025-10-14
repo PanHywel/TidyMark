@@ -1,4 +1,15 @@
 // background.js - 后台脚本
+import '../../services/i18n.js';
+
+// 初始化 i18n（后台环境无 DOM，避免顶层 await）
+try {
+  if (globalThis.I18n && typeof globalThis.I18n.init === 'function') {
+    // 不阻塞 SW 注册，异步初始化
+    globalThis.I18n.init().catch((e) => console.warn('[I18n] 初始化失败', e));
+  }
+} catch (e) {
+  console.warn('[I18n] 初始化异常', e);
+}
 
 // 扩展安装时的初始化
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -57,18 +68,14 @@ chrome.runtime.onStartup.addListener(async () => {
   }
 });
 
-// 点击扩展图标直接打开设置页面（移除 popup 后启用）
+// 点击扩展图标直接打开设置页面（始终以新标签页方式打开）
 chrome.action.onClicked.addListener(() => {
-  if (chrome.runtime.openOptionsPage) {
-    try {
-      chrome.runtime.openOptionsPage();
-    } catch (e) {
-      const url = chrome.runtime.getURL('src/pages/options/index.html');
-      chrome.tabs.create({ url });
-    }
-  } else {
+  try {
     const url = chrome.runtime.getURL('src/pages/options/index.html');
+    console.log('[Action] 点击图标，打开设置页:', url);
     chrome.tabs.create({ url });
+  } catch (e) {
+    console.warn('[Action] 打开设置页失败', e);
   }
 });
 
@@ -257,7 +264,7 @@ function getDefaultClassificationRules(lang = 'zh') {
   ];
 }
 
-// 监听来自popup和options页面的消息
+// 监听来自options页面的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('收到消息:', request);
   const action = (request && typeof request.action === 'string') ? request.action.trim() : request.action;
@@ -310,6 +317,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
     case 'syncGithubBackup':
       handleSyncGithubBackup(request.payload, sendResponse);
+      break;
+    case 'syncGithubConfig':
+      handleSyncGithubConfig(request.payload, sendResponse);
+      break;
+    case 'importGithubConfig':
+      handleImportGithubConfig(request.payload, sendResponse);
       break;
     default:
       console.warn('[onMessage] 未知操作:', action, '完整请求:', request);
@@ -623,6 +636,255 @@ async function handleSyncGithubBackup(payload, sendResponse) {
   }
 }
 
+// 配置备份：收集 sync 与 local 的所有键，保存到本地并返回
+async function createConfigBackup() {
+  try {
+    const manifest = chrome.runtime.getManifest ? chrome.runtime.getManifest() : { version: '0.0.0' };
+    const syncAll = await chrome.storage.sync.get(null);
+    const localAll = await chrome.storage.local.get(null);
+    // 过滤掉体积较大的书签备份（仅做配置备份）
+    const { lastBackup, ...syncWithoutLastBackup } = syncAll || {};
+    const { lastBackup: _ignoredLocalLastBackup, ...localWithoutLastBackup } = localAll || {};
+    const backup = {
+      type: 'config',
+      version: manifest.version || '0.0.0',
+      timestamp: Date.now(),
+      sync: syncWithoutLastBackup,
+      local: localWithoutLastBackup
+    };
+    await chrome.storage.local.set({ lastConfigBackup: backup });
+    return backup;
+  } catch (e) {
+    console.error('[ConfigBackup] 创建配置备份失败', e);
+    throw e;
+  }
+}
+
+// 处理将配置备份上传到 GitHub（JSON）
+async function handleSyncGithubConfig(payload, sendResponse) {
+  try {
+    const { token, owner, repo } = payload || {};
+    if (!token || !owner || !repo) {
+      sendResponse({ success: false, error: '配置不完整' });
+      return;
+    }
+
+    let branch = 'main';
+    const path = 'tidymark/backups/tidymark-config.json';
+
+    // 确保有最新配置备份
+    let { lastConfigBackup } = await chrome.storage.local.get(['lastConfigBackup']);
+    if (!lastConfigBackup) {
+      lastConfigBackup = await createConfigBackup();
+    }
+    if (!lastConfigBackup) {
+      sendResponse({ success: false, error: '无法获取配置备份数据' });
+      return;
+    }
+
+    // 获取默认分支
+    try {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (repoInfoRes.ok) {
+        const info = await repoInfoRes.json();
+        if (info && typeof info.default_branch === 'string' && info.default_branch.trim()) {
+          branch = info.default_branch.trim();
+        }
+      }
+    } catch (e) {
+      console.warn('[ConfigSync] 获取仓库默认分支失败，使用 main 作为默认', e);
+    }
+
+    // 复用上传封装逻辑
+    const fixMojibake = (s) => {
+      try {
+        const original = String(s);
+        const cjkCount = (str) => (str.match(/[\u4E00-\u9FFF]/g) || []).length;
+        let repaired = original;
+        try {
+          // 尝试将被当作 Latin-1 的 UTF-8 字节串还原为 UTF-8
+          repaired = decodeURIComponent(escape(original));
+        } catch {}
+        // 选择包含更多中文字符的版本；若修复产生替换符或不可打印字符则回退
+        const hasReplacement = /\uFFFD/.test(repaired);
+        const repairedCJK = cjkCount(repaired);
+        const originalCJK = cjkCount(original);
+        if (!hasReplacement && repairedCJK > originalCJK) {
+          return repaired;
+        }
+        return original;
+      } catch {
+        return s;
+      }
+    };
+    const normalizeStringsDeep = (val) => {
+      if (val == null) return val;
+      if (typeof val === 'string') return fixMojibake(val);
+      if (Array.isArray(val)) return val.map(v => normalizeStringsDeep(v));
+      if (typeof val === 'object') {
+        const out = {}; for (const k of Object.keys(val)) { out[k] = normalizeStringsDeep(val[k]); }
+        return out;
+      }
+      return val;
+    };
+    const toBase64 = (str) => {
+      try { return btoa(unescape(encodeURIComponent(str))); } catch (_) {
+        const bytes = new TextEncoder().encode(str);
+        let binary = ''; bytes.forEach(b => { binary += String.fromCharCode(b); });
+        return btoa(binary);
+      }
+    };
+    const uploadOne = async (filePath, contentStr) => {
+      const segs = String(filePath).split('/').map(s => encodeURIComponent(s)).join('/');
+      const baseUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${segs}`;
+      const headers = {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      };
+      let sha;
+      try {
+        const getRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(branch)}`, { headers });
+        if (getRes.status === 200) { const data = await getRes.json(); sha = data && data.sha; }
+      } catch (e) { console.warn('[ConfigSync] 检查现有文件失败（忽略）', e); }
+      const body = { message: `TidyMark config backup: ${new Date().toISOString()}`, content: toBase64(contentStr), branch };
+      if (sha) body.sha = sha;
+      let putRes = await fetch(baseUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+      if (putRes.status === 201 || putRes.status === 200) { const data = await putRes.json(); return { success: true, data }; }
+      if (putRes.status === 404 && branch === 'main') {
+        try {
+          const fallbackBranch = 'master';
+          let fbSha;
+          try { const fbGetRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(fallbackBranch)}`, { headers }); if (fbGetRes.status === 200) { const fbData = await fbGetRes.json(); fbSha = fbData && fbData.sha; } } catch {}
+          const fbBody = { ...body, branch: fallbackBranch }; if (fbSha) fbBody.sha = fbSha;
+          const fbPutRes = await fetch(baseUrl, { method: 'PUT', headers, body: JSON.stringify(fbBody) });
+          if (fbPutRes.status === 201 || fbPutRes.status === 200) { const fbData = await fbPutRes.json(); return { success: true, data: fbData }; }
+        } catch (e) { console.warn('[ConfigSync] master 分支上传异常（忽略）', e); }
+      }
+      const errText = await putRes.text();
+      return { success: false, error: `GitHub 响应 ${putRes.status}: ${errText}` };
+    };
+
+    const normalized = normalizeStringsDeep(lastConfigBackup);
+    const result = await uploadOne(path, JSON.stringify(normalized, null, 2));
+    if (result && result.success) {
+      sendResponse({ success: true, data: { contentPath: path, htmlUrl: (result && result.data && result.data.content && result.data.content.html_url) || (result && result.data && result.data.commit && result.data.commit.html_url) || null } });
+    } else {
+      sendResponse({ success: false, error: result?.error || '未知错误' });
+    }
+  } catch (error) {
+    console.error('[ConfigSync] GitHub 配置上传失败:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// 从 GitHub 拉取配置并导入到本地（覆盖现有配置）
+async function handleImportGithubConfig(payload, sendResponse) {
+  try {
+    const { token, owner, repo, path = 'tidymark/backups/tidymark-config.json' } = payload || {};
+    if (!token || !owner || !repo) {
+      sendResponse({ success: false, error: '配置不完整' });
+      return;
+    }
+
+    // 获取默认分支
+    let branch = 'main';
+    try {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+        headers: {
+          'Authorization': `token ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (repoInfoRes.ok) {
+        const info = await repoInfoRes.json();
+        if (info && typeof info.default_branch === 'string' && info.default_branch.trim()) {
+          branch = info.default_branch.trim();
+        }
+      }
+    } catch (e) {
+      console.warn('[ConfigImport] 获取仓库默认分支失败，使用 main 作为默认', e);
+    }
+
+    // 拉取文件内容
+    const segs = String(path).split('/').map(s => encodeURIComponent(s)).join('/');
+    const baseUrl = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${segs}`;
+    const headers = {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json'
+    };
+    const res = await fetch(`${baseUrl}?ref=${encodeURIComponent(branch)}`, { headers });
+    if (res.status !== 200) {
+      // 尝试 master 作为回退
+      if (branch === 'main') {
+        const res2 = await fetch(`${baseUrl}?ref=master`, { headers });
+        if (res2.status !== 200) {
+          const errText = await res2.text();
+          sendResponse({ success: false, error: `无法获取配置文件（${res.status}/${res2.status}）: ${errText}` });
+          return;
+        }
+        const data2 = await res2.json();
+        const decodeBase64Utf8 = (b64) => {
+          try {
+            return decodeURIComponent(escape(atob(b64)));
+          } catch (_) {
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            return new TextDecoder('utf-8').decode(bytes);
+          }
+        };
+        const jsonStr2 = decodeBase64Utf8(data2.content || '');
+        const parsed2 = JSON.parse(jsonStr2);
+        await importConfigData(parsed2);
+        sendResponse({ success: true });
+        return;
+      }
+      const errText = await res.text();
+      sendResponse({ success: false, error: `无法获取配置文件（${res.status}）: ${errText}` });
+      return;
+    }
+    const data = await res.json();
+    const decodeBase64Utf8 = (b64) => {
+      try {
+        return decodeURIComponent(escape(atob(b64)));
+      } catch (_) {
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return new TextDecoder('utf-8').decode(bytes);
+      }
+    };
+    const jsonStr = decodeBase64Utf8(data.content || '');
+    const parsed = JSON.parse(jsonStr);
+    await importConfigData(parsed);
+    sendResponse({ success: true });
+  } catch (error) {
+    console.error('[ConfigImport] 从 GitHub 导入配置失败:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+// 覆盖导入配置到本地存储
+async function importConfigData(backup) {
+  const syncData = (backup && backup.sync) || {};
+  const localData = (backup && backup.local) || {};
+  try {
+    await chrome.storage.sync.clear();
+    await chrome.storage.local.clear();
+    if (syncData && typeof syncData === 'object') {
+      await chrome.storage.sync.set(syncData);
+    }
+    if (localData && typeof localData === 'object') {
+      await chrome.storage.local.set(localData);
+    }
+  } catch (e) {
+    console.error('[ConfigImport] 写入本地配置失败', e);
+    throw e;
+  }
+}
+
 // 创建书签备份
 async function createBookmarkBackup() {
   try {
@@ -781,24 +1043,18 @@ async function maybeRunDailyGithubAutoSync(trigger = 'manual') {
 
   console.log(`[AutoSync] 触发每日自动同步（${trigger}）`);
   const payload = { token, owner, repo, format, dualUpload };
-  // 复用现有同步实现：直接调用处理器并等待回调
-  const resp = await new Promise((resolve) => {
-    try {
-      handleSyncGithubBackup(payload, (result) => resolve(result));
-    } catch (e) {
-      resolve({ success: false, error: e?.message || String(e) });
-    }
+  const bookmarkResp = await new Promise((resolve) => {
+    try { handleSyncGithubBackup(payload, (result) => resolve(result)); } catch (e) { resolve({ success: false, error: e?.message || String(e) }); }
+  });
+  const configResp = await new Promise((resolve) => {
+    try { handleSyncGithubConfig({ token, owner, repo }, (result) => resolve(result)); } catch (e) { resolve({ success: false, error: e?.message || String(e) }); }
   });
 
-  if (resp && resp.success) {
-    console.log('[AutoSync] GitHub 自动同步成功');
-    try {
-      await chrome.storage.sync.set({ githubLastAutoSyncDate: todayStr });
-    } catch (e) {
-      console.warn('[AutoSync] 记录最后自动同步日期失败', e);
-    }
+  if (bookmarkResp?.success && configResp?.success) {
+    console.log('[AutoSync] GitHub 自动同步成功（书签+配置）');
+    try { await chrome.storage.sync.set({ githubLastAutoSyncDate: todayStr }); } catch (e) { console.warn('[AutoSync] 记录最后自动同步日期失败', e); }
   } else {
-    console.warn('[AutoSync] GitHub 自动同步失败', resp?.error);
+    console.warn('[AutoSync] GitHub 自动同步失败', { bookmarkError: bookmarkResp?.error, configError: configResp?.error });
     // 失败不更新日期，以便下一次重试
   }
 }
@@ -1814,19 +2070,20 @@ async function registerContextMenus() {
     if (chrome.contextMenus?.removeAll) {
       await chrome.contextMenus.removeAll();
     }
+    const t = (k) => (globalThis.I18n ? globalThis.I18n.t(k) : k);
     chrome.contextMenus.create({
       id: 'tidymark_add_bookmark_page',
-      title: '添加到 TidyMark 并分类（页面）',
+      title: t('bg.context.add.page'),
       contexts: ['page']
     });
     chrome.contextMenus.create({
       id: 'tidymark_add_bookmark_link',
-      title: '添加到 TidyMark 并分类（链接）',
+      title: t('bg.context.add.link'),
       contexts: ['link']
     });
     chrome.contextMenus.create({
       id: 'tidymark_add_bookmark_selection',
-      title: '添加到 TidyMark 并分类（选中文本）',
+      title: t('bg.context.add.selection'),
       contexts: ['selection']
     });
     console.log('[ContextMenus] 已创建右键菜单');
@@ -1840,10 +2097,10 @@ async function showAddNotification({ title, url, category }) {
   try {
     if (!chrome.notifications) return;
     const iconUrl = chrome.runtime.getURL('icons/icon128.png');
-    const message = `已添加到「${category}」文件夹`;
+    const message = (globalThis.I18n ? globalThis.I18n.tf('bg.notification.add.message', { category }) : `已添加到「${category}」文件夹`);
     chrome.notifications.create(`tidymark_add_${Date.now()}`, {
       type: 'basic',
-      title: 'TidyMark 添加成功',
+      title: (globalThis.I18n ? globalThis.I18n.t('bg.notification.add.title') : 'TidyMark 添加成功'),
       message,
       iconUrl
     });

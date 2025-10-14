@@ -1,5 +1,11 @@
 // Simple i18n service
 (function() {
+  // Make it work in window, worker (service worker), or node-like env
+  const env = (typeof window !== 'undefined')
+    ? window
+    : (typeof self !== 'undefined')
+      ? self
+      : globalThis;
   const supported = ['zh-CN', 'zh-TW', 'en', 'ru'];
   const categoryMap = {
     'dev-tools': {
@@ -94,7 +100,7 @@
     'tabs.organize': { 'zh-CN': '整理', 'zh-TW': '整理', 'en': 'Organize', 'ru': 'Упорядочить' },
     'tabs.ai': { 'zh-CN': 'AI 配置', 'zh-TW': 'AI 設定', 'en': 'AI Settings', 'ru': 'Настройки AI' },
     'tabs.help': { 'zh-CN': '帮助', 'zh-TW': '說明', 'en': 'Help', 'ru': 'Помощь' },
-    'tabs.sync': { 'zh-CN': '同步导出', 'zh-TW': '同步導出', 'en': 'Sync & Export', 'ru': 'Синхронизация и экспорт' },
+  'tabs.sync': { 'zh-CN': '同步导出', 'zh-TW': '同步導出', 'en': 'Sync & Export', 'ru': 'Синхронизация и экспорт' },
 
     'actions.backup': { 'zh-CN': '备份书签', 'zh-TW': '備份書籤', 'en': 'Backup Bookmarks', 'ru': 'Резервное копирование' },
     'actions.organize': { 'zh-CN': '自动整理', 'zh-TW': '自動整理', 'en': 'Auto Organize', 'ru': 'Автосортировка' },
@@ -110,7 +116,9 @@
     'categories.empty.tip': { 'zh-CN': '点击 + 添加分类，或使用“自动整理”', 'zh-TW': '點擊 + 新增分類，或使用「自動整理」', 'en': 'Click + to add, or use Auto Organize', 'ru': 'Нажмите + или используйте автосортировку' },
 
     'help.header': { 'zh-CN': '帮助与提示', 'zh-TW': '說明與提示', 'en': 'Help & Tips', 'ru': 'Помощь и советы' },
-    'help.desc': { 'zh-CN': '查看使用说明与备份提示，包括导入、备份和重置', 'zh-TW': '查看使用說明與備份提示，包含匯入、備份與重置', 'en': 'Usage notes and backup tips: import, backup, reset', 'ru': 'Справка и советы: импорт, резервное копирование, сброс' }
+    'help.desc': { 'zh-CN': '查看使用说明与备份提示，包括导入、备份和重置', 'zh-TW': '查看使用說明與備份提示，包含匯入、備份與重置', 'en': 'Usage notes and backup tips: import, backup, reset', 'ru': 'Справка и советы: импорт, резервное копирование, сброс' },
+    // About section
+    'about.header': { 'zh-CN': '关于 TidyMark', 'zh-TW': '關於 TidyMark', 'en': 'About TidyMark', 'ru': 'О TidyMark' }
   };
 
   // Extended UI translations
@@ -139,18 +147,40 @@
     'sync.github.status.syncing': { 'zh-CN': '正在同步到 GitHub…', 'zh-TW': '正在同步到 GitHub…', 'en': 'Syncing to GitHub…', 'ru': 'Синхронизация с GitHub…' },
     'sync.github.status.success': { 'zh-CN': '同步成功', 'zh-TW': '同步成功', 'en': 'Sync successful', 'ru': 'Синхронизация завершена' },
     'sync.github.status.fail': { 'zh-CN': '同步失败：{error}', 'zh-TW': '同步失敗：{error}', 'en': 'Sync failed: {error}', 'ru': 'Сбой синхронизации: {error}' },
+    // Config sync (new)
+    'sync.github.config.upload': { 'zh-CN': '备份配置到 GitHub', 'zh-TW': '備份設定到 GitHub', 'en': 'Backup config to GitHub', 'ru': 'Резервная конфигурация в GitHub' },
+    'sync.github.config.import': { 'zh-CN': '从 GitHub 同步配置', 'zh-TW': '從 GitHub 同步設定', 'en': 'Import config from GitHub', 'ru': 'Импорт конфигурации из GitHub' },
+    'sync.github.config.status.idle': { 'zh-CN': '尚未进行配置同步', 'zh-TW': '尚未進行設定同步', 'en': 'No config sync yet', 'ru': 'Синхр. конфигурации не выполнялась' },
+    'sync.github.config.status.success': { 'zh-CN': '配置同步成功', 'zh-TW': '設定同步成功', 'en': 'Config sync successful', 'ru': 'Синхронизация конфигурации прошла успешно' },
+    'sync.github.config.uploading': { 'zh-CN': '正在备份配置到 GitHub…', 'zh-TW': '正在備份設定到 GitHub…', 'en': 'Backing up config to GitHub…', 'ru': 'Резервирование конфигурации в GitHub…' },
+    'sync.github.config.importing': { 'zh-CN': '正在从 GitHub 同步配置…', 'zh-TW': '正在從 GitHub 同步設定…', 'en': 'Importing config from GitHub…', 'ru': 'Импорт конфигурации из GitHub…' },
+    'sync.github.config.incomplete': { 'zh-CN': '请填写完整的 GitHub 配置', 'zh-TW': '請填寫完整的 GitHub 設定', 'en': 'Please fill in complete GitHub config', 'ru': 'Заполните полную конфигурацию GitHub' },
+    'sync.github.config.success': { 'zh-CN': '配置同步成功', 'zh-TW': '設定同步成功', 'en': 'Config sync successful', 'ru': 'Синхронизация конфигурации прошла успешно' },
+    'sync.github.config.fail': { 'zh-CN': '配置同步失败：{error}', 'zh-TW': '設定同步失敗：{error}', 'en': 'Config sync failed: {error}', 'ru': 'Сбой синхронизации конфигурации: {error}' },
+    'sync.github.config.unsupported': { 'zh-CN': '当前版本或环境不支持配置同步功能，请更新或在扩展环境中重试。', 'zh-TW': '目前版本或環境不支援設定同步功能，請更新或在擴充環境中重試。', 'en': 'Config sync is not supported in this version or environment. Please update or try in extension context.', 'ru': 'Синхронизация конфигурации не поддерживается в этой версии или окружении. Обновите или попробуйте в контексте расширения.' },
+    'sync.github.env.notAvailable': { 'zh-CN': '当前为预览页面，无法调用扩展后台。请在浏览器扩展环境中操作。', 'zh-TW': '目前為預覽頁面，無法呼叫擴充背景。請在瀏覽器擴充環境中操作。', 'en': 'This is a preview page; cannot call extension background. Please use within the browser extension.', 'ru': 'Это страница предварительного просмотра; невозможно вызвать фон расширения. Используйте в окружении расширения.' },
     // About
     'about.intro': { 'zh-CN': 'TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。', 'zh-TW': 'TidyMark 是一個智慧書籤管理擴充，協助您自動整理與分類書籤。', 'en': 'TidyMark is a smart bookmark manager that auto-organizes your bookmarks.', 'ru': 'TidyMark — умный менеджер закладок, автоматически упорядочивающий их.' },
+    // About (keys used by options/index.html)
+    'about.desc': { 'zh-CN': 'TidyMark 是一个智能书签管理扩展，帮助您自动整理和分类书签。', 'zh-TW': 'TidyMark 是一個智慧書籤管理擴充，協助您自動整理與分類書籤。', 'en': 'TidyMark is a smart bookmark manager that auto-organizes your bookmarks.', 'ru': 'TidyMark — умный менеджер закладок, автоматически упорядочивающий их.' },
     'about.features.smart': { 'zh-CN': '🔄 智能整理', 'zh-TW': '🔄 智慧整理', 'en': '🔄 Smart Organizing', 'ru': '🔄 Умная сортировка' },
     'about.features.smart.desc': { 'zh-CN': '基于网站内容和用户习惯自动分类书签', 'zh-TW': '根據網站內容與使用習慣自動分類書籤', 'en': 'Automatically categorizes based on site content and habits', 'ru': 'Автокатегоризация по содержимому и привычкам' },
+    'about.smart.header': { 'zh-CN': '🔄 智能整理', 'zh-TW': '🔄 智慧整理', 'en': '🔄 Smart Organizing', 'ru': '🔄 Умная сортировка' },
+    'about.smart.desc': { 'zh-CN': '基于网站内容和用户习惯自动分类书签', 'zh-TW': '根據網站內容與使用習慣自動分類書籤', 'en': 'Automatically categorizes based on site content and habits', 'ru': 'Автокатегоризация по содержимому и привычкам' },
     'about.features.backup': { 'zh-CN': '💾 安全备份', 'zh-TW': '💾 安全備份', 'en': '💾 Safe Backup', 'ru': '💾 Безопасное резервирование' },
     'about.features.backup.desc': { 'zh-CN': '支持一键备份，保护您的书签数据', 'zh-TW': '支援一鍵備份，保護您的書籤資料', 'en': 'One-click backup keeps your bookmarks safe', 'ru': 'Резервирование в один клик' },
+    'about.backup.header': { 'zh-CN': '💾 安全备份', 'zh-TW': '💾 安全備份', 'en': '💾 Safe Backup', 'ru': '💾 Безопасное резервирование' },
+    'about.backup.desc': { 'zh-CN': '支持一键备份，保护您的书签数据', 'zh-TW': '支援一鍵備份，保護您的書籤資料', 'en': 'One-click backup keeps your bookmarks safe', 'ru': 'Резервирование в один клик' },
     'about.features.rules': { 'zh-CN': '🎯 自定义规则', 'zh-TW': '🎯 自訂規則', 'en': '🎯 Custom Rules', 'ru': '🎯 Пользовательские правила' },
     'about.features.rules.desc': { 'zh-CN': '创建个性化分类规则，满足不同需求', 'zh-TW': '建立個人化分類規則，滿足不同需求', 'en': 'Create personalized rules for every need', 'ru': 'Создавайте персональные правила под любые задачи' },
+    'about.rules.header': { 'zh-CN': '🎯 自定义规则', 'zh-TW': '🎯 自訂規則', 'en': '🎯 Custom Rules', 'ru': '🎯 Пользовательские правила' },
+    'about.rules.desc': { 'zh-CN': '创建个性化分类规则，满足不同需求', 'zh-TW': '建立個人化分類規則，滿足不同需求', 'en': 'Create personalized rules for every need', 'ru': 'Создавайте персональные правила под любые задачи' },
 
     // Rules
     'rules.header': { 'zh-CN': '分类规则管理', 'zh-TW': '分類規則管理', 'en': 'Manage Category Rules', 'ru': 'Управление правилами' },
     'rules.add': { 'zh-CN': '添加规则', 'zh-TW': '新增規則', 'en': 'Add Rule', 'ru': 'Добавить правило' },
+    'rules.edit': { 'zh-CN': '编辑规则', 'zh-TW': '編輯規則', 'en': 'Edit Rule', 'ru': 'Редактировать правило' },
+    'rules.delete': { 'zh-CN': '删除规则', 'zh-TW': '刪除規則', 'en': 'Delete Rule', 'ru': 'Удалить правило' },
     'rules.reset': { 'zh-CN': '重置为默认', 'zh-TW': '重設為預設', 'en': 'Reset to Default', 'ru': 'Сбросить к стандартным' },
     'rules.desc': { 'zh-CN': '配置书签的自动分类规则。系统会根据书签的标题和URL中的关键词自动归类到相应的文件夹。', 'zh-TW': '設定書籤的自動分類規則。系統會根據標題與 URL 關鍵字自動歸類。', 'en': 'Configure auto-categorization rules. The system uses title and URL keywords to classify.', 'ru': 'Настройте авто-категоризацию: классификация по ключам в заголовках и URL.' },
     'rules.empty.text': { 'zh-CN': '还没有配置任何分类规则', 'zh-TW': '尚未設定任何分類規則', 'en': 'No rules configured yet', 'ru': 'Правила пока не настроены' },
@@ -182,11 +212,21 @@
     'ai.organize.btn': { 'zh-CN': '⚡ 自动整理', 'zh-TW': '⚡ 自動整理', 'en': '⚡ Auto Organize', 'ru': '⚡ Автосортировка' },
     'ai.infer.btn': { 'zh-CN': '🤖 AI 全量归类', 'zh-TW': '🤖 AI 全量歸類', 'en': '🤖 AI Full Categorize', 'ru': '🤖 Полная категоризация AI' },
     'ai.organize.desc': { 'zh-CN': '基于当前配置直接执行自动整理（如启用 AI 将进行优化）', 'zh-TW': '基於目前設定直接執行自動整理（如啟用 AI 將進行優化）', 'en': 'Run auto organization with current settings (uses AI if enabled)', 'ru': 'Запустить автосортировку с текущими настройками (если включено, используется AI)' },
+    // Organize page quick actions & AI infer card
+    'organize.quickBackup.btn': { 'zh-CN': '💾 备份书签', 'zh-TW': '💾 備份書籤', 'en': '💾 Backup Bookmarks', 'ru': '💾 Резервное копирование закладок' },
+    'organize.quickGithubSync.btn': { 'zh-CN': '☁️ 同步到 GitHub', 'zh-TW': '☁️ 同步到 GitHub', 'en': '☁️ Sync to GitHub', 'ru': '☁️ Синхронизация с GitHub' },
+    'ai.infer.header': { 'zh-CN': '🤖 AI 全量归类', 'zh-TW': '🤖 AI 全量歸類', 'en': '🤖 AI Full Categorize', 'ru': '🤖 Полная категоризация AI' },
+    'ai.infer.desc': { 'zh-CN': '对全部书签做 AI 推理给出建议，需先配置模型，更智能但可能耗时。', 'zh-TW': '對全部書籤做 AI 推理給出建議，需先設定模型，更智慧但可能耗時。', 'en': 'Run AI inference over all bookmarks for suggestions; configure model first. Smarter but may take time.', 'ru': 'Запустить AI-инференс по всем закладкам; сначала настройте модель. Умнее, но может занять время.' },
 
     // AI Prompt Templates
     'ai.prompt.organize.label': { 'zh-CN': '自动整理 AI 提示词', 'zh-TW': '自動整理 AI 提示詞', 'en': 'AI Prompt for Auto Organize', 'ru': 'AI подсказка для автосортировки' },
     'ai.prompt.infer.label': { 'zh-CN': 'AI 全量归类提示词', 'zh-TW': 'AI 全量歸類提示詞', 'en': 'AI Prompt for Full Categorization', 'ru': 'AI подсказка для полной категоризации' },
     'ai.prompt.warn.format': { 'zh-CN': '请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。', 'zh-TW': '請確保提示詞輸出嚴格為 JSON；若格式不正確，功能可能無法正常使用。', 'en': 'Ensure output is strict JSON; incorrect format may break functionality.', 'ru': 'Убедитесь, что вывод — строгий JSON; неверный формат может нарушить работу.' },
+    // AI prompt helpers and placeholders
+    'ai.prompt.support.title': { 'zh-CN': '支持占位符：', 'zh-TW': '支援占位符：', 'en': 'Supports placeholders:', 'ru': 'Поддерживает плейсхолдеры:' },
+    'ai.prompt.outputFields.tip': { 'zh-CN': '输出字段名不可更改，请保持与示例一致。', 'zh-TW': '輸出欄位名稱不可更改，請保持與示例一致。', 'en': 'Output field names must stay unchanged; follow the example.', 'ru': 'Имена выходных полей нельзя менять; следуйте примеру.' },
+    'ai.prompt.organize.placeholder': { 'zh-CN': '支持占位符：{{language}}、{{categoriesJson}}、{{itemsJson}}', 'zh-TW': '支援占位符：{{language}}、{{categoriesJson}}、{{itemsJson}}', 'en': 'Placeholders supported: {{language}}, {{categoriesJson}}, {{itemsJson}}', 'ru': 'Поддерживаемые плейсхолдеры: {{language}}, {{categoriesJson}}, {{itemsJson}}' },
+    'ai.prompt.infer.placeholder': { 'zh-CN': '支持占位符：{{language}}、{{itemsJson}}', 'zh-TW': '支援占位符：{{language}}、{{itemsJson}}', 'en': 'Placeholders supported: {{language}}, {{itemsJson}}', 'ru': 'Поддерживаемые плейсхолдеры: {{language}}, {{itemsJson}}' },
 
     // Preferences
     'pref.header': { 'zh-CN': '🎯 分类偏好', 'zh-TW': '🎯 分類偏好', 'en': '🎯 Category Preferences', 'ru': '🎯 Настройки категорий' },
@@ -283,7 +323,28 @@
     // Common
     'common.viewMore': { 'zh-CN': '查看更多', 'zh-TW': '檢視更多', 'en': 'View more', 'ru': 'Показать ещё' },
     'common.noTitle': { 'zh-CN': '(无标题)', 'zh-TW': '(無標題)', 'en': '(Untitled)', 'ru': '(Без названия)' },
-    'common.collapse': { 'zh-CN': '收起', 'zh-TW': '收起', 'en': 'Collapse', 'ru': 'Свернуть' }
+    'common.collapse': { 'zh-CN': '收起', 'zh-TW': '收起', 'en': 'Collapse', 'ru': 'Свернуть' },
+    'common.copy': { 'zh-CN': '复制', 'zh-TW': '複製', 'en': 'Copy', 'ru': 'Копировать' },
+    'common.edit': { 'zh-CN': '编辑', 'zh-TW': '編輯', 'en': 'Edit', 'ru': 'Редактировать' },
+    'common.delete': { 'zh-CN': '删除', 'zh-TW': '刪除', 'en': 'Delete', 'ru': 'Удалить' },
+    'common.resetDefault': { 'zh-CN': '重置为默认', 'zh-TW': '重置為預設', 'en': 'Reset to default', 'ru': 'Сбросить к умолчанию' },
+    // GitHub sync extended options and guide
+    'sync.github.path.hint': { 'zh-CN': '将在目标仓库创建备份文件；路径示例：tidymark/backups/tidymark-backup.json 或 tidymark/backups/tidymark-bookmarks.html。', 'zh-TW': '將在目標倉庫建立備份檔；路徑示例：tidymark/backups/tidymark-backup.json 或 tidymark/backups/tidymark-bookmarks.html。', 'en': 'Creates backup files in the target repo; e.g., tidymark/backups/tidymark-backup.json or tidymark/backups/tidymark-bookmarks.html.', 'ru': 'Создаёт файлы резервных копий в целевом репозитории; например, tidymark/backups/tidymark-backup.json или tidymark/backups/tidymark-bookmarks.html.' },
+    'sync.github.format.label': { 'zh-CN': '备份格式', 'zh-TW': '備份格式', 'en': 'Backup format', 'ru': 'Формат резервной копии' },
+    'sync.github.format.json': { 'zh-CN': 'JSON（插件备份）', 'zh-TW': 'JSON（外掛備份）', 'en': 'JSON (extension backup)', 'ru': 'JSON (резервная копия расширения)' },
+    'sync.github.format.html': { 'zh-CN': 'HTML（Chrome 书签）', 'zh-TW': 'HTML（Chrome 書籤）', 'en': 'HTML (Chrome bookmarks)', 'ru': 'HTML (закладки Chrome)' },
+    'sync.github.dualFormat': { 'zh-CN': '同时上传两种格式', 'zh-TW': '同時上傳兩種格式', 'en': 'Upload both formats', 'ru': 'Загружать оба формата' },
+    'sync.github.autoDaily': { 'zh-CN': '自动同步到 GitHub（每日一次）', 'zh-TW': '自動同步到 GitHub（每日一次）', 'en': 'Auto sync to GitHub (daily)', 'ru': 'Автосинхронизация с GitHub (ежедневно)' },
+    'sync.github.note': { 'zh-CN': '说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。', 'zh-TW': '說明：同步為單向備份，僅將本地書籤備份到倉庫；不會從倉庫還原到瀏覽器。', 'en': 'Note: Sync is one-way; backs up local bookmarks to the repo and does not restore from repo to browser.', 'ru': 'Примечание: синхронизация — в одну сторону; резервирует локальные закладки в репозитории и не восстанавливает их обратно.' },
+    'sync.github.guide.header': { 'zh-CN': 'GitHub 操作指南', 'zh-TW': 'GitHub 操作指南', 'en': 'GitHub Guide', 'ru': 'Руководство по GitHub' },
+    'sync.github.guide.security': { 'zh-CN': '安全提示：建议创建私人仓库，配置可能包含密钥等敏感信息，避免公开泄露。', 'zh-TW': '安全提示：建議建立私人倉庫，設定可能包含密鑰等敏感資訊，避免公開外洩。', 'en': 'Security tip: use a private repository; config may contain tokens/keys and sensitive data.', 'ru': 'Совет по безопасности: используйте закрытый репозиторий; конфиг может содержать токены/ключи и конфиденциальные данные.' },
+    'sync.github.guide.step1': { 'zh-CN': '创建或准备仓库：可在 GitHub 主页右上角 + → New repository 新建仓库，默认分支通常为 main。', 'zh-TW': '建立或準備倉庫：可在 GitHub 首頁右上角 + → New repository 建立倉庫，預設分支通常為 main。', 'en': 'Create or prepare a repo: GitHub → + → New repository; default branch is usually main.', 'ru': 'Создайте или подготовьте репозиторий: GitHub → + → New repository; ветка по умолчанию обычно main.' },
+    'sync.github.guide.step2': { 'zh-CN': '生成个人访问令牌（PAT）：進入個人設定 → Developer settings → Personal access tokens，建立令牌並至少勾選 repo 權限；複製令牌保存到 GitHub Token 欄位。', 'zh-TW': '生成個人存取權杖（PAT）：進入個人設定 → Developer settings → Personal access tokens，建立權杖並至少勾選 repo 權限；複製權杖保存到 GitHub Token 欄位。', 'en': 'Generate a Personal Access Token (PAT): Settings → Developer settings → Personal access tokens; create a token with repo permission and paste it into GitHub Token field.', 'ru': 'Создайте персональный токен доступа (PAT): Settings → Developer settings → Personal access tokens; укажите права repo и вставьте в поле GitHub Token.' },
+    'sync.github.guide.step3': { 'zh-CN': '填写同步配置：Owner（用户名或组织名）、Repo（仓库名）、备份格式（JSON/HTML）。可启用“同时上传两种格式”以在仓库生成两份文件。', 'zh-TW': '填寫同步設定：Owner（使用者或組織名稱）、Repo（倉庫名稱）、備份格式（JSON/HTML）。可啟用「同時上傳兩種格式」以在倉庫生成兩份檔案。', 'en': 'Fill in sync config: Owner, Repo, backup format (JSON/HTML). Enable “upload both formats” to generate two files.', 'ru': 'Заполните конфигурацию синхронизации: Owner, Repo, формат (JSON/HTML). Включите «загружать оба формата» для двух файлов.' },
+    'sync.github.guide.step4': { 'zh-CN': '验证与导入：点击“一键同步到 GitHub”后，到仓库查看文件是否更新。若启用 HTML，同步的文件可在 Chrome 书签管理器导入。', 'zh-TW': '驗證與匯入：點擊「一鍵同步到 GitHub」後，到倉庫查看檔案是否更新。若啟用 HTML，可在 Chrome 書籤管理器匯入。', 'en': 'Verify and import: after “Sync to GitHub”, check repo for updates. If HTML is enabled, import via Chrome Bookmark Manager.', 'ru': 'Проверка и импорт: после «Синхронизировать с GitHub» проверьте репозиторий. Если включен HTML, импортируйте через менеджер закладок Chrome.' },
+    // AI small additions
+    'ai.model.placeholder': { 'zh-CN': '请选择模型', 'zh-TW': '請選擇模型', 'en': 'Select a model', 'ru': 'Выберите модель' },
+    'ai.connection.test': { 'zh-CN': '测试链接', 'zh-TW': '測試連線', 'en': 'Test Connection', 'ru': 'Проверить подключение' }
   };
   Object.assign(translations, translationsExt);
   // Extend with Dead Links (invalid bookmarks) page keys
@@ -310,8 +371,129 @@
     'dead.none': { 'zh-CN': '没有发现失效书签', 'zh-TW': '沒有發現失效書籤', 'en': 'No dead bookmarks found', 'ru': 'Недействительных закладок не обнаружено' },
     'dead.checkbox': { 'zh-CN': '选择', 'zh-TW': '選擇', 'en': 'Select', 'ru': 'Выбрать' },
     'dead.status.unreachable': { 'zh-CN': '不可访问', 'zh-TW': '不可訪問', 'en': 'Unreachable', 'ru': 'Недоступно' }
+    ,
+    // Inline controls and tips
+    'dead.timeout.label': { 'zh-CN': '超时', 'zh-TW': '逾時', 'en': 'Timeout', 'ru': 'Тайм-аут' },
+    'dead.folder.label': { 'zh-CN': '限定文件夹', 'zh-TW': '限定資料夾', 'en': 'Folder scope', 'ru': 'Область папки' },
+    'dead.folder.option.all': { 'zh-CN': '全部书签', 'zh-TW': '全部書籤', 'en': 'All bookmarks', 'ru': 'Все закладки' },
+    'dead.ignorePrivate.label': { 'zh-CN': '忽略内网/本地地址', 'zh-TW': '忽略內網/本地位址', 'en': 'Ignore private/local addresses', 'ru': 'Игнорировать локальные/частные адреса' },
+    'dead.scanDuplicates.label': { 'zh-CN': '扫描重复书签', 'zh-TW': '掃描重複書籤', 'en': 'Scan duplicate bookmarks', 'ru': 'Сканировать дубликаты закладок' },
+    'dead.timeout.tip': { 'zh-CN': '请求最大等待时间，范围 1–60 秒', 'zh-TW': '請求最大等待時間，範圍 1–60 秒', 'en': 'Maximum request wait time, range 1–60 seconds', 'ru': 'Максимальное время ожидания запроса: 1–60 сек.' },
+    'dead.ignorePrivate.tip': { 'zh-CN': '跳过如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x', 'zh-TW': '跳過如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x', 'en': 'Skip addresses like 127.0.0.1, localhost, 10.x, 192.168.x, 172.16–31.x', 'ru': 'Пропускать адреса: 127.0.0.1, localhost, 10.x, 192.168.x, 172.16–31.x' },
+    'dead.scanDuplicates.tip': { 'zh-CN': '按 URL 分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走', 'zh-TW': '按 URL 分組標記重複，僅展示一條代表項，可勾選後統一刪除或移走', 'en': 'Group by URL to mark duplicates; show one representative; allow bulk delete or move', 'ru': 'Группировать по URL для пометки дубликатов; показывать один представитель; массовое удаление/перемещение' }
   };
   Object.assign(translations, translationsDead);
+  
+  // Additional keys for New Tab, Options messages, and Background UI
+  const translationsAdd = {
+    // New Tab page
+    'newtab.title': { 'zh-CN': 'TidyMark 导航', 'zh-TW': 'TidyMark 導覽', 'en': 'TidyMark Navigation', 'ru': 'Навигация TidyMark' },
+    'newtab.subtitle': { 'zh-CN': '愿你高效、专注地浏览每一天', 'zh-TW': '願你高效、專注地瀏覽每一天', 'en': 'Browse each day efficiently and focused', 'ru': 'Пусть каждый день вы просматриваете эффективно и сосредоточенно' },
+    'newtab.theme': { 'zh-CN': '主题', 'zh-TW': '主題', 'en': 'Theme', 'ru': 'Тема' },
+    'newtab.theme.system': { 'zh-CN': '系统', 'zh-TW': '系統', 'en': 'System', 'ru': 'Системная' },
+    'newtab.theme.light': { 'zh-CN': '明亮', 'zh-TW': '明亮', 'en': 'Light', 'ru': 'Светлая' },
+    'newtab.theme.dark': { 'zh-CN': '暗色', 'zh-TW': '暗色', 'en': 'Dark', 'ru': 'Тёмная' },
+    'newtab.search.title': { 'zh-CN': '搜索', 'zh-TW': '搜尋', 'en': 'Search', 'ru': 'Поиск' },
+    'newtab.search.placeholder': { 'zh-CN': '搜索或输入网址（“#”开头进行书签搜索）', 'zh-TW': '搜尋或輸入網址（「#」開頭進行書籤搜尋）', 'en': 'Search or enter URL (“#” for bookmark search)', 'ru': 'Искать или ввести URL («#» — поиск закладок)' },
+    'newtab.readworld.title': { 'zh-CN': '60s 读懂世界', 'zh-TW': '60s 讀懂世界', 'en': '60s Read the World', 'ru': '60 секунд — новости мира' },
+    'newtab.bookmarks.hidden.tip': { 'zh-CN': '书签列表已隐藏。可在“设置 → 导航页”中打开显示。', 'zh-TW': '書籤列表已隱藏。可在「設定 → 導覽頁」中開啟顯示。', 'en': 'Bookmarks list hidden. Enable it in Settings → New Tab.', 'ru': 'Список закладок скрыт. Включите в Настройках → Новая вкладка.' },
+    'newtab.wallpaper.on': { 'zh-CN': '壁纸：已开启', 'zh-TW': '壁紙：已開啟', 'en': 'Wallpaper: On', 'ru': 'Обои: Вкл.' },
+    'newtab.wallpaper.off': { 'zh-CN': '壁纸：已关闭', 'zh-TW': '壁紙：已關閉', 'en': 'Wallpaper: Off', 'ru': 'Обои: Выкл.' },
+    'newtab.wallpaper.loadFail': { 'zh-CN': '加载壁纸失败', 'zh-TW': '載入壁紙失敗', 'en': 'Failed to load wallpaper', 'ru': 'Не удалось загрузить обои' },
+    'newtab.wallpaper.serviceStatus': { 'zh-CN': '壁纸服务返回状态 {status}', 'zh-TW': '壁紙服務返回狀態 {status}', 'en': 'Wallpaper service returned status {status}', 'ru': 'Сервис обоев вернул статус {status}' },
+    'newtab.wallpaper.notJson': { 'zh-CN': '壁纸响应非JSON', 'zh-TW': '壁紙響應非 JSON', 'en': 'Wallpaper response is not JSON', 'ru': 'Ответ сервиса обоев не JSON' },
+    'newtab.wallpaper.errorCode': { 'zh-CN': '壁纸服务错误码 {code}', 'zh-TW': '壁紙服務錯誤碼 {code}', 'en': 'Wallpaper service error code {code}', 'ru': 'Код ошибки сервиса обоев {code}' },
+    'newtab.wallpaper.noUrl': { 'zh-CN': '未提供壁纸链接', 'zh-TW': '未提供壁紙連結', 'en': 'No wallpaper URL provided', 'ru': 'URL обоев не предоставлен' },
+    'newtab.bing.status': { 'zh-CN': 'Bing 接口返回状态 {status}', 'zh-TW': 'Bing 介面返回狀態 {status}', 'en': 'Bing API returned status {status}', 'ru': 'API Bing вернул статус {status}' },
+    'newtab.bing.noUrl': { 'zh-CN': 'Bing 接口未提供图片URL', 'zh-TW': 'Bing 介面未提供圖片 URL', 'en': 'Bing API did not provide image URL', 'ru': 'API Bing не предоставил URL изображения' },
+    // New Tab: Weather & Top Visited
+    'newtab.weather.refresh': { 'zh-CN': '刷新', 'zh-TW': '重新整理', 'en': 'Refresh', 'ru': 'Обновить' },
+    'newtab.weather.prompt': { 'zh-CN': '请输入城市名称（如：北京、Shanghai、New York）', 'zh-TW': '請輸入城市名稱（如：北京、Shanghai、New York）', 'en': 'Enter city name (e.g., Beijing, Shanghai, New York)', 'ru': 'Введите название города (например, Beijing, Shanghai, New York)' },
+    'newtab.topVisited.title': { 'zh-CN': '热门书签 Top {n}', 'zh-TW': '熱門書籤 Top {n}', 'en': 'Top Visited — Top {n}', 'ru': 'Популярные — Топ {n}' },
+    'newtab.topVisited.count': { 'zh-CN': '{count} 书签参与统计', 'zh-TW': '{count} 書籤參與統計', 'en': '{count} bookmarks participated', 'ru': '{count} закладок участвуют в статистике' },
+    'newtab.topVisited.empty': { 'zh-CN': '暂无访问记录，点击书签后将统计', 'zh-TW': '暫無造訪記錄，點擊書籤後將統計', 'en': 'No visits yet; visiting bookmarks starts tracking', 'ru': 'Пока нет посещений; переходы по закладкам начнут статистику' },
+    'search.engine.google': { 'zh-CN': 'Google', 'zh-TW': 'Google', 'en': 'Google', 'ru': 'Google' },
+    'search.engine.bing': { 'zh-CN': 'Bing', 'zh-TW': 'Bing', 'en': 'Bing', 'ru': 'Bing' },
+    'search.engine.duck': { 'zh-CN': 'DuckDuckGo', 'zh-TW': 'DuckDuckGo', 'en': 'DuckDuckGo', 'ru': 'DuckDuckGo' },
+    'search.engine.baidu': { 'zh-CN': '百度', 'zh-TW': '百度', 'en': 'Baidu', 'ru': 'Baidu' },
+    'search.engine.label': { 'zh-CN': '搜索引擎', 'zh-TW': '搜尋引擎', 'en': 'Search Engine', 'ru': 'Поисковик' },
+
+    // Options page messages
+    'options.title': { 'zh-CN': 'TidyMark - 设置', 'zh-TW': 'TidyMark - 設定', 'en': 'TidyMark - Settings', 'ru': 'TidyMark — Настройки' },
+    'options.save.success': { 'zh-CN': '设置已保存', 'zh-TW': '設定已儲存', 'en': 'Settings saved', 'ru': 'Настройки сохранены' },
+    'options.save.fail': { 'zh-CN': '保存设置失败', 'zh-TW': '儲存設定失敗', 'en': 'Failed to save settings', 'ru': 'Не удалось сохранить настройки' },
+    'ai.prompt.copy.success': { 'zh-CN': '提示词已复制', 'zh-TW': '提示詞已複製', 'en': 'Prompt copied', 'ru': 'Промпт скопирован' },
+    'ai.prompt.copy.fail': { 'zh-CN': '复制失败，请手动选择复制', 'zh-TW': '複製失敗，請手動選擇複製', 'en': 'Copy failed, please select and copy manually', 'ru': 'Не удалось скопировать, выделите и скопируйте вручную' },
+    'ai.prompt.reset.success': { 'zh-CN': '已重置为默认提示词', 'zh-TW': '已重設為預設提示詞', 'en': 'Reset to default prompt', 'ru': 'Сброшено к стандартному промпту' },
+    'preview.generated.simple': { 'zh-CN': '预览已生成，请在下方确认', 'zh-TW': '預覽已生成，請在下方確認', 'en': 'Preview generated; please confirm below', 'ru': 'Предпросмотр создан; подтвердите ниже' },
+    'backup.export.success': { 'zh-CN': '备份导出成功', 'zh-TW': '備份匯出成功', 'en': 'Backup exported successfully', 'ru': 'Резервная копия экспортирована' },
+    'backup.export.fail': { 'zh-CN': '备份失败，请重试', 'zh-TW': '備份失敗，請重試', 'en': 'Backup failed, please retry', 'ru': 'Сбой резервирования, попробуйте снова' },
+    'rules.update.success': { 'zh-CN': '规则已更新', 'zh-TW': '規則已更新', 'en': 'Rule updated', 'ru': 'Правило обновлено' },
+    'rules.add.success': { 'zh-CN': '规则已添加', 'zh-TW': '規則已新增', 'en': 'Rule added', 'ru': 'Правило добавлено' },
+    'rules.reset.success': { 'zh-CN': '已重置为默认规则', 'zh-TW': '已重設為預設規則', 'en': 'Reset to default rules', 'ru': 'Сброс к стандартным правилам' },
+    'backup.export.fail.short': { 'zh-CN': '导出备份失败', 'zh-TW': '匯出備份失敗', 'en': 'Export backup failed', 'ru': 'Сбой экспорта резервной копии' },
+    'backup.import.dev': { 'zh-CN': '备份导入功能正在开发中', 'zh-TW': '備份匯入功能正在開發中', 'en': 'Backup import is under development', 'ru': 'Импорт резервной копии в разработке' },
+    'backup.import.fail': { 'zh-CN': '导入备份失败: {error}', 'zh-TW': '匯入備份失敗：{error}', 'en': 'Import backup failed: {error}', 'ru': 'Сбой импорта резервной копии: {error}' },
+    'sync.github.config.incomplete': { 'zh-CN': '请填写完整的 GitHub 配置', 'zh-TW': '請填寫完整的 GitHub 設定', 'en': 'Please fill in complete GitHub config', 'ru': 'Заполните полную конфигурацию GitHub' },
+    'sync.github.done': { 'zh-CN': '已同步到 GitHub', 'zh-TW': '已同步到 GitHub', 'en': 'Synced to GitHub', 'ru': 'Синхронизировано с GitHub' },
+    'sync.github.error': { 'zh-CN': '同步过程中出现异常：{error}', 'zh-TW': '同步過程中出現異常：{error}', 'en': 'Error occurred during sync: {error}', 'ru': 'Ошибка во время синхронизации: {error}' },
+
+    // Reset page
+    'reset.title': { 'zh-CN': '重置 TidyMark', 'zh-TW': '重置 TidyMark', 'en': 'Reset TidyMark', 'ru': 'Сброс TidyMark' },
+    'reset.desc': { 'zh-CN': '点击下面的按钮清除使用记录，重新显示首次使用引导', 'zh-TW': '點擊下面的按鈕清除使用記錄，重新顯示首次使用引導', 'en': 'Click the button to clear usage and show first-time guide again', 'ru': 'Нажмите кнопку, чтобы очистить данные и снова показать первое руководство' },
+    'reset.btn': { 'zh-CN': '重置为首次使用', 'zh-TW': '重置為首次使用', 'en': 'Reset to first-time use', 'ru': 'Сброс к первому запуску' },
+    'reset.alert': { 'zh-CN': '已重置！现在打开 TidyMark 弹窗将显示首次使用引导', 'zh-TW': '已重置！現在打開 TidyMark 彈窗將顯示首次使用引導', 'en': 'Reset! Opening TidyMark popup will show the first-time guide', 'ru': 'Сброшено! Всплывающее окно TidyMark покажет руководство для первого запуска' },
+
+    // Background: context menus and notifications
+    'bg.context.add.page': { 'zh-CN': '添加到 TidyMark 并分类（页面）', 'zh-TW': '新增到 TidyMark 並分類（頁面）', 'en': 'Add to TidyMark and categorize (Page)', 'ru': 'Добавить в TidyMark и классифицировать (Страница)' },
+    'bg.context.add.link': { 'zh-CN': '添加到 TidyMark 并分类（链接）', 'zh-TW': '新增到 TidyMark 並分類（連結）', 'en': 'Add to TidyMark and categorize (Link)', 'ru': 'Добавить в TidyMark и классифицировать (Ссылка)' },
+    'bg.context.add.selection': { 'zh-CN': '添加到 TidyMark 并分类（选中文本）', 'zh-TW': '新增到 TidyMark 並分類（選中文本）', 'en': 'Add to TidyMark and categorize (Selection)', 'ru': 'Добавить в TidyMark и классифицировать (Выделение)' },
+    'bg.notification.add.title': { 'zh-CN': 'TidyMark 添加成功', 'zh-TW': 'TidyMark 新增成功', 'en': 'Added to TidyMark', 'ru': 'Добавлено в TidyMark' },
+    'bg.notification.add.message': { 'zh-CN': '已添加到「{category}」文件夹', 'zh-TW': '已新增到「{category}」資料夾', 'en': 'Added to “{category}” folder', 'ru': 'Добавлено в папку «{category}»' }
+  };
+  Object.assign(translations, translationsAdd);
+
+  // Options: Navigation settings and hints
+  const translationsOptionsNav = {
+    'options.nav.tab': { 'zh-CN': '导航设置', 'zh-TW': '導覽設定', 'en': 'Navigation', 'ru': 'Навигация' },
+    'options.nav.header': { 'zh-CN': '🧭 导航设置', 'zh-TW': '🧭 導覽設定', 'en': '🧭 Navigation Settings', 'ru': '🧭 Настройки навигации' },
+    'options.nav.desc': { 'zh-CN': '配置新标签页显示模块与透明度等外观偏好', 'zh-TW': '設定新分頁顯示模組與透明度等外觀偏好', 'en': 'Configure New Tab modules and opacity preferences', 'ru': 'Настройка модулей новой вкладки и прозрачности' },
+    'options.nav.widgets.header': { 'zh-CN': '🧩 导航页小组件', 'zh-TW': '🧩 導覽頁小元件', 'en': '🧩 New Tab Widgets', 'ru': '🧩 Виджеты новой вкладки' },
+    'options.nav.widgets.desc': { 'zh-CN': '在新标签页显示可选信息模块', 'zh-TW': '在新分頁顯示可選資訊模組', 'en': 'Optional info modules on New Tab', 'ru': 'Дополнительные информационные модули на новой вкладке' },
+    'options.nav.weather.toggle': { 'zh-CN': '显示天气信息', 'zh-TW': '顯示天氣資訊', 'en': 'Show weather', 'ru': 'Показывать погоду' },
+    'options.nav.weather.tip': { 'zh-CN': '开启后，在新标签页顶部显示城市天气', 'zh-TW': '開啟後，在新分頁頂部顯示城市天氣', 'en': 'Show city weather at the top of New Tab', 'ru': 'Показывать погоду города в верхней части новой вкладки' },
+    'options.nav.weather.city.label': { 'zh-CN': '城市', 'zh-TW': '城市', 'en': 'City', 'ru': 'Город' },
+    'options.nav.weather.city.placeholder': { 'zh-CN': '如：北京、Shanghai、New York', 'zh-TW': '如：北京、Shanghai、New York', 'en': 'e.g., Beijing, Shanghai, New York', 'ru': 'например, Beijing, Shanghai, New York' },
+    'options.nav.weather.city.desc': { 'zh-CN': '支持中文或英文城市名；留空将使用默认查询', 'zh-TW': '支援中文或英文城市名；留空將使用預設查詢', 'en': 'Supports Chinese or English city names; leave empty for default', 'ru': 'Поддерживаются китайские и английские названия; оставьте пустым для значения по умолчанию' },
+    'options.nav.wallpaper.toggle': { 'zh-CN': '显示 Bing 壁纸背景', 'zh-TW': '顯示 Bing 壁紙背景', 'en': 'Show Bing wallpaper', 'ru': 'Показывать обои Bing' },
+    'options.nav.wallpaper.tip': { 'zh-CN': '开启后，新标签页将使用 Bing 每日壁纸作为背景', 'zh-TW': '開啟後，新分頁將使用 Bing 每日壁紙作為背景', 'en': 'Use Bing daily wallpaper as background', 'ru': 'Использовать ежедневные обои Bing как фон' },
+    'options.nav.sixty.toggle': { 'zh-CN': '显示 60s 读懂世界', 'zh-TW': '顯示 60s 讀懂世界', 'en': 'Show 60s Read the World', 'ru': 'Показывать «60 секунд: новости мира»' },
+    'options.nav.sixty.tip': { 'zh-CN': '开启后，在新标签页显示每日「60s读懂世界」新闻摘要', 'zh-TW': '開啟後，在新分頁顯示每日「60s讀懂世界」新聞摘要', 'en': 'Show daily “60s Read the World” news summary', 'ru': 'Показывать ежедневное краткое резюме новостей «60 секунд»' },
+    'options.nav.cnDefault.hint': { 'zh-CN': '非中文环境默认隐藏，可在此开启', 'zh-TW': '非中文環境預設隱藏，可在此開啟', 'en': 'Hidden by default in non-Chinese locales; enable here', 'ru': 'В не китайских языках скрыто по умолчанию; включите здесь' },
+    'options.nav.opacity.header': { 'zh-CN': '非聚焦透明度（导航页框）', 'zh-TW': '非聚焦透明度（導覽頁框）', 'en': 'Unfocused opacity (New Tab blocks)', 'ru': 'Прозрачность без наведения (блоки новой вкладки)' },
+    'options.nav.opacity.search.label': { 'zh-CN': '搜索框透明度', 'zh-TW': '搜尋框透明度', 'en': 'Search opacity', 'ru': 'Прозрачность поиска' },
+    'options.nav.opacity.search.descPrefix': { 'zh-CN': '未聚焦/未悬停时：当前', 'zh-TW': '未聚焦/未懸停時：目前', 'en': 'Unfocused/idle: current', 'ru': 'Без фокуса/наведения: текущая' },
+    'options.nav.opacity.bookmarks.label': { 'zh-CN': '书签框透明度', 'zh-TW': '書籤框透明度', 'en': 'Bookmarks opacity', 'ru': 'Прозрачность блока закладок' },
+    'options.nav.opacity.bookmarks.descPrefix': { 'zh-CN': '未悬停时：当前', 'zh-TW': '未懸停時：目前', 'en': 'Idle: current', 'ru': 'Без наведения: текущая' },
+    'options.nav.opacity.sixty.label': { 'zh-CN': '60s 栏目透明度', 'zh-TW': '60s 欄目透明度', 'en': '60s module opacity', 'ru': 'Прозрачность блока 60s' },
+    'options.nav.opacity.sixty.descPrefix': { 'zh-CN': '未悬停时：当前', 'zh-TW': '未懸停時：目前', 'en': 'Idle: current', 'ru': 'Без наведения: текущая' },
+    'options.nav.opacity.topVisited.label': { 'zh-CN': '热门栏目透明度', 'zh-TW': '熱門欄目透明度', 'en': 'Top visited opacity', 'ru': 'Прозрачность популярного' },
+    'options.nav.opacity.topVisited.descPrefix': { 'zh-CN': '未悬停时：当前', 'zh-TW': '未懸停時：目前', 'en': 'Idle: current', 'ru': 'Без наведения: текущая' },
+    'options.nav.bookmarks.toggle': { 'zh-CN': '显示书签列表', 'zh-TW': '顯示書籤列表', 'en': 'Show bookmarks list', 'ru': 'Показывать список закладок' },
+    'options.nav.bookmarks.tip': { 'zh-CN': '默认不展示。开启后，新标签页显示书签列表。', 'zh-TW': '預設不顯示。開啟後，新分頁顯示書籤列表。', 'en': 'Hidden by default. Enable to show bookmarks list on New Tab.', 'ru': 'По умолчанию скрыто. Включите, чтобы показывать список закладок на новой вкладке.' },
+    'options.nav.topVisited.toggle': { 'zh-CN': '显示热门栏目（访问频率 Top N）', 'zh-TW': '顯示熱門欄目（造訪頻率 Top N）', 'en': 'Show Top Visited (Top N)', 'ru': 'Показывать «Популярные» (Top N)' },
+    'options.nav.topVisited.tip': { 'zh-CN': '开启后，在导航页顶部显示按访问次数排序的热门书签栏目', 'zh-TW': '開啟後，在導覽頁頂部顯示依造訪次數排序的熱門書籤欄位', 'en': 'Show a top-visited section sorted by visit count', 'ru': 'Показывать раздел «Популярные» по счётчику посещений' },
+    'options.nav.topVisited.count.label': { 'zh-CN': '热门栏目数量（Top N）', 'zh-TW': '熱門欄目數量（Top N）', 'en': 'Top visited count (Top N)', 'ru': 'Количество в «Популярных» (Top N)' },
+    'options.nav.topVisited.count.placeholder': { 'zh-CN': '10', 'zh-TW': '10', 'en': '10', 'ru': '10' },
+    'options.nav.topVisited.count.desc': { 'zh-CN': '控制显示的热门栏目数量，建议 5-20', 'zh-TW': '控制顯示的熱門欄目數量，建議 5-20', 'en': 'Number of items to show; recommended 5–20', 'ru': 'Количество элементов; рекомендовано 5–20' },
+    'options.archive.header': { 'zh-CN': '🗂️ 自动归档旧书签', 'zh-TW': '🗂️ 自動歸檔舊書籤', 'en': '🗂️ Auto-archive old bookmarks', 'ru': '🗂️ Автоархив старых закладок' },
+    'options.archive.desc': { 'zh-CN': '根据最近访问时间自动将不常访问的书签移动到“归档”文件夹（默认关闭）', 'zh-TW': '依最近造訪時間自動將不常造訪的書籤移至「歸檔」資料夾（預設關閉）', 'en': 'Move infrequently visited bookmarks to “Archive” based on last visit (off by default)', 'ru': 'Перемещать редко посещаемые закладки в «Архив» по дате последнего визита (по умолчанию выкл.)' },
+    'options.archive.toggle': { 'zh-CN': '启用自动归档', 'zh-TW': '啟用自動歸檔', 'en': 'Enable auto-archive', 'ru': 'Включить автоархив' },
+    'options.archive.hint': { 'zh-CN': '开启后，扩展会定期将最近访问时间早于阈值的书签搬入“归档”；没有访问记录的书签将回退按添加时间判断。', 'zh-TW': '開啟後，擴充功能會定期將最近造訪時間早於臨界值的書籤搬入「歸檔」；沒有造訪記錄的書籤將回退按新增時間判斷。', 'en': 'When enabled, periodically moves bookmarks older than the threshold to “Archive”; items without visit history fall back to added time.', 'ru': 'При включении периодически переносит закладки старше порога в «Архив»; без истории посещений используется дата добавления.' },
+    'options.archive.threshold.label': { 'zh-CN': '归档阈值（距今多少天前）', 'zh-TW': '歸檔臨界值（距今多少天前）', 'en': 'Archive threshold (days ago)', 'ru': 'Порог архивации (сколько дней назад)' },
+    'options.archive.threshold.desc': { 'zh-CN': '按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。', 'zh-TW': '依最近造訪時間判斷，未有造訪記錄則依新增時間；預設 180 天。', 'en': 'Use last visit time, or added time if none; default 180 days.', 'ru': 'По времени последнего визита, или по времени добавления; по умолчанию 180 дней.' }
+  };
+  Object.assign(translations, translationsOptionsNav);
 
   function normalize(lang) {
     if (!lang) return 'en';
@@ -350,14 +532,15 @@
   }
 
   function getLanguageSync() {
-    return window.__tidymark_lang || 'en';
+    return env.__tidymark_lang || 'en';
   }
 
   async function init() {
     const stored = await getStoredLanguage();
     const autoLang = normalize(navigator.language || navigator.userLanguage);
     const lang = normalize(stored || autoLang);
-    window.__tidymark_lang = supported.includes(lang) ? lang : 'en';
+    env.__tidymark_lang = supported.includes(lang) ? lang : 'en';
+    // In non-DOM environments, applyTranslations should be a no-op
     applyTranslations();
   }
 
@@ -409,7 +592,9 @@
     return key ? translateCategory(key) : name;
   }
 
-  function applyTranslations(root = document) {
+  function applyTranslations(root) {
+    const doc = (typeof document !== 'undefined') ? document : null;
+    root = root || doc;
     if (!root) return;
     root.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
@@ -419,14 +604,24 @@
       const key = el.getAttribute('data-i18n-placeholder');
       el.setAttribute('placeholder', t(key));
     });
+    // Support translating title attributes
+    root.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      el.setAttribute('title', t(key));
+    });
+    // Support translating aria-label attributes
+    root.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+      const key = el.getAttribute('data-i18n-aria-label');
+      el.setAttribute('aria-label', t(key));
+    });
   }
 
   async function setLanguage(lang) {
     const normalized = normalize(lang);
-    window.__tidymark_lang = normalized;
+    env.__tidymark_lang = normalized;
     await setStoredLanguage(normalized);
     applyTranslations();
   }
 
-  window.I18n = { init, t, tf, setLanguage, applyTranslations, translateCategory, translateCategoryByName, resolveCategoryKeyByName, getLanguageSync };
+  env.I18n = { init, t, tf, setLanguage, applyTranslations, translateCategory, translateCategoryByName, resolveCategoryKeyByName, getLanguageSync };
 })();
