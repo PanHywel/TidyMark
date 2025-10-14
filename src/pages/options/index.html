@@ -251,6 +251,34 @@
             <button class="btn btn-secondary" id="testAiConnection">测试链接</button>
             <span id="testResult" class="setting-desc inline-hint" style="margin-left: 10px;"></span>
           </div>
+          
+          <!-- AI 提示词模板（可编辑） -->
+          <div class="section" style="margin-top: 16px;">
+            <div class="settings-grid">
+              <div class="setting-item" style="grid-column: 1 / -1;">
+                <label for="aiPromptOrganize" data-i18n="ai.prompt.organize.label">自动整理 AI 提示词</label>
+                <textarea id="aiPromptOrganize" class="form-textarea prompt-textarea" rows="8" placeholder="支持占位符：{{language}}、{{categoriesJson}}、{{itemsJson}}"></textarea>
+                <p class="input-hint">支持占位符：<code>{{language}}</code>、<code>{{categoriesJson}}</code>、<code>{{itemsJson}}</code></p>
+                <p class="input-hint">输出字段名不可更改，请保持与示例一致。</p>
+                <div class="prompt-actions">
+                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeCopy">复制</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptOrganizeReset">重置为默认</button>
+                </div>
+                <p class="setting-desc warning-text" data-i18n="ai.prompt.warn.format">请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。</p>
+              </div>
+              <div class="setting-item" style="grid-column: 1 / -1;">
+                <label for="aiPromptInfer" data-i18n="ai.prompt.infer.label">AI 全量归类提示词</label>
+                <textarea id="aiPromptInfer" class="form-textarea prompt-textarea" rows="8" placeholder="支持占位符：{{language}}、{{itemsJson}}"></textarea>
+                <p class="input-hint">支持占位符：<code>{{language}}</code>、<code>{{itemsJson}}</code></p>
+                <p class="input-hint">输出字段名不可更改，请保持与示例一致。</p>
+                <div class="prompt-actions">
+                  <button class="btn btn-sm btn-outline" id="aiPromptInferCopy">复制</button>
+                  <button class="btn btn-sm btn-outline" id="aiPromptInferReset">重置为默认</button>
+                </div>
+                <p class="setting-desc warning-text" data-i18n="ai.prompt.warn.format">请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -41,6 +41,9 @@ class OptionsManager {
           'aiApiUrl',
           'aiModel',
           'maxTokens',
+          // 新增：AI 提示词模板
+          'aiPromptOrganize',
+          'aiPromptInfer',
           'aiBatchSize',
           'aiConcurrency',
           'classificationLanguage',
@@ -80,6 +83,9 @@ class OptionsManager {
           'aiApiUrl',
           'aiModel',
           'maxTokens',
+          // 新增：AI 提示词模板
+          'aiPromptOrganize',
+          'aiPromptInfer',
           'aiBatchSize',
           'aiConcurrency',
           'classificationLanguage',
@@ -124,6 +130,13 @@ class OptionsManager {
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
         maxTokens: (typeof result.maxTokens === 'number' && result.maxTokens > 0) ? result.maxTokens : 8192,
+        // 新增：AI 提示词模板（为空则使用默认模板占位）
+        aiPromptOrganize: (typeof result.aiPromptOrganize === 'string' && result.aiPromptOrganize.trim().length > 0)
+          ? result.aiPromptOrganize
+          : this.getDefaultAiPromptOrganize(),
+        aiPromptInfer: (typeof result.aiPromptInfer === 'string' && result.aiPromptInfer.trim().length > 0)
+          ? result.aiPromptInfer
+          : this.getDefaultAiPromptInfer(),
         classificationLanguage: result.classificationLanguage ?? 'auto',
         maxCategories: result.maxCategories ?? undefined,
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
@@ -198,6 +211,8 @@ class OptionsManager {
         aiApiUrl: '',
         aiModel: 'gpt-3.5-turbo',
         maxTokens: 8192,
+        aiPromptOrganize: this.getDefaultAiPromptOrganize(),
+        aiPromptInfer: this.getDefaultAiPromptInfer(),
         classificationLanguage: 'auto',
         maxCategories: undefined,
         wallpaperEnabled: true,
@@ -307,6 +322,88 @@ class OptionsManager {
         this.settings.aiModel = e.target.value;
         this.saveSettings();
       });
+    }
+
+    // AI 提示词模板输入事件
+    const aiPromptOrganizeEl = document.getElementById('aiPromptOrganize');
+    if (aiPromptOrganizeEl) {
+      aiPromptOrganizeEl.value = this.settings.aiPromptOrganize || '';
+      aiPromptOrganizeEl.addEventListener('input', (e) => {
+        this.settings.aiPromptOrganize = String(e.target.value || '');
+        this.saveSettings();
+      });
+      const copyBtn = document.getElementById('aiPromptOrganizeCopy');
+      const resetBtn = document.getElementById('aiPromptOrganizeReset');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+          const text = aiPromptOrganizeEl.value || '';
+          try {
+            if (navigator.clipboard?.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            this.showMessage('提示词已复制', 'success');
+          } catch (e) {
+            console.warn('复制失败', e);
+            this.showMessage('复制失败，请手动选择复制', 'error');
+          }
+        });
+      }
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          const def = this.getDefaultAiPromptOrganize();
+          this.settings.aiPromptOrganize = def;
+          aiPromptOrganizeEl.value = def;
+          this.saveSettings();
+          this.showMessage('已重置为默认提示词', 'success');
+        });
+      }
+    }
+    const aiPromptInferEl = document.getElementById('aiPromptInfer');
+    if (aiPromptInferEl) {
+      aiPromptInferEl.value = this.settings.aiPromptInfer || '';
+      aiPromptInferEl.addEventListener('input', (e) => {
+        this.settings.aiPromptInfer = String(e.target.value || '');
+        this.saveSettings();
+      });
+      const copyBtn2 = document.getElementById('aiPromptInferCopy');
+      const resetBtn2 = document.getElementById('aiPromptInferReset');
+      if (copyBtn2) {
+        copyBtn2.addEventListener('click', async () => {
+          const text = aiPromptInferEl.value || '';
+          try {
+            if (navigator.clipboard?.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            this.showMessage('提示词已复制', 'success');
+          } catch (e) {
+            console.warn('复制失败', e);
+            this.showMessage('复制失败，请手动选择复制', 'error');
+          }
+        });
+      }
+      if (resetBtn2) {
+        resetBtn2.addEventListener('click', () => {
+          const def = this.getDefaultAiPromptInfer();
+          this.settings.aiPromptInfer = def;
+          aiPromptInferEl.value = def;
+          this.saveSettings();
+          this.showMessage('已重置为默认提示词', 'success');
+        });
+      }
     }
 
     const maxTokensInput = document.getElementById('maxTokens');
@@ -1681,6 +1778,12 @@ class OptionsManager {
     if (classificationLanguage) classificationLanguage.value = this.settings.classificationLanguage || 'auto';
     if (enableAI) enableAI.checked = !!this.settings.enableAI;
 
+    // 提示词模板回显
+    const aiPromptOrganizeEl = document.getElementById('aiPromptOrganize');
+    if (aiPromptOrganizeEl) aiPromptOrganizeEl.value = this.settings.aiPromptOrganize || '';
+    const aiPromptInferEl = document.getElementById('aiPromptInfer');
+    if (aiPromptInferEl) aiPromptInferEl.value = this.settings.aiPromptInfer || '';
+
     // 显示 API URL 输入
     const urlGroup = document.querySelector('.ai-url-group');
     if (urlGroup) {
@@ -2822,6 +2925,95 @@ class OptionsManager {
       aiModel.appendChild(opt);
     });
     aiModel.value = this.settings.aiModel || '';
+  }
+
+  // 默认提示词模板：自动整理（使用占位符 {{language}}/{{categoriesJson}}/{{itemsJson}}）
+  getDefaultAiPromptOrganize() {
+    return (
+`You are a meticulous Information Architecture and Intelligent Classification Expert.
+Your task is not to modify or create categories.
+Instead, you must intelligently reassign and organize bookmarks within the existing category structure.
+
+Input Description:
+
+- Current language: {{language}}
+- Existing categories and keywords (array): {{categoriesJson}}
+- Bookmarks to be reorganized (optional array): {{itemsJson}}
+
+Objective:
+
+Based on the names and keywords of the existing categories, intelligently determine the most appropriate category for each bookmark.
+You must not add, delete, or modify categories.
+If multiple categories are possible, return the one with the highest confidence score and explain your reasoning.
+
+Rules & Principles (Strictly Follow):
+
+- Only classify items into existing categories — no new ones may be created.
+- Use the given {{language}} for semantic and keyword-based matching.
+- Prioritize bookmark titles for matching, then URLs, and then descriptions (if available).
+- If the confidence score is below 0.5, mark the item as "low confidence".
+- Output must strictly conform to the JSON structure below.
+- No extra commentary or text is allowed outside the JSON.
+
+Output Format (strict JSON, no extra text):
+{
+  "reassigned_items": [
+    {
+      "id": "string",
+      "from_key": "string | null",
+      "to_key": "string",
+      "confidence": 0.0,
+      "reason": "string"
+    }
+  ],
+  "notes": {
+    "global_rules": ["string"],
+    "low_confidence_items": ["id"],
+    "followups": ["string"]
+  }
+}
+
+Output Requirement:
+Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+    );
+  }
+
+  // 默认提示词模板：AI 全量归类（使用占位符 {{language}}/{{itemsJson}}）
+  getDefaultAiPromptInfer() {
+    return (
+`You are a world-class Information Architecture and Taxonomy Expert.
+Your task is to infer a clean, human-understandable category taxonomy from bookmarks, without any preset categories.
+
+Input Description:
+- Current language: {{language}}
+- Bookmarks (array): {{itemsJson}}
+
+Objective:
+- Infer appropriate, concise category names that best group the bookmarks.
+- Assign every bookmark to exactly one inferred category.
+- Use the given language ({{language}}) for category naming when applicable.
+
+Rules & Principles:
+- Do not return any commentary outside JSON.
+- Keep category names short (1–3 words) and meaningful.
+- Prefer semantic grouping by title first, URL second.
+- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+
+Output Format (strict JSON, no extra text):
+{
+  "categories": ["string"],
+  "assignments": [
+    { "id": "string", "to_key": "string", "confidence": 0.0 }
+  ],
+  "notes": {
+    "low_confidence_items": ["id"],
+    "followups": ["string"]
+  }
+}
+
+Output Requirement:
+Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+    );
   }
 
   // 获取默认 API 端点

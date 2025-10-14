@@ -183,6 +183,11 @@
     'ai.infer.btn': { 'zh-CN': '🤖 AI 全量归类', 'zh-TW': '🤖 AI 全量歸類', 'en': '🤖 AI Full Categorize', 'ru': '🤖 Полная категоризация AI' },
     'ai.organize.desc': { 'zh-CN': '基于当前配置直接执行自动整理（如启用 AI 将进行优化）', 'zh-TW': '基於目前設定直接執行自動整理（如啟用 AI 將進行優化）', 'en': 'Run auto organization with current settings (uses AI if enabled)', 'ru': 'Запустить автосортировку с текущими настройками (если включено, используется AI)' },
 
+    // AI Prompt Templates
+    'ai.prompt.organize.label': { 'zh-CN': '自动整理 AI 提示词', 'zh-TW': '自動整理 AI 提示詞', 'en': 'AI Prompt for Auto Organize', 'ru': 'AI подсказка для автосортировки' },
+    'ai.prompt.infer.label': { 'zh-CN': 'AI 全量归类提示词', 'zh-TW': 'AI 全量歸類提示詞', 'en': 'AI Prompt for Full Categorization', 'ru': 'AI подсказка для полной категоризации' },
+    'ai.prompt.warn.format': { 'zh-CN': '请确保提示词输出严格为 JSON；如格式不正确，功能可能无法正常使用。', 'zh-TW': '請確保提示詞輸出嚴格為 JSON；若格式不正確，功能可能無法正常使用。', 'en': 'Ensure output is strict JSON; incorrect format may break functionality.', 'ru': 'Убедитесь, что вывод — строгий JSON; неверный формат может нарушить работу.' },
+
     // Preferences
     'pref.header': { 'zh-CN': '🎯 分类偏好', 'zh-TW': '🎯 分類偏好', 'en': '🎯 Category Preferences', 'ru': '🎯 Настройки категорий' },
     'pref.language.label': { 'zh-CN': '分类语言', 'zh-TW': '分類語言', 'en': 'Category Language', 'ru': 'Язык категорий' },

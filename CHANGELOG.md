@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.6 — 2025-10-14
+
+- Options: add clearer prompt textareas with monospace styling and better readability.
+- Options: show placeholder hints under each prompt, including `{{language}}`, `{{itemsJson}}`, and `{{categoriesJson}}` where applicable.
+- Options: add right-aligned action buttons — Copy and Reset to Default — for both prompts.
+- Options: wire copy to clipboard with fallback, and reset to default templates with immediate persistence.
+- Background: continues to respect user templates from `chrome.storage.sync`, falling back when empty.
+- No breaking changes; existing settings migrate automatically.
+
 ## v1.4.4 — 2025-10-13
 
 - New Tab: header glass overlay now follows content width with 8px side padding for better aesthetics and readability on wallpapers.

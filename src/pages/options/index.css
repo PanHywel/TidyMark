@@ -1219,6 +1219,35 @@ select:focus {
   min-height: 80px;
 }
 
+/* AI 提示词文本框优化样式 */
+.prompt-textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.5;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #0f172a;
+  min-height: 140px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.prompt-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.prompt-textarea:focus {
+  background: #ffffff;
+  border-color: #3b82f6;
+}
+
+/* AI 提示词操作按钮容器 */
+.prompt-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
 .input-hint {
   margin-top: 4px;
   font-size: 12px;

@@ -1299,7 +1299,7 @@ async function refinePreviewWithAI(preview) {
   // 将 items 分批构造任务
   const chunks = chunkArray(items, batchSize);
   const tasks = chunks.map((chunk, idx) => async () => {
-    const prompt = buildOptimizationPrompt({ language, categories, items: chunk });
+    const prompt = await buildOptimizationPrompt({ language, categories, items: chunk });
     const aiResult = await requestAIWithRetry({
       provider: settings.aiProvider || 'openai',
       apiUrl: settings.aiApiUrl || '',
@@ -1444,12 +1444,28 @@ async function requestAIWithRetry(params, { retries = 2, baseDelayMs = 1000, lab
   }
 }
 
-// 构建AI提示词（隐藏在代码中）
-function buildOptimizationPrompt({ language, categories, items }) {
+// 填充提示模板的占位符
+function fillPromptTemplate(tpl, { language, categoriesJson, itemsJson }) {
+  const map = { language, categoriesJson, itemsJson };
+  return String(tpl).replace(/\{\{\s*(language|categoriesJson|itemsJson)\s*\}\}/g, (_, key) => map[key] ?? '');
+}
+
+// 构建AI提示词（支持用户配置模板）
+async function buildOptimizationPrompt({ language, categories, items }) {
   const cats = Array.isArray(categories) ? categories : [];
   const its = Array.isArray(items) ? items : [];
   const categoriesJson = JSON.stringify(cats, null, 2);
   const itemsJson = JSON.stringify(its, null, 2);
+
+  // 尝试读取用户自定义模板
+  try {
+    const { aiPromptOrganize } = await chrome.storage.sync.get(['aiPromptOrganize']);
+    if (aiPromptOrganize && String(aiPromptOrganize).trim().length > 0) {
+      return fillPromptTemplate(aiPromptOrganize, { language, categoriesJson, itemsJson });
+    }
+  } catch (_) {}
+
+  // 默认模板（与旧版一致）
   return (
 `
 You are a meticulous Information Architecture and Intelligent Classification Expert.
@@ -1500,10 +1516,20 @@ Return only a valid JSON object strictly following the above format — no markd
   );
 }
 
-// 构建 AI 推理提示词（不预设分类，仅提供书签条目）
-function buildInferencePrompt({ language, items }) {
+// 构建 AI 推理提示词（支持用户配置模板，不预设分类）
+async function buildInferencePrompt({ language, items }) {
   const its = Array.isArray(items) ? items : [];
   const itemsJson = JSON.stringify(its, null, 2);
+
+  // 尝试读取用户自定义模板
+  try {
+    const { aiPromptInfer } = await chrome.storage.sync.get(['aiPromptInfer']);
+    if (aiPromptInfer && String(aiPromptInfer).trim().length > 0) {
+      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson });
+    }
+  } catch (_) {}
+
+  // 默认模板（与旧版一致）
   return (
 `
 You are a world-class Information Architecture and Taxonomy Expert.
@@ -1686,7 +1712,7 @@ async function organizePlanByAiInference() {
   const chunks = chunkArray(items, batchSize);
 
   const tasks = chunks.map((chunk, idx) => async () => {
-    const prompt = buildInferencePrompt({ language, items: chunk });
+    const prompt = await buildInferencePrompt({ language, items: chunk });
     const aiResult = await requestAIWithRetry({
       provider: settings.aiProvider || 'openai',
       apiUrl: settings.aiApiUrl || '',
