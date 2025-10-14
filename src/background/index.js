@@ -1580,7 +1580,7 @@ async function refinePreviewWithAI(preview) {
   if (!settings.enableAI) {
     return preview;
   }
-  if (!settings.aiApiKey) {
+  if ((String(settings.aiProvider || '').toLowerCase() !== 'ollama') && !settings.aiApiKey) {
     throw new Error('AI 未启用或 API Key 未配置');
   }
 
@@ -1892,21 +1892,39 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
       throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。');
     }
   } catch (_) {}
-  // 目前支持 OpenAI 兼容接口；如提供了自定义 apiUrl 则使用之
-  const url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.openai.com/v1/chat/completions';
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${apiKey}`
-  };
-  const body = {
-    model,
-    max_tokens: maxTokens || 8192,
-    temperature: 0.2,
-    messages: [
-      { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
-      { role: 'user', content: prompt }
-    ]
-  };
+  const p = String(provider || '').toLowerCase();
+  let url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.openai.com/v1/chat/completions';
+  let headers = { 'Content-Type': 'application/json' };
+  let body;
+  if (p === 'ollama') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'http://localhost:11434/api/chat';
+    // Ollama 本地服务无需鉴权
+    body = {
+      model,
+      stream: false,
+      options: {
+        // 将 maxTokens 映射为生成长度上限，避免过大
+        num_predict: Math.min(Number(maxTokens) > 0 ? Number(maxTokens) : 512, 1024),
+        temperature: 0.2
+      },
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
+  } else {
+    // OpenAI/DeepSeek 兼容接口
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
+  }
 
   const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
   if (!resp.ok) {
@@ -1914,8 +1932,11 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
     throw new Error(`AI请求失败: ${resp.status} ${text}`);
   }
   const data = await resp.json();
-  // 提取content作为字符串JSON
+  // 提取内容为字符串
   try {
+    if (p === 'ollama') {
+      return (data && data.message && typeof data.message.content === 'string') ? data.message.content : '';
+    }
     const content = data.choices?.[0]?.message?.content;
     return content || '';
   } catch (e) {
@@ -2018,7 +2039,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   if (!settings.enableAI) {
     throw new Error('AI 未启用');
   }
-  if (!settings.aiApiKey) {
+  if ((String(settings.aiProvider || '').toLowerCase() !== 'ollama') && !settings.aiApiKey) {
     throw new Error('AI API Key 未配置');
   }
 

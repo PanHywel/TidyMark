@@ -131,7 +131,7 @@ class OptionsManager {
       this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -337,6 +337,17 @@ class OptionsManager {
       aiApiUrl.addEventListener('input', (e) => {
         this.settings.aiApiUrl = e.target.value;
         this.saveSettings();
+      });
+      // 失去焦点时，如果提供商为 Ollama，自动尝试获取模型列表
+      aiApiUrl.addEventListener('blur', async (e) => {
+        this.settings.aiApiUrl = e.target.value;
+        await this.saveSettings();
+        const aiProviderEl = document.getElementById('aiProvider');
+        const provider = aiProviderEl ? aiProviderEl.value : (this.settings.aiProvider || 'openai');
+        if (provider === 'ollama') {
+          // 触发模型刷新逻辑（会从 /api/tags 动态获取）
+          this.updateModelOptions();
+        }
       });
     }
 
@@ -2678,8 +2689,15 @@ class OptionsManager {
 
     try {
       const { aiProvider, aiApiKey, aiApiUrl, aiModel } = this.settings;
-      if (!aiApiKey || !aiApiUrl || !aiModel) {
-        throw new Error('请填写 API Key、API 端点，并选择模型');
+      const p = String(aiProvider || '').toLowerCase();
+      if (p === 'ollama') {
+        if (!aiApiUrl || !aiModel) {
+          throw new Error('请填写 API 端点，并选择模型');
+        }
+      } else {
+        if (!aiApiKey || !aiApiUrl || !aiModel) {
+          throw new Error('请填写 API Key、API 端点，并选择模型');
+        }
       }
 
       // 优先调用 /v1/models 进行低成本验证
@@ -2688,18 +2706,31 @@ class OptionsManager {
       const timeout = setTimeout(() => controller.abort(), 8000);
 
       const headers = {
-        'Authorization': `Bearer ${aiApiKey}`,
         'Content-Type': 'application/json'
       };
+      if (p !== 'ollama' && aiApiKey) {
+        headers['Authorization'] = `Bearer ${aiApiKey}`;
+      }
 
       let res;
       try {
         // 如果是 /models 测试端点，使用 GET；否则使用 POST 进行最小开销的 Ping
-        if (testUrl.endsWith('/models')) {
-          res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
+        if (p === 'ollama') {
+          // Ollama：优先 GET /api/tags；否则 POST /api/chat
+          if (testUrl.endsWith('/api/tags')) {
+            res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
+          } else {
+            const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+            res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
+          }
         } else {
-          const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
-          res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
+          // OpenAI/DeepSeek：/v1/models 用 GET；否则 POST /chat/completions
+          if (testUrl.endsWith('/models')) {
+            res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
+          } else {
+            const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+            res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
+          }
         }
       } finally {
         clearTimeout(timeout);
@@ -3194,6 +3225,110 @@ class OptionsManager {
       if (!['deepseek-chat'].includes(this.settings.aiModel)) {
         this.settings.aiModel = 'deepseek-chat';
       }
+    } else if (provider === 'ollama') {
+      // 优先尝试从远端 /api/tags 获取模型列表
+      const apiUrl = this.settings.aiApiUrl && this.settings.aiApiUrl.trim().length > 0
+        ? this.settings.aiApiUrl
+        : (this.getDefaultApiUrl('ollama') || 'http://localhost:11434/api/chat');
+      let tagsUrl = 'http://localhost:11434/api/tags';
+      try {
+        const u = new URL(apiUrl);
+        tagsUrl = `${u.origin}/api/tags`;
+      } catch (_) {}
+
+      // 先清空并放入占位
+      aiModel.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      placeholder.textContent = window.I18n ? (window.I18n.t('ai.model.placeholder') || '请选择模型') : '请选择模型';
+      aiModel.appendChild(placeholder);
+      const loading = document.createElement('option');
+      loading.value = '';
+      loading.disabled = true;
+      loading.textContent = '正在获取本地模型...';
+      aiModel.appendChild(loading);
+
+      const applyModels = (list) => {
+        // 清理占位后重新添加占位
+        aiModel.innerHTML = '';
+        const ph = document.createElement('option');
+        ph.value = '';
+        ph.disabled = true;
+        ph.selected = true;
+        ph.textContent = window.I18n ? (window.I18n.t('ai.model.placeholder') || '请选择模型') : '请选择模型';
+        aiModel.appendChild(ph);
+        list.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.value;
+          opt.textContent = m.label;
+          aiModel.appendChild(opt);
+        });
+        // 若当前值不在列表中，默认选第一个
+        const values = list.map(m => m.value);
+        if (!values.includes(this.settings.aiModel)) {
+          this.settings.aiModel = values[0] || '';
+        }
+        aiModel.value = this.settings.aiModel || '';
+      };
+
+      (async () => {
+        try {
+          const res = await fetch(tagsUrl, { method: 'GET' });
+          if (!res.ok) throw new Error(`fetch tags failed: ${res.status}`);
+          const data = await res.json();
+          const arr = Array.isArray(data?.models) ? data.models : [];
+          const list = arr.map(m => {
+            // 兼容不同字段：优先使用完整 model（如 "llama3.1:8b"），否则用 name+tag 或 name
+            let value = m.model || '';
+            if (!value) {
+              const name = m.name || '';
+              const tag = m.tag || (Array.isArray(m.tags) ? m.tags[0] : '');
+              value = tag ? `${name}:${tag}` : name;
+            }
+            const label = m.model || m.name || value || '未知模型';
+            return value ? { value, label } : null;
+          }).filter(Boolean);
+          if (list.length > 0) {
+            applyModels(list);
+          } else {
+            // 不填充默认列表：仅显示占位与无模型提示
+            aiModel.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.disabled = true;
+            ph.selected = true;
+            ph.textContent = window.I18n ? (window.I18n.t('ai.model.placeholder') || '请选择模型') : '请选择模型';
+            aiModel.appendChild(ph);
+            const hint = document.createElement('option');
+            hint.value = '';
+            hint.disabled = true;
+            hint.textContent = '未获取到模型';
+            aiModel.appendChild(hint);
+            this.settings.aiModel = '';
+            aiModel.value = '';
+          }
+        } catch (e) {
+          console.warn('[Ollama] 获取模型列表失败，使用回退列表', e);
+          // 不填充默认列表：仅显示占位与无模型提示
+          aiModel.innerHTML = '';
+          const ph = document.createElement('option');
+          ph.value = '';
+          ph.disabled = true;
+          ph.selected = true;
+          ph.textContent = window.I18n ? (window.I18n.t('ai.model.placeholder') || '请选择模型') : '请选择模型';
+          aiModel.appendChild(ph);
+          const hint = document.createElement('option');
+          hint.value = '';
+          hint.disabled = true;
+          hint.textContent = '未获取到模型';
+          aiModel.appendChild(hint);
+          this.settings.aiModel = '';
+          aiModel.value = '';
+        }
+      })();
+      return; // 已异步填充并设置选择，提前返回避免下方通用填充
     }
     aiModel.innerHTML = '';
     const placeholder = document.createElement('option');
@@ -3309,11 +3444,25 @@ Return only a valid JSON object strictly following the above format — no markd
     if (p === 'deepseek') {
       return 'https://api.deepseek.com/v1/chat/completions';
     }
+    if (p === 'ollama') {
+      return 'http://localhost:11434/api/chat';
+    }
     return '';
   }
 
   // 获取测试端点（优先 /v1/models）
   getTestUrl(apiUrl, provider) {
+    // Ollama 使用 /api/tags 获取本地模型列表
+    if ((provider || '').toLowerCase() === 'ollama') {
+      try {
+        const u = new URL(apiUrl);
+        return `${u.origin}/api/tags`;
+      } catch {
+        // 常见默认端口
+        if (String(apiUrl).includes('11434')) return 'http://localhost:11434/api/tags';
+        return apiUrl;
+      }
+    }
     try {
       const u = new URL(apiUrl);
       const path = u.pathname;
@@ -3330,6 +3479,15 @@ Return only a valid JSON object strictly following the above format — no markd
 
   // 构建最小测试请求体（仅在需要 POST 时）
   buildTestPayload(provider, model) {
+    const p = (provider || '').toLowerCase();
+    if (p === 'ollama') {
+      return {
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        stream: false,
+        options: { num_predict: 1, temperature: 0 }
+      };
+    }
     // OpenAI/DeepSeek 通用兼容体
     return {
       model,

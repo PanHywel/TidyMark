@@ -778,6 +778,11 @@ select:focus {
   transform: translateY(-1px);
 }
 
+/* 关于 TidyMark 栏目增加上边距 */
+.info-card:has(.card-header h3[data-i18n="about.header"]) {
+  margin-top: 16px;
+}
+
 .card-header {
   padding: 20px 20px 0 20px;
 }
