@@ -2096,6 +2096,36 @@ class OptionsManager {
   // 扫描失效书签
   async scanDeadBookmarks({ progressEl, listEl, containerEl, scanBtn }) {
     try {
+      // 运行前按需请求主机权限（缩短审核用时，避免默认授予 <all_urls>）
+      const ok = await (async function ensureDeadScanPermissions() {
+        try {
+          if (typeof chrome === 'undefined' || !chrome.permissions || !chrome.permissions.contains) {
+            return true; // 非扩展环境或不支持权限API时跳过
+          }
+          const origins = ["<all_urls>"];
+          const has = await new Promise(resolve => {
+            try { chrome.permissions.contains({ origins }, resolve); } catch (_) { resolve(false); }
+          });
+          if (has) return true;
+          const granted = await new Promise(resolve => {
+            try { chrome.permissions.request({ origins }, resolve); } catch (_) { resolve(false); }
+          });
+          return !!granted;
+        } catch (e) {
+          console.warn('请求扫描权限失败', e);
+          return false;
+        }
+      })();
+      if (!ok) {
+        if (scanBtn) {
+          scanBtn.disabled = false;
+          // 回退按钮文本（若前面已变更）
+          try { scanBtn.textContent = (scanBtn.textContent || '').replace(/正在检测\.\.\./, window.I18n ? window.I18n.t('dead.scan.start') : '开始检测'); } catch {}
+        }
+        this.showMessage(window.I18n ? window.I18n.t('dead.scan.fail') : '需要授权以检测书签可达性，请在提示中允许或稍后在设置中启用', 'error');
+        return;
+      }
+
       if (!listEl || !containerEl || !scanBtn) return;
       containerEl.hidden = true;
       listEl.innerHTML = '';
