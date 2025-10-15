@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.15 — 2025-10-15
+
+- Permissions: refine default `host_permissions` to a precise whitelist (Bing, Google favicons, Open-Meteo, 60s instances, GitHub API and raw).
+- Optional host permissions: declare `<all_urls>`, `http://localhost:*/*`, `api.openai.com`, `api.deepseek.com` as optional; requested only when features are used.
+- Dead-link scan: add runtime permission request before scanning to ensure cross-origin checks run only with explicit user consent.
+- No breaking changes; existing settings remain intact; store review friendliness improved.
+
 ## v1.4.14 — 2025-10-15
 
 - i18n: localize manifest fields (`name`, `short_name`, `description`, `action.default_title`) using `__MSG_*__` and set `default_locale=en`.
