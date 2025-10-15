@@ -24,8 +24,13 @@
 
 ## 界面截图
 
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="导航页" width="900"></a>
-<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="设置" width="600"></a>
+<a href="./assets/screenshots/zh/1.jpg"><img src="./assets/screenshots/zh/1.jpg" alt="截图1" width="900"></a>
+<a href="./assets/screenshots/zh/2.jpg"><img src="./assets/screenshots/zh/2.jpg" alt="截图2" width="900"></a>
+<a href="./assets/screenshots/zh/3.jpg"><img src="./assets/screenshots/zh/3.jpg" alt="截图3" width="900"></a>
+<a href="./assets/screenshots/zh/4.jpg"><img src="./assets/screenshots/zh/4.jpg" alt="截图4" width="900"></a>
+<a href="./assets/screenshots/zh/5.jpg"><img src="./assets/screenshots/zh/5.jpg" alt="截图5" width="900"></a>
+<a href="./assets/screenshots/zh/6.jpg"><img src="./assets/screenshots/zh/6.jpg" alt="截图6" width="900"></a>
+<a href="./assets/screenshots/zh/7.jpg"><img src="./assets/screenshots/zh/7.jpg" alt="截图7" width="900"></a>
 
 — 仅保留核心信息，更多细节请参考源码与注释。
 

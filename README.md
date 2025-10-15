@@ -24,8 +24,11 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 
 ## Screenshots
 
-<a href="./assets/screenshots/nav.png"><img src="./assets/screenshots/nav.png" alt="Navigation" width="900"></a>
-<a href="./assets/screenshots/setting.png"><img src="./assets/screenshots/setting.png" alt="Settings" width="600"></a>
+<a href="./assets/screenshots/en/1.jpg"><img src="./assets/screenshots/en/1.jpg" alt="TidyMark Screenshot 1" width="900"></a>
+<a href="./assets/screenshots/en/2.jpg"><img src="./assets/screenshots/en/2.jpg" alt="TidyMark Screenshot 2" width="900"></a>
+<a href="./assets/screenshots/en/3.jpg"><img src="./assets/screenshots/en/3.jpg" alt="TidyMark Screenshot 3" width="900"></a>
+<a href="./assets/screenshots/en/4.jpg"><img src="./assets/screenshots/en/4.jpg" alt="TidyMark Screenshot 4" width="900"></a>
+<a href="./assets/screenshots/en/5.jpg"><img src="./assets/screenshots/en/5.jpg" alt="TidyMark Screenshot 5" width="900"></a>
 
 — Core info only. For more details, please refer to the source code and comments.
 
