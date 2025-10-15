@@ -37,7 +37,7 @@
   
   // 壁纸：60s Bing 壁纸
   const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
-  const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v1';
+  const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v2';
   // 60s 项目的多实例备用路由（用于 60s 与 Bing 壁纸）
   const SIXTY_INSTANCES = [
     'https://60s.viki.moe',
@@ -99,8 +99,48 @@
     return null;
   }
 
+  function _getTodayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  async function getWallpaperCachePayload() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([WALLPAPER_CACHE_KEY]);
+        const payload = obj[WALLPAPER_CACHE_KEY];
+        if (payload && payload.data) return payload;
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(WALLPAPER_CACHE_KEY);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload && payload.data) return payload;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  function _normalizeDayFromData(data) {
+    try {
+      const raw = String(data.update_date || data.update_date_at || '').trim();
+      if (!raw) return _getTodayKey();
+      const onlyDigits = raw.replace(/[^0-9]/g, '');
+      if (onlyDigits.length >= 8) {
+        const y = onlyDigits.slice(0, 4);
+        const m = onlyDigits.slice(4, 6);
+        const d = onlyDigits.slice(6, 8);
+        return `${y}-${m}-${d}`;
+      }
+      return raw;
+    } catch {
+      return _getTodayKey();
+    }
+  }
+
   async function setCachedWallpaper(data) {
-    const payload = { timestamp: Date.now(), data };
+    const day = _normalizeDayFromData(data);
+    const payload = { timestamp: Date.now(), day, data };
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
         await chrome.storage.local.set({ [WALLPAPER_CACHE_KEY]: payload });
@@ -108,6 +148,40 @@
         localStorage.setItem(WALLPAPER_CACHE_KEY, JSON.stringify(payload));
       }
     } catch {}
+  }
+
+  // 优先使用 Bing 官方壁纸（UHD/桌面壁纸用途），遵循“walls”用法
+  async function fetchBingOfficialWalls(signal) {
+    try {
+      const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+        ? window.I18n.getLanguageSync()
+        : (navigator.language || 'en-US');
+      // 规范化为 Bing mkt 参数（如 zh-CN、en-US 等）
+      const mkt = String(lang || 'en-US')
+        .replace('_', '-')
+        .replace(/\s+/g, '')
+        .trim();
+
+      const url = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&uhd=1&mkt=${encodeURIComponent(mkt)}`;
+      const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
+      if (!resp.ok) throw new Error(window.I18n ? window.I18n.tf('newtab.bing.status', { status: resp.status }) : `Bing 接口返回状态 ${resp.status}`);
+      const json = await resp.json();
+      const img = json && Array.isArray(json.images) ? json.images[0] : null;
+      const rel = img && (img.url || '');
+      if (!rel) throw new Error(window.I18n ? window.I18n.t('newtab.bing.noUrl') : 'Bing 接口未提供图片URL');
+      const cover = `https://www.bing.com${rel}`;
+      return {
+        title: (img && img.title) || '',
+        description: (img && img.copyright) || '',
+        main_text: '',
+        copyright: (img && img.copyright) || '',
+        update_date: (img && img.enddate) || '',
+        update_date_at: '',
+        cover,
+      };
+    } catch (e) {
+      throw e;
+    }
   }
 
   async function fetchBingWallpaper60s(signal) {
@@ -207,13 +281,28 @@
         }
         return;
       }
+      // 先应用缓存（即便不是“新鲜”的），避免空白背景
+      const cachedPayload = await getWallpaperCachePayload();
+      const cachedData = cachedPayload && cachedPayload.data ? cachedPayload.data : null;
+      const todayKey = _getTodayKey();
+      if (cachedData && document && document.body) {
+        document.body.style.backgroundImage = `url('${cachedData.cover}')`;
+        document.body.classList.add('has-wallpaper');
+      }
+
+      // 仅在当天尚未成功获取或强制刷新时，尝试获取最新壁纸
+      const needFetch = force || !cachedPayload || cachedPayload.day !== todayKey;
       let wp = null;
-      if (!force) wp = await getCachedWallpaper();
-      if (!wp) {
+      if (needFetch) {
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), 15000); // 最多等待15秒
         try {
-          wp = await fetchBingWallpaper60s(ac.signal);
+          // 优先尝试 Bing 官方“桌面壁纸”接口；失败再回退到 60s 多实例
+          try {
+            wp = await fetchBingOfficialWalls(ac.signal);
+          } catch (e1) {
+            wp = await fetchBingWallpaper60s(ac.signal);
+          }
         } finally {
           clearTimeout(timer);
         }
@@ -222,15 +311,19 @@
       if (wp && document && document.body) {
         document.body.style.backgroundImage = `url('${wp.cover}')`;
         document.body.classList.add('has-wallpaper');
-      } else if (document && document.body) {
+      } else if (!cachedData && document && document.body) {
+        // 无缓存且获取失败，清空背景
         document.body.style.backgroundImage = 'none';
         document.body.classList.remove('has-wallpaper');
       }
     } catch (err) {
       console.warn(window.I18n ? window.I18n.t('newtab.wallpaper.loadFail') : '加载壁纸失败', err);
       if (document && document.body) {
-        document.body.style.backgroundImage = 'none';
-        document.body.classList.remove('has-wallpaper');
+        const hasBg = document.body.classList.contains('has-wallpaper');
+        if (!hasBg) {
+          document.body.style.backgroundImage = 'none';
+          document.body.classList.remove('has-wallpaper');
+        }
       }
     }
   }

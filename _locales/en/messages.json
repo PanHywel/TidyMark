@@ -1,0 +1,6 @@
+{
+  "appName": { "message": "TidyMark" },
+  "appShortName": { "message": "TidyMark" },
+  "appDesc": { "message": "Smart bookmark manager extension that automatically classifies and organizes your bookmarks." },
+  "actionTitle": { "message": "TidyMark — Bookmark Manager" }
+}

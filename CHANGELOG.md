@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.14 — 2025-10-15
+
+- i18n: localize manifest fields (`name`, `short_name`, `description`, `action.default_title`) using `__MSG_*__` and set `default_locale=en`.
+- Locales: add `_locales/en`, `_locales/zh_CN`, `_locales/zh_TW`, `_locales/ru` with `messages.json`.
+- CI: release packaging now includes `_locales/` so stores detect supported languages.
+- New Tab: prefer Bing official UHD “desktop wallpaper” source by default, fallback to 60s multi-instances; keep daily cache update-on-success behavior.
+- No breaking changes; existing settings migrate automatically.
+
 ## v1.4.10 — 2025-10-14
 
 - Options: replace header language select with icon button; set icon color to white and size to 16px; slightly increase button padding for better click comfort.

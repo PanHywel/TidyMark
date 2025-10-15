@@ -38,6 +38,7 @@ jobs:
           zip -r "dist/tidymark-${TAG_NAME}.zip" \
             manifest.json \
             icons \
+            _locales \
             src \
             services \
             README.md LICENSE

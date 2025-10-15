@@ -1,0 +1,6 @@
+{
+  "appName": { "message": "TidyMark" },
+  "appShortName": { "message": "TidyMark" },
+  "appDesc": { "message": "智能书签管理扩展，自动分类整理您的书签" },
+  "actionTitle": { "message": "TidyMark - 书签管理" }
+}
