@@ -227,7 +227,7 @@ body {
   border-radius: 999px;
   background: var(--card);
   color: var(--fg);
-  padding: 0 36px 0 12px;
+  padding: 0 36px; /* 左右对称，方便文本居中 */
   height: 36px;
   /* 自适应内容宽度 */
   width: max-content;
@@ -236,6 +236,8 @@ body {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path fill='%23a0a0a0' d='M7 10l5 5 5-5z'/></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
+  text-align: center;           /* 大多数浏览器 */
+  text-align-last: center;      /* 对 select 选中项居中 */
 }
 .engine-select:hover { border-color: var(--accent); }
 
