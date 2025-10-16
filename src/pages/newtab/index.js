@@ -40,8 +40,8 @@
   const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v2';
   // 60s 项目的多实例备用路由（用于 60s 与 Bing 壁纸）
   const SIXTY_INSTANCES = [
-    'https://60s.viki.moe',
     'https://60api.09cdn.xyz',
+    'https://60s.viki.moe',
     'https://60s.zeabur.app',
     'https://60s.crystelf.top',
     'https://cqxx.site',
