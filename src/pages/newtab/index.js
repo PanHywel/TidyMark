@@ -1157,6 +1157,65 @@
   let inputDebounceTimer = null;
   let dragGhostEl = null;
 
+  // 顶层模块顺序持久化（仅限固定模块）
+  const MAIN_MODULE_ORDER_KEY = 'main_modules_order_v1';
+  const PERSIST_MAIN_SECTION_IDS = new Set(['sixty-seconds', 'top-visited']);
+
+  async function loadMainModuleOrder() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const { [MAIN_MODULE_ORDER_KEY]: stored } = await chrome.storage.local.get([MAIN_MODULE_ORDER_KEY]);
+        if (Array.isArray(stored)) return stored;
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(MAIN_MODULE_ORDER_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) return arr;
+        }
+      }
+    } catch {}
+    return [];
+  }
+
+  async function saveMainModuleOrder(order) {
+    const toSave = Array.isArray(order) ? order.filter(id => PERSIST_MAIN_SECTION_IDS.has(id)) : [];
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [MAIN_MODULE_ORDER_KEY]: toSave });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(MAIN_MODULE_ORDER_KEY, JSON.stringify(toSave));
+      }
+    } catch {}
+  }
+
+  function collectCurrentMainOrder() {
+    if (!elMain) return [];
+    return Array.from(elMain.querySelectorAll('.section'))
+      .map(s => s.id)
+      .filter(id => PERSIST_MAIN_SECTION_IDS.has(id));
+  }
+
+  async function persistCurrentMainOrder() {
+    const order = collectCurrentMainOrder();
+    if (order.length) await saveMainModuleOrder(order);
+  }
+
+  async function applyMainModuleOrder() {
+    try {
+      const order = await loadMainModuleOrder();
+      if (!elMain || !Array.isArray(order) || order.length < 2) return;
+      const anchor = elSections || null;
+      // 逆序插入到书签区域之前，确保模块相对顺序正确，且不越过书签区域
+      for (let i = order.length - 1; i >= 0; i--) {
+        const id = order[i];
+        const node = document.getElementById(id);
+        if (node && node.parentElement === elMain) {
+          elMain.insertBefore(node, anchor);
+        }
+      }
+    } catch {}
+  }
+
   async function loadCategoryOrder() {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.local) {
@@ -1503,7 +1562,13 @@
         const container = section.parentElement;
         if (toBefore) container.insertBefore(dragSrcSection, section);
         else container.insertBefore(dragSrcSection, section.nextSibling);
-        // 顶层模块暂不做持久化；仅类别顺序持久化
+        // 持久化顶层模块顺序（仅限固定模块）
+        if (container === elMain) {
+          persistCurrentMainOrder();
+        } else if (container === elSections) {
+          // 兼容：类别顺序持久化
+          persistCurrentCategoryOrder();
+        }
       }
     });
     const onDragEnd = () => {
@@ -1996,6 +2061,8 @@
       } else {
         document.body.prepend(section);
       }
+      // 根据持久化顺序进行调整（如存在）
+      applyMainModuleOrder();
     } catch (e) {
       console.warn('渲染热门栏目失败', e);
     }
@@ -2030,4 +2097,6 @@
   });
   // 启用 60s 顶层模块拖拽（在 main 容器内重排）
   if (elSixty) enableDragOnSection(elSixty);
+  // 初次加载尝试应用持久化顺序（可能仅有 60s 或热门栏目）
+  applyMainModuleOrder();
 })();
