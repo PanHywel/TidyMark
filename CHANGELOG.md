@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.16 — 2025-10-16
+
+- New Tab: set 60s primary instance to `https://60api.09cdn.xyz`; fallback order unchanged.
+- No breaking changes; functionality remains the same.
+
 ## v1.4.15 — 2025-10-15
 
 - Permissions: refine default `host_permissions` to a precise whitelist (Bing, Google favicons, Open-Meteo, 60s instances, GitHub API and raw).
