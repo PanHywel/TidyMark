@@ -227,7 +227,7 @@ body {
   border-radius: 999px;
   background: var(--card);
   color: var(--fg);
-  padding: 0 36px; /* 左右对称，方便文本居中 */
+  padding: 0 24px; /* 收紧左右内边距 */
   height: 36px;
   /* 自适应内容宽度 */
   width: max-content;
@@ -235,7 +235,7 @@ body {
   font-weight: 500;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path fill='%23a0a0a0' d='M7 10l5 5 5-5z'/></svg>");
   background-repeat: no-repeat;
-  background-position: right 10px center;
+  background-position: right 16px center; /* 箭头稍微左移，视觉更居中 */
   text-align: center;           /* 大多数浏览器 */
   text-align-last: center;      /* 对 select 选中项居中 */
 }
@@ -269,12 +269,18 @@ body {
   background: var(--card);
   color: var(--fg);
   height: 36px;
-  padding: 0 14px;
+  width: 36px; /* 改为方形按钮承载图标 */
+  padding: 0; /* 去除文字内边距 */
   border-radius: 999px;
   font-weight: 600;
+  display: inline-flex; /* 居中图标 */
+  align-items: center;
+  justify-content: center;
 }
 .search button:hover { filter: brightness(1.05); border-color: var(--accent); }
 .search button:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
+/* 图标显示优化 */
+.search button svg { display: block; }
 
 /* 副标题中的 60s 提示（与天气并排） */
 /* 副标题主文案可被 60s 提示替换 */
