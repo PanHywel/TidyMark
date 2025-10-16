@@ -515,6 +515,9 @@
   // 60s 读懂世界：配置与渲染
   const SIXTY_TTL = 30 * 60 * 1000; // 30分钟缓存
   const SIXTY_CACHE_KEY = 'sixty_seconds_cache_v1';
+  // 副标题缓存（用于在页面初始时快速显示上一次的提示）
+  const SUBTITLE_TTL = 24 * 60 * 60 * 1000; // 24小时缓存
+  const SUBTITLE_CACHE_KEY = 'subtitle_main_cache_v1';
   const DEFAULT_SUBTITLE = '愿你高效、专注地浏览每一天';
   let currentSixtyTip = '';
 
@@ -556,6 +559,57 @@
         await chrome.storage.local.set({ [SIXTY_CACHE_KEY]: payload });
       } else if (typeof localStorage !== 'undefined') {
         localStorage.setItem(SIXTY_CACHE_KEY, JSON.stringify(payload));
+      }
+    } catch {}
+  }
+
+  // 获取 60s 缓存原始载荷（不过期显示，用于“缓存优先”）
+  async function getSixtyCachePayload() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([SIXTY_CACHE_KEY]);
+        const payload = obj[SIXTY_CACHE_KEY];
+        if (payload && payload.data) return payload;
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(SIXTY_CACHE_KEY);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload && payload.data) return payload;
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  // 副标题缓存：读/写
+  async function getCachedSubtitleTip() {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        const obj = await chrome.storage.local.get([SUBTITLE_CACHE_KEY]);
+        const payload = obj[SUBTITLE_CACHE_KEY];
+        if (payload && payload.timestamp && (Date.now() - payload.timestamp) < SUBTITLE_TTL) {
+          return String(payload.text || '').trim();
+        }
+      } else if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(SUBTITLE_CACHE_KEY);
+        if (raw) {
+          const payload = JSON.parse(raw);
+          if (payload && payload.timestamp && (Date.now() - payload.timestamp) < SUBTITLE_TTL) {
+            return String(payload.text || '').trim();
+          }
+        }
+      }
+    } catch {}
+    return '';
+  }
+
+  async function setCachedSubtitleTip(text) {
+    const payload = { timestamp: Date.now(), text: String(text || '').trim() };
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ [SUBTITLE_CACHE_KEY]: payload });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(SUBTITLE_CACHE_KEY, JSON.stringify(payload));
       }
     } catch {}
   }
@@ -659,6 +713,8 @@
 
       // 更新副标题为 60s 提示（如存在）
       currentSixtyTip = fixMojibake(tip || '');
+      // 同步写入副标题缓存，便于下次页面打开迅速显示
+      setCachedSubtitleTip(currentSixtyTip);
       renderSubtitle();
     } catch {}
   }
@@ -720,11 +776,12 @@
   async function loadSixty(force = false) {
     if (!elSixty) return;
     try {
+      let cachedPayload = null;
       if (!force) {
-        const cached = await getCachedSixty();
-        if (cached) {
-          renderSixty(cached);
-          return;
+        // 缓存优先：即使过期也先显示，随后后台刷新
+        cachedPayload = await getSixtyCachePayload();
+        if (cachedPayload && cachedPayload.data) {
+          renderSixty(cachedPayload.data);
         }
       }
       const ac = new AbortController();
@@ -736,8 +793,12 @@
         clearTimeout(timer);
       }
       if (data) {
-        await setCachedSixty(data);
-        renderSixty(data);
+        // 若与缓存相同则不重复渲染；不同则更新缓存和界面
+        const same = cachedPayload?.data && JSON.stringify(cachedPayload.data) === JSON.stringify(data);
+        if (!same) {
+          await setCachedSixty(data);
+          renderSixty(data);
+        }
       }
     } catch (err) {
       console.warn('加载 60s 栏目失败', err);
@@ -751,6 +812,17 @@
   }
 
   await loadSixtyPreference();
+  // 页面打开时优先加载副标题缓存，然后由 60s 刷新带来更新
+  async function loadSubtitleCache() {
+    try {
+      const tip = await getCachedSubtitleTip();
+      if (tip) {
+        currentSixtyTip = tip;
+        renderSubtitle();
+      }
+    } catch {}
+  }
+  await loadSubtitleCache();
   if (!elSixty.hidden) {
     await loadSixty();
   }
