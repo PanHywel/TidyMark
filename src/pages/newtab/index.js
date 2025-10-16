@@ -1203,10 +1203,10 @@
   async function applyMainModuleOrder() {
     try {
       const order = await loadMainModuleOrder();
-      if (!elMain || !Array.isArray(order) || order.length < 2) return;
+      if (!elMain || !Array.isArray(order) || order.length === 0) return;
       const anchor = elSections || null;
-      // 逆序插入到书签区域之前，确保模块相对顺序正确，且不越过书签区域
-      for (let i = order.length - 1; i >= 0; i--) {
+      // 正向插入到书签区域之前，保证顺序与存储一致
+      for (let i = 0; i < order.length; i++) {
         const id = order[i];
         const node = document.getElementById(id);
         if (node && node.parentElement === elMain) {
