@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.4.18 — 2025-10-17
+
+- New Tab: block default form submission on the search form (`action="#"` + `onsubmit="return false"`), preventing accidental empty query and trailing `?` in URL.
+- No behavior change for actual search flow; form submission remains handled by JS (bookmarks, URL jump, or `chrome.search.query`).
+
 ## v1.4.17 — 2025-10-17
 
 - Compliance: New Tab search now uses `chrome.search.query` and strictly follows the browser's default search provider.
