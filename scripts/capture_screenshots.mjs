@@ -54,12 +54,67 @@ async function waitForVisibleImages(page, timeout = 15000) {
 
 async function screenshotNewtab(context, base, outDir, width, height, lang) {
   const page = await context.newPage();
+  // 转发页面 console 到 Node 侧，便于观察等待过程
+  page.on('console', (msg) => {
+    const type = msg.type();
+    if (['log','debug','warning','error'].includes(type)) {
+      console.log(`[page:${lang}] ${type}:`, msg.text());
+    }
+  });
+
+  console.log(`[shots] [newtab] lang=${lang} -> ${base}/src/pages/newtab/index.html`);
   await page.setViewportSize({ width, height });
   await page.goto(`${base}/src/pages/newtab/index.html`, { waitUntil: 'domcontentloaded' });
   await ensureLanguage(page, lang);
+  // 记录当前语言与壁纸初始状态
+  const activeLang = await page.evaluate(() => {
+    try {
+      if (window.I18n) {
+        if (typeof window.I18n.getLanguageSync === 'function') return window.I18n.getLanguageSync();
+        if (typeof window.I18n.getLanguage === 'function') return window.I18n.getLanguage();
+      }
+    } catch {}
+    return null;
+  });
+  console.log(`[shots] [newtab] activeLang=`, activeLang);
+  const startPrefs = await page.evaluate(() => {
+    const body = document && document.body;
+    const bg = body ? getComputedStyle(body).backgroundImage : '';
+    const has = body ? body.classList.contains('has-wallpaper') : false;
+    let ls = null;
+    try { ls = localStorage.getItem('wallpaperEnabled'); } catch {}
+    console.debug('[wait] init has-wallpaper=', has, 'bg=', bg, 'ls=', ls);
+    return { wallpaperEnabledLocalStorage: ls, hasWallpaperClass: has, backgroundImage: bg };
+  });
+  console.log(`[shots] [newtab] before-wait prefs=`, startPrefs);
   // 等待壁纸与可见图片加载完毕（或确认壁纸关闭）
   await waitForWallpaperOrDisabled(page, 22000);
+  const afterWallpaper = await page.evaluate(() => {
+    const body = document && document.body;
+    const has = body ? body.classList.contains('has-wallpaper') : false;
+    const bg = body ? getComputedStyle(body).backgroundImage : '';
+    const m = bg && bg !== 'none' ? bg.match(/url\((['"]?)(.*?)\1\)/) : null;
+    const url = m && m[2];
+    let complete = false, naturalWidth = 0;
+    if (url) {
+      const img = new Image();
+      img.src = url;
+      complete = img.complete;
+      naturalWidth = img.naturalWidth || 0;
+    }
+    console.debug('[wait] after wallpaper has=', has, 'bg=', bg, 'url=', url, 'complete=', complete, 'nw=', naturalWidth);
+    return { has, bg, url, complete, naturalWidth };
+  });
+  console.log(`[shots] [newtab] after-wait wallpaper=`, afterWallpaper);
   await waitForVisibleImages(page, 12000);
+  const visibleImgs = await page.evaluate(() => {
+    const vis = Array.from(document.querySelectorAll('img'))
+      .filter(img => !!(img.offsetWidth || img.offsetHeight || img.getClientRects().length))
+      .map(img => ({ src: img.src, complete: img.complete, nw: img.naturalWidth || 0, display: getComputedStyle(img).display }));
+    console.debug('[wait-imgs] visible imgs=', vis);
+    return vis;
+  });
+  console.log(`[shots] [newtab] visible-imgs=`, visibleImgs);
   await page.waitForTimeout(120);
   await fs.mkdir(`${outDir}/${lang}`, { recursive: true });
   await page.screenshot({ path: `${outDir}/${lang}/newtab_${lang}.png`, fullPage: false });
