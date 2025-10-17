@@ -458,11 +458,13 @@
     'newtab.topVisited.title': { 'zh-CN': '热门书签 Top {n}', 'zh-TW': '熱門書籤 Top {n}', 'en': 'Top Visited — Top {n}', 'ru': 'Популярные — Топ {n}' },
     'newtab.topVisited.count': { 'zh-CN': '{count} 书签参与统计', 'zh-TW': '{count} 書籤參與統計', 'en': '{count} bookmarks participated', 'ru': '{count} закладок участвуют в статистике' },
     'newtab.topVisited.empty': { 'zh-CN': '暂无访问记录，点击书签后将统计', 'zh-TW': '暫無造訪記錄，點擊書籤後將統計', 'en': 'No visits yet; visiting bookmarks starts tracking', 'ru': 'Пока нет посещений; переходы по закладкам начнут статистику' },
-    'search.engine.google': { 'zh-CN': 'Google', 'zh-TW': 'Google', 'en': 'Google', 'ru': 'Google' },
-    'search.engine.bing': { 'zh-CN': 'Bing', 'zh-TW': 'Bing', 'en': 'Bing', 'ru': 'Bing' },
-    'search.engine.duck': { 'zh-CN': 'DuckDuckGo', 'zh-TW': 'DuckDuckGo', 'en': 'DuckDuckGo', 'ru': 'DuckDuckGo' },
-    'search.engine.baidu': { 'zh-CN': '百度', 'zh-TW': '百度', 'en': 'Baidu', 'ru': 'Baidu' },
-    'search.engine.label': { 'zh-CN': '搜索引擎', 'zh-TW': '搜尋引擎', 'en': 'Search Engine', 'ru': 'Поисковик' },
+    // 已移除搜索引擎切换功能；保留最小文案说明
+    'options.nav.search.note': {
+      'zh-CN': '默认搜索（遵循浏览器设置）：通过 chrome.search.query 使用默认提供商，不提供引擎切换。',
+      'zh-TW': '預設搜尋（遵循瀏覽器設定）：透過 chrome.search.query 使用預設提供商，不提供引擎切換。',
+      'en': 'Default search (uses browser settings): executes via chrome.search.query with your default provider; no engine switching.',
+      'ru': 'Поиск по умолчанию (настройки браузера): выполняется через chrome.search.query с провайдером по умолчанию; переключение поисковиков отсутствует.'
+    },
 
     // Options page messages
     'options.title': { 'zh-CN': 'TidyMark - 设置', 'zh-TW': 'TidyMark - 設定', 'en': 'TidyMark - Settings', 'ru': 'TidyMark — Настройки' },

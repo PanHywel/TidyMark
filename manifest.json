@@ -18,7 +18,6 @@
   ],
   "host_permissions": [
     "https://*.bing.com/*",
-    "https://www.google.com/*",
     "https://geocoding-api.open-meteo.com/*",
     "https://api.open-meteo.com/*",
     "https://60s.viki.moe/*",
