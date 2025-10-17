@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.4.17 — 2025-10-17
+
+- Compliance: New Tab search now uses `chrome.search.query` and strictly follows the browser's default search provider.
+- UI: remove search engine selector and related preferences from New Tab.
+- Background: remove default `searchEngine` initialization; no engine override or storage.
+- Manifest: add `search` permission to enable the Search API; no `search_provider` override.
+- Docs: update store review notes and permission justifications accordingly.
+
 ## v1.4.16 — 2025-10-16
 
 - New Tab: set 60s primary instance to `https://60api.09cdn.xyz`; fallback order unchanged.

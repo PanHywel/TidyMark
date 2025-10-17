@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "short_name": "__MSG_appShortName__",
-  "version": "1.4.16",
+  "version": "1.4.17",
   "description": "__MSG_appDesc__",
   "default_locale": "en",
   
@@ -13,7 +13,8 @@
     "activeTab",
     "alarms",
     "contextMenus",
-    "notifications"
+    "notifications",
+    "search"
   ],
   "host_permissions": [
     "https://*.bing.com/*",

@@ -138,16 +138,7 @@ async function initializeExtension() {
       console.log('默认设置已初始化:', settingsToSet);
     }
 
-    // 初始化本地存储的默认搜索引擎（仅首次安装且未设置时）
-    try {
-      const { searchEngine } = await chrome.storage.local.get(['searchEngine']);
-      if (searchEngine === undefined) {
-        await chrome.storage.local.set({ searchEngine: 'bing' });
-        console.log('默认搜索引擎已初始化: bing');
-      }
-    } catch (e) {
-      console.warn('初始化默认搜索引擎失败', e);
-    }
+    // 已移除默认搜索引擎的初始化，遵循浏览器默认搜索提供商
 
     // 创建初始备份
     await createBookmarkBackup();

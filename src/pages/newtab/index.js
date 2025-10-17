@@ -17,7 +17,6 @@
   const elTime = document.getElementById('current-time');
   const elForm = document.getElementById('search-form');
   const elInput = document.getElementById('search-input');
-  const elEngine = document.getElementById('search-engine');
   const elThemeBtn = document.getElementById('theme-toggle-btn');
   const elThemeMenu = document.getElementById('theme-menu');
   const elThemeDropdown = document.querySelector('.theme-dropdown');
@@ -1143,14 +1142,7 @@
     }
   }
 
-  // 搜索跳转（默认 Bing，可扩展）
-  const engines = {
-    google: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
-    bing: (q) => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
-    duck: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
-    baidu: (q) => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`
-  };
-  let selectedEngine = 'bing';
+  // 新标签页主题与数据状态
   let themeMode = 'system';
   let categoryOrder = [];
   let allBookmarks = [];
@@ -1259,39 +1251,7 @@
     elThemeBtn.innerHTML = icons[effective] || icons.light;
   }
 
-  async function loadEnginePreference() {
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        const { searchEngine } = await chrome.storage.local.get(['searchEngine']);
-        if (searchEngine && engines[searchEngine]) {
-          selectedEngine = searchEngine;
-        }
-      } else if (typeof localStorage !== 'undefined') {
-        const val = localStorage.getItem('searchEngine');
-        if (val && engines[val]) selectedEngine = val;
-      }
-    } catch {}
-    if (elEngine) elEngine.value = selectedEngine;
-  }
-
-  function saveEnginePreference(val) {
-    selectedEngine = val;
-    try {
-      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-        chrome.storage.local.set({ searchEngine: val });
-      } else if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('searchEngine', val);
-      }
-    } catch {}
-  }
-
-  if (elEngine) {
-    elEngine.addEventListener('change', (e) => {
-      const val = e.target.value;
-      if (engines[val]) saveEnginePreference(val);
-    });
-  }
-  loadEnginePreference();
+  // 已移除搜索引擎偏好设置；统一使用浏览器默认搜索
 
   // 主题模式：system / light / dark
   function applyTheme(mode) {
@@ -1386,8 +1346,18 @@
       window.open(url.href, '_blank', 'noopener');
       return;
     } catch {}
-    const eng = (elEngine && engines[elEngine.value]) ? elEngine.value : selectedEngine;
-    window.open(engines[eng](q), '_blank', 'noopener');
+    // 使用 Chrome Search API 以默认搜索提供商进行查询
+    if (typeof chrome !== 'undefined' && chrome.search?.query) {
+      try {
+        chrome.search.query({ text: q, disposition: 'CURRENT_TAB' });
+      } catch (err) {
+        // 兜底：预览或异常时走通用搜索
+        window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, '_blank', 'noopener');
+      }
+    } else {
+      // 本地预览环境兜底
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, '_blank', 'noopener');
+    }
   });
 
   // 实时书签搜索（输入事件）

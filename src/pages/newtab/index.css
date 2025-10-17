@@ -212,7 +212,7 @@ body {
 
 .search {
   display: grid;
-  grid-template-columns: auto 1fr auto; /* 引擎选择 + 输入 + 按钮 */
+  grid-template-columns: 1fr auto; /* 输入 + 按钮 */
   gap: 8px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -221,25 +221,6 @@ body {
   box-shadow: var(--shadow);
   transition: opacity 160ms ease;
 }
-.engine-select {
-  appearance: none;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--fg);
-  padding: 0 24px; /* 收紧左右内边距 */
-  height: 36px;
-  /* 自适应内容宽度 */
-  width: max-content;
-  min-width: 0;
-  font-weight: 500;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'><path fill='%23a0a0a0' d='M7 10l5 5 5-5z'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 16px center; /* 箭头稍微左移，视觉更居中 */
-  text-align: center;           /* 大多数浏览器 */
-  text-align-last: center;      /* 对 select 选中项居中 */
-}
-.engine-select:hover { border-color: var(--accent); }
 
 /* 非聚焦态统一调暗（不影响交互） */
 .search:not(:hover):not(:focus-within) { opacity: var(--search-unfocused-opacity); }
@@ -251,7 +232,6 @@ body {
 #sixty-seconds:not(:hover) { opacity: var(--sixty-unfocused-opacity); }
 /* 热门栏目透明度控制 */
 #top-visited:not(:hover) { opacity: var(--top-visited-unfocused-opacity); }
-.engine-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
 .search input {
   appearance: none;
   border: none;
