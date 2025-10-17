@@ -21,11 +21,46 @@ async function ensureLanguage(page, lang) {
   await page.waitForTimeout(300);
 }
 
+async function waitForWallpaperOrDisabled(page, timeout = 20000) {
+  // 等待：
+  // 1) 壁纸被禁用（无 has-wallpaper），或
+  // 2) body 背景图 url 可解析且图片已成功加载
+  await page.waitForFunction(() => {
+    const body = document && document.body;
+    if (!body) return false;
+    const has = body.classList.contains('has-wallpaper');
+    const bg = getComputedStyle(body).backgroundImage;
+    // 壁纸关闭，则无需等待
+    if (!has) return true;
+    if (!bg || bg === 'none') return false;
+    const m = bg.match(/url\((['"]?)(.*?)\1\)/);
+    const url = m && m[2];
+    if (!url) return false;
+    const img = (window.__bgImgReady ||= new Image());
+    if (img.src !== url) img.src = url;
+    return img.complete && img.naturalWidth > 0;
+  }, { timeout });
+}
+
+async function waitForVisibleImages(page, timeout = 15000) {
+  // 等待页面上“可见”的 <img> 元素加载完成（如 60s 封面）
+  await page.waitForFunction(() => {
+    const imgs = Array.from(document.querySelectorAll('img'))
+      .filter(img => !!(img.offsetWidth || img.offsetHeight || img.getClientRects().length));
+    if (imgs.length === 0) return true;
+    return imgs.every(img => img.complete && img.naturalWidth > 0);
+  }, { timeout });
+}
+
 async function screenshotNewtab(context, base, outDir, width, height, lang) {
   const page = await context.newPage();
   await page.setViewportSize({ width, height });
   await page.goto(`${base}/src/pages/newtab/index.html`, { waitUntil: 'domcontentloaded' });
   await ensureLanguage(page, lang);
+  // 等待壁纸与可见图片加载完毕（或确认壁纸关闭）
+  await waitForWallpaperOrDisabled(page, 22000);
+  await waitForVisibleImages(page, 12000);
+  await page.waitForTimeout(120);
   await fs.mkdir(`${outDir}/${lang}`, { recursive: true });
   await page.screenshot({ path: `${outDir}/${lang}/newtab_${lang}.png`, fullPage: false });
   await page.close();
@@ -47,6 +82,10 @@ async function screenshotOptionsTab(context, base, outDir, width, height, lang, 
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext();
+  // 预置偏好：确保壁纸开启（预览环境无 chrome.storage.sync，使用 localStorage）
+  await context.addInitScript(() => {
+    try { localStorage.setItem('wallpaperEnabled', 'true'); } catch {}
+  });
 
   for (const lang of LANGS) {
     await screenshotNewtab(context, BASE, OUT, WIDTH, HEIGHT, lang);
