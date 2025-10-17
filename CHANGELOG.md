@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.19 — 2025-10-17
+
+- i18n: remove unused `search.engine*` messages; keep concise default-search note key.
+- Options: add inline note clarifying default search uses `chrome.search.query` (no engine switching).
+- Manifest: trim `host_permissions` by removing `https://www.google.com/*` to reduce review risk.
+- Locales: short description aligned to “Minimal new tab: bookmarks, smart categorization, wallpaper & weather, default search”.
+
 ## v1.4.18 — 2025-10-17
 
 - New Tab: block default form submission on the search form (`action="#"` + `onsubmit="return false"`), preventing accidental empty query and trailing `?` in URL.
