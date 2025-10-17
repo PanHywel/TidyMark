@@ -14,6 +14,7 @@ const HEIGHT = parseInt(arg('height', '800'), 10);
 const OUT = arg('out', 'assets/screenshots');
 const LANGS = (arg('langs', DEFAULT_LANGS.join(','))).split(',').map(s => s.trim()).filter(Boolean);
 const PREWAIT_MS = parseInt(arg('prewait', '5000'), 10); // 新标签页截图前的预等待毫秒数
+const HIDE_SIXTY = String(arg('hideSixty', 'true')).toLowerCase() === 'true'; // 是否隐藏 60s 栏目
 
 async function ensureLanguage(page, lang) {
   await page.waitForLoadState('domcontentloaded');
@@ -67,6 +68,11 @@ async function screenshotNewtab(context, base, outDir, width, height, lang) {
   await page.setViewportSize({ width, height });
   await page.goto(`${base}/src/pages/newtab/index.html`, { waitUntil: 'domcontentloaded' });
   await ensureLanguage(page, lang);
+  console.log(`[shots] [newtab] hideSixty=${HIDE_SIXTY}`);
+  if (HIDE_SIXTY) {
+    // 双保险：即使偏好未及时被读取，也直接隐藏元素
+    await page.evaluate(() => { try { const x = document.getElementById('sixty-seconds'); if (x) x.hidden = true; } catch {} });
+  }
   console.log(`[shots] [newtab] prewait ${PREWAIT_MS}ms before loading checks`);
   await page.waitForTimeout(PREWAIT_MS);
   // 记录当前语言与壁纸初始状态
@@ -140,10 +146,13 @@ async function screenshotOptionsTab(context, base, outDir, width, height, lang, 
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext();
-  // 预置偏好：确保壁纸开启（预览环境无 chrome.storage.sync，使用 localStorage）
-  await context.addInitScript(() => {
-    try { localStorage.setItem('wallpaperEnabled', 'true'); } catch {}
-  });
+  // 预置偏好：确保壁纸开启，且支持隐藏 60s（预览环境无 chrome.storage.sync，使用 localStorage）
+  await context.addInitScript((cfg) => {
+    try {
+      if (cfg && cfg.wallpaperEnabled) localStorage.setItem('wallpaperEnabled', 'true');
+      if (cfg && cfg.hideSixty) localStorage.setItem('sixtySecondsEnabled', 'false');
+    } catch {}
+  }, { wallpaperEnabled: true, hideSixty: HIDE_SIXTY });
 
   for (const lang of LANGS) {
     await screenshotNewtab(context, BASE, OUT, WIDTH, HEIGHT, lang);
