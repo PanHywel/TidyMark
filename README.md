@@ -24,11 +24,11 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 
 ## Screenshots
 
-<a href="./assets/screenshots/en/1.jpg"><img src="./assets/screenshots/en/1.jpg" alt="TidyMark Screenshot 1" width="900"></a>
-<a href="./assets/screenshots/en/2.jpg"><img src="./assets/screenshots/en/2.jpg" alt="TidyMark Screenshot 2" width="900"></a>
-<a href="./assets/screenshots/en/3.jpg"><img src="./assets/screenshots/en/3.jpg" alt="TidyMark Screenshot 3" width="900"></a>
-<a href="./assets/screenshots/en/4.jpg"><img src="./assets/screenshots/en/4.jpg" alt="TidyMark Screenshot 4" width="900"></a>
-<a href="./assets/screenshots/en/5.jpg"><img src="./assets/screenshots/en/5.jpg" alt="TidyMark Screenshot 5" width="900"></a>
+<a href="./assets/screenshots/en/newtab_en.png"><img src="./assets/screenshots/en/newtab_en.png" alt="New Tab (EN)" width="900"></a>
+<a href="./assets/screenshots/en/navigation_en.png"><img src="./assets/screenshots/en/navigation_en.png" alt="Navigation Settings (EN)" width="900"></a>
+<a href="./assets/screenshots/en/classification_en.png"><img src="./assets/screenshots/en/classification_en.png" alt="Classification Rules (EN)" width="900"></a>
+<a href="./assets/screenshots/en/deadlinks_en.png"><img src="./assets/screenshots/en/deadlinks_en.png" alt="Deadlinks (EN)" width="900"></a>
+<a href="./assets/screenshots/en/ai_en.png"><img src="./assets/screenshots/en/ai_en.png" alt="AI Settings (EN)" width="900"></a>
 
 — Core info only. For more details, please refer to the source code and comments.
 

@@ -24,13 +24,11 @@
 
 ## 界面截图
 
-<a href="./assets/screenshots/zh/1.jpg"><img src="./assets/screenshots/zh/1.jpg" alt="截图1" width="900"></a>
-<a href="./assets/screenshots/zh/2.jpg"><img src="./assets/screenshots/zh/2.jpg" alt="截图2" width="900"></a>
-<a href="./assets/screenshots/zh/3.jpg"><img src="./assets/screenshots/zh/3.jpg" alt="截图3" width="900"></a>
-<a href="./assets/screenshots/zh/4.jpg"><img src="./assets/screenshots/zh/4.jpg" alt="截图4" width="900"></a>
-<a href="./assets/screenshots/zh/5.jpg"><img src="./assets/screenshots/zh/5.jpg" alt="截图5" width="900"></a>
-<a href="./assets/screenshots/zh/6.jpg"><img src="./assets/screenshots/zh/6.jpg" alt="截图6" width="900"></a>
-<a href="./assets/screenshots/zh/7.jpg"><img src="./assets/screenshots/zh/7.jpg" alt="截图7" width="900"></a>
+<a href="./assets/screenshots/zh-CN/newtab_zh-CN.png"><img src="./assets/screenshots/zh-CN/newtab_zh-CN.png" alt="新标签页（简体中文）" width="900"></a>
+<a href="./assets/screenshots/zh-CN/navigation_zh-CN.png"><img src="./assets/screenshots/zh-CN/navigation_zh-CN.png" alt="设置—导航（简体中文）" width="900"></a>
+<a href="./assets/screenshots/zh-CN/classification_zh-CN.png"><img src="./assets/screenshots/zh-CN/classification_zh-CN.png" alt="分类规则（简体中文）" width="900"></a>
+<a href="./assets/screenshots/zh-CN/deadlinks_zh-CN.png"><img src="./assets/screenshots/zh-CN/deadlinks_zh-CN.png" alt="失效书签（简体中文）" width="900"></a>
+<a href="./assets/screenshots/zh-CN/ai_zh-CN.png"><img src="./assets/screenshots/zh-CN/ai_zh-CN.png" alt="AI 设置（简体中文）" width="900"></a>
 
 — 仅保留核心信息，更多细节请参考源码与注释。
 
