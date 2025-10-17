@@ -13,6 +13,7 @@ const WIDTH = parseInt(arg('width', '1280'), 10);
 const HEIGHT = parseInt(arg('height', '800'), 10);
 const OUT = arg('out', 'assets/screenshots');
 const LANGS = (arg('langs', DEFAULT_LANGS.join(','))).split(',').map(s => s.trim()).filter(Boolean);
+const PREWAIT_MS = parseInt(arg('prewait', '5000'), 10); // 新标签页截图前的预等待毫秒数
 
 async function ensureLanguage(page, lang) {
   await page.waitForLoadState('domcontentloaded');
@@ -66,6 +67,8 @@ async function screenshotNewtab(context, base, outDir, width, height, lang) {
   await page.setViewportSize({ width, height });
   await page.goto(`${base}/src/pages/newtab/index.html`, { waitUntil: 'domcontentloaded' });
   await ensureLanguage(page, lang);
+  console.log(`[shots] [newtab] prewait ${PREWAIT_MS}ms before loading checks`);
+  await page.waitForTimeout(PREWAIT_MS);
   // 记录当前语言与壁纸初始状态
   const activeLang = await page.evaluate(() => {
     try {
