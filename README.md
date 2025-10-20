@@ -18,9 +18,14 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 
 ## Installation
 
-- Download the ZIP from GitHub Releases.
-- Open `chrome://extensions/` or `edge://extensions/`.
-- Enable “Developer mode”, click “Load unpacked”, and select the unzipped folder.
+- Recommended (Stores):
+  - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb
+  - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+
+- Developer Mode:
+  - Download the ZIP from GitHub Releases: https://github.com/PanHywel/TidyMark/releases
+  - Open `chrome://extensions/` or `edge://extensions/`.
+  - Enable “Developer mode”, click “Load unpacked”, and select the unzipped folder.
 
 ## Screenshots
 

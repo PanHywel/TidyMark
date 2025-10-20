@@ -18,9 +18,14 @@
 
 ## 安装方法
 
-- 下载 GitHub Releases 的压缩包（ZIP）。
-- 打开 `chrome://extensions/` 或 `edge://extensions/`。
-- 开启“开发者模式”，点击“加载已解压的扩展程序”，选择解压后的文件夹。
+- 推荐（商店安装）：
+  - Chrome 应用商店：https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb
+  - Edge 扩展商店：https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+
+- 开发者模式（保留）：
+  - 下载 GitHub Releases 的压缩包（ZIP）：https://github.com/PanHywel/TidyMark/releases
+  - 打开 `chrome://extensions/` 或 `edge://extensions/`。
+  - 开启“开发者模式”，点击“加载已解压的扩展程序”，选择解压后的文件夹。
 
 ## 界面截图
 
