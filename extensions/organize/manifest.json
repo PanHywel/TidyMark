@@ -3,7 +3,7 @@
   "name": "TidyMark · 纯书签整理版",
   "short_name": "TidyMark · 书签整理",
   "version": "1.4.19",
-  "description": "智能书签管理（不覆盖新标签页）",
+  "description": "__MSG_appDesc__",
   "default_locale": "en",
 
   "permissions": [
@@ -39,7 +39,7 @@
   ],
 
   "action": {
-    "default_title": "TidyMark",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

@@ -1,6 +1,6 @@
 {
   "appName": { "message": "TidyMark" },
   "appShortName": { "message": "TidyMark" },
-  "appDesc": { "message": "Minimal new tab: bookmark navigation, smart categorization, wallpaper & weather, default search." },
+  "appDesc": { "message": "Smart bookmark organizer: auto categorization, broken-link check, archiving, backup/cloud sync." },
   "actionTitle": { "message": "TidyMark — Bookmark Manager" }
 }
