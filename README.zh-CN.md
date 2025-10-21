@@ -18,9 +18,13 @@
 
 ## 安装方法
 
+> 注意：安装完成后首次打开新标签页，浏览器可能弹出“是否保持由扩展设置的新标签页”的提示（Chrome/Edge）。如果你不需要导航页功能，请选择“拒绝 / 恢复默认”。这不会影响书签整理、分类、备份等核心功能，浏览器新标签页将保持默认样式。
+
 - 推荐（商店安装）：
   - Chrome 应用商店：https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb
   - Edge 扩展商店：https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+
+**说明：如果不需要「新标签页导航」功能，安装后可在「设置 → 导航设置」中保持未开启；不影响书签整理等核心功能。**
 
 - 开发者模式（保留）：
   - 下载 GitHub Releases 的压缩包（ZIP）：https://github.com/PanHywel/TidyMark/releases

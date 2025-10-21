@@ -18,6 +18,8 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 
 ## Installation
 
+> Note: After installation, when you first open a New Tab, the browser may prompt to keep the extension’s New Tab override (Chrome/Edge). If you don’t need the New Tab page, choose “Decline / Restore default”. This does not affect core features like bookmark organizing, classification, and backup; your browser’s default New Tab remains.
+
 - Recommended (Stores):
   - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb
   - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
