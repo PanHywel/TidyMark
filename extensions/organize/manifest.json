@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "TidyMark · 纯书签整理版",
   "short_name": "TidyMark · 书签整理",
-  "version": "1.4.19",
+  "version": "1.4.21",
   "description": "__MSG_appDesc__",
   "default_locale": "en",
 

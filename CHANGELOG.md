@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.4.21 — 2025-10-21
+
+- Organize-only: localized short description across EN/zh-CN/zh-TW/ru to focus on bookmark organizing; removed any mention of New Tab.
+- Manifest (organize-only): `description` and `action.default_title` now use i18n messages (`__MSG_appDesc__`, `__MSG_actionTitle__`) with `default_locale=en`.
+- Docs: clarified variant descriptions earlier; no functional changes in features.
+
 ## v1.4.19 — 2025-10-17
 
 - i18n: remove unused `search.engine*` messages; keep concise default-search note key.
