@@ -8,7 +8,10 @@
   },
   "scripts": {
     "shots:install": "npx playwright install chromium",
-    "shots": "node scripts/capture_screenshots.mjs --base=http://localhost:8000 --width=1280 --height=800 --langs=zh-CN,zh-TW,en,ru --out=assets/screenshots",
+    "shots:serve": "npx --yes http-server . -p 5500 -c-1 --silent",
+    "shots:full": "node scripts/capture_screenshots.mjs --variant=full --base=http://localhost:5500 --width=1280 --height=800 --langs=zh-CN,zh-TW,en,ru --out=assets/screenshots",
+    "shots:organize": "node scripts/capture_screenshots.mjs --variant=organize --base=http://localhost:5500 --width=1280 --height=800 --langs=zh-CN,zh-TW,en,ru --out=assets/screenshots",
+    "shots": "npm run shots:full",
     "sync:organize": "node scripts/sync_shared.mjs"
   }
 }
