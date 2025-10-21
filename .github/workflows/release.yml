@@ -32,23 +32,39 @@ jobs:
             echo "TAG_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
           fi
 
-      - name: Package extension
+      - name: Sync organize variant
+        run: |
+          node scripts/sync_shared.mjs
+
+      - name: Package extensions
         run: |
           mkdir -p dist
-          zip -r "dist/tidymark-${TAG_NAME}.zip" \
+          # Full variant from repository root
+          zip -r "dist/tidymark-full-${TAG_NAME}.zip" \
             manifest.json \
             icons \
             _locales \
             src \
             services \
             README.md LICENSE
+          # Organize-only variant from extensions/organize
+          cd extensions/organize
+          zip -r "../../dist/tidymark-organize-${TAG_NAME}.zip" \
+            manifest.json \
+            icons \
+            _locales \
+            src \
+            services
+          cd ../..
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: TidyMark ${{ env.TAG_NAME }}
-          files: dist/tidymark-${{ env.TAG_NAME }}.zip
+          files: |
+            dist/tidymark-full-${{ env.TAG_NAME }}.zip
+            dist/tidymark-organize-${{ env.TAG_NAME }}.zip
           draft: false
           prerelease: false
           generate_release_notes: true

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "shots:install": "npx playwright install chromium",
-    "shots": "node scripts/capture_screenshots.mjs --base=http://localhost:8000 --width=1280 --height=800 --langs=zh-CN,zh-TW,en,ru --out=assets/screenshots"
+    "shots": "node scripts/capture_screenshots.mjs --base=http://localhost:8000 --width=1280 --height=800 --langs=zh-CN,zh-TW,en,ru --out=assets/screenshots",
+    "sync:organize": "node scripts/sync_shared.mjs"
   }
 }

@@ -16,18 +16,24 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 - Visit frequency stats / usage heat analysis: record bookmark visits and recent activity on the New Tab; supports a “Top” section and basic usage insights.
 - Context menu integration: right-click “Add to TidyMark and categorize”; automatically create and move to the matched category folder.
 
-## Installation
+## Installation & Variants
 
 > Note: After installation, when you first open a New Tab, the browser may prompt to keep the extension’s New Tab override (Chrome/Edge). If you don’t need the New Tab page, choose “Decline / Restore default”. This does not affect core features like bookmark organizing, classification, and backup; your browser’s default New Tab remains.
 
-- Recommended (Stores):
-  - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb
-  - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+### Variants
 
-- Developer Mode:
-  - Download the ZIP from GitHub Releases: https://github.com/PanHywel/TidyMark/releases
-  - Open `chrome://extensions/` or `edge://extensions/`.
-  - Enable “Developer mode”, click “Load unpacked”, and select the unzipped folder.
+- Organize-only (default recommendation): does not override New Tab; no navigation UI; retains bookmark organizing, classification, dead-links, backup, and GitHub sync. Download: `tidymark-organize-<version>.zip` from GitHub Releases, or load `extensions/organize/` in Developer Mode.
+- Full (with navigation): includes a New Tab navigation and settings; other features are the same. Available via stores or GitHub Releases.
+  - Stores (Full):  
+    - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb  
+    - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+  - GitHub Releases (both variants): https://github.com/PanHywel/TidyMark/releases
+
+### Developer Mode
+
+- Download and unzip the package from GitHub Releases.
+- Open `chrome://extensions/` or `edge://extensions/`.
+- Enable “Developer mode”, click “Load unpacked”, and select the unzipped `tidymark-organize-...` (organize-only) or `tidymark-full-...` (full) folder.
 
 ## Screenshots
 
