@@ -15,6 +15,8 @@ const OUT = arg('out', 'assets/screenshots');
 const LANGS = (arg('langs', DEFAULT_LANGS.join(','))).split(',').map(s => s.trim()).filter(Boolean);
 const PREWAIT_MS = parseInt(arg('prewait', '5000'), 10); // 新标签页截图前的预等待毫秒数
 const HIDE_SIXTY = String(arg('hideSixty', 'true')).toLowerCase() === 'true'; // 是否隐藏 60s 栏目
+const VARIANT = arg('variant', 'full'); // full | organize
+const ORGANIZE_BASE = arg('organizeBase', BASE);
 
 async function ensureLanguage(page, lang) {
   await page.waitForLoadState('domcontentloaded');
@@ -143,6 +145,19 @@ async function screenshotOptionsTab(context, base, outDir, width, height, lang, 
   await page.close();
 }
 
+async function screenshotOrganizeOptionsTab(context, base, outDir, width, height, lang, tab, filename) {
+  const page = await context.newPage();
+  await page.setViewportSize({ width, height });
+  await page.goto(`${base}/extensions/organize/src/pages/options/index.html`, { waitUntil: 'domcontentloaded' });
+  await ensureLanguage(page, lang);
+  await page.click(`.tab-btn[data-tab="${tab}"]`);
+  await page.waitForSelector(`section.tab-content#${tab}`);
+  await page.waitForTimeout(400);
+  await fs.mkdir(`${outDir}/${lang}`, { recursive: true });
+  await page.screenshot({ path: `${outDir}/${lang}/organize_${filename}_${lang}.png`, fullPage: false });
+  await page.close();
+}
+
 (async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext();
@@ -155,11 +170,18 @@ async function screenshotOptionsTab(context, base, outDir, width, height, lang, 
   }, { wallpaperEnabled: true, hideSixty: HIDE_SIXTY });
 
   for (const lang of LANGS) {
-    await screenshotNewtab(context, BASE, OUT, WIDTH, HEIGHT, lang);
-    await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'rules', 'classification');
-    await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'deadlinks', 'deadlinks');
-    await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'nav', 'navigation');
-    await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'ai', 'ai');
+    if (VARIANT === 'organize') {
+      // 纯书签整理版：不拍新标签页，只拍选项页的核心功能标签
+      await screenshotOrganizeOptionsTab(context, ORGANIZE_BASE, OUT, WIDTH, HEIGHT, lang, 'rules', 'classification');
+      await screenshotOrganizeOptionsTab(context, ORGANIZE_BASE, OUT, WIDTH, HEIGHT, lang, 'deadlinks', 'deadlinks');
+      await screenshotOrganizeOptionsTab(context, ORGANIZE_BASE, OUT, WIDTH, HEIGHT, lang, 'ai', 'ai');
+    } else {
+      await screenshotNewtab(context, BASE, OUT, WIDTH, HEIGHT, lang);
+      await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'rules', 'classification');
+      await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'deadlinks', 'deadlinks');
+      await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'nav', 'navigation');
+      await screenshotOptionsTab(context, BASE, OUT, WIDTH, HEIGHT, lang, 'ai', 'ai');
+    }
   }
 
   await context.close();
