@@ -27,6 +27,8 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
   - Stores (Full):  
     - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb  
     - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
+  - Stores (Organize-only):  
+    - Chrome Web Store: https://chromewebstore.google.com/detail/pbpfkmnamjpcomlcbdjhbgcpijfafiai?utm_source=item-share-cb
   - GitHub Releases (both variants): https://github.com/PanHywel/TidyMark/releases
 
 ### Developer Mode
