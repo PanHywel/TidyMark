@@ -23,12 +23,13 @@
 ### 版本
 
 - 纯书签版（默认推荐）：不覆盖新标签页，不包含导航 UI；保留书签整理、分类、失效书签、备份与 GitHub 云同步等核心功能。下载：GitHub Releases 中的 `tidymark-organize-<版本号>.zip`，或开发者模式加载 `extensions/organize/`。
+  - 商店安装（纯书签版）：  
+    - Chrome 应用商店：https://chromewebstore.google.com/detail/pbpfkmnamjpcomlcbdjhbgcpijfafiai?utm_source=item-share-cb
 - 完整版（含导航）：包含新标签页导航与导航设置，其余功能一致。商店安装或 GitHub Releases 均可。
   - 商店安装（完整版）：  
     - Chrome 应用商店：https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb  
     - Edge 扩展商店：https://microsoftedge.microsoft.com/addons/detail/tidymark/ndfhjpodnchjkgpheaompahphpknmpjp
-  - 商店安装（纯书签版）：  
-    - Chrome 应用商店：https://chromewebstore.google.com/detail/pbpfkmnamjpcomlcbdjhbgcpijfafiai?utm_source=item-share-cb
+  
   - GitHub Releases（两版均提供）：https://github.com/PanHywel/TidyMark/releases
 
 **说明：如果不需要「新标签页导航」功能，建议选择“纯书签版”；或在完整版中前往「设置 → 导航设置」保持未开启。**
