@@ -29,7 +29,8 @@
     "https://60s.tmini.net/*",
     "https://60s.7se.cn/*",
     "https://api.github.com/*",
-    "https://raw.githubusercontent.com/*"
+    "https://raw.githubusercontent.com/*",
+    "https://dav.jianguoyun.com/*"
   ],
   "optional_host_permissions": [
     "<all_urls>",

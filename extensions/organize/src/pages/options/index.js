@@ -847,7 +847,7 @@ class OptionsManager {
     const githubSyncBtn = document.getElementById('githubSyncBtn');
     if (githubSyncBtn) {
       githubSyncBtn.addEventListener('click', () => {
-        this.syncToGithub();
+        this.syncToCloud('github');
       });
     }
 
@@ -868,7 +868,7 @@ class OptionsManager {
     const quickGithubSyncBtn = document.getElementById('quickGithubSyncBtn');
     if (quickGithubSyncBtn) {
       quickGithubSyncBtn.addEventListener('click', () => {
-        this.syncToGithub();
+        this.syncToCloud('github');
         this.switchTab('sync');
       });
     }
@@ -2887,9 +2887,93 @@ class OptionsManager {
   }
 
   // 触发 GitHub 同步
+  // 通用云同步方法
+  async syncToCloud(provider) {
+    const statusEl = document.getElementById('githubSyncStatus');
+    const cloudStatusEl = document.getElementById('cloudSyncStatus');
+    const setStatus = (text) => { 
+      if (statusEl) statusEl.textContent = text; 
+      if (cloudStatusEl) cloudStatusEl.textContent = text;
+    };
+
+    try {
+      // 获取提供商配置
+      const config = this.getCloudProviderConfig(provider);
+      if (!config) {
+        this.showMessage(`请填写完整的 ${provider} 配置`, 'error');
+        setStatus('配置不完整');
+        return;
+      }
+
+      setStatus(`正在同步到 ${provider}...`);
+      
+      // 发送通用云同步消息
+      chrome.runtime.sendMessage({
+        action: 'syncCloudBackup',
+        payload: { provider, config }
+      }, (response) => {
+        if (chrome.runtime && chrome.runtime.lastError) {
+          console.error('[Options] sendMessage 回调 lastError:', chrome.runtime.lastError);
+        }
+        console.log('[Options] 收到 syncCloudBackup 回调：', response);
+        
+        if (response && response.success) {
+          this.showMessage(`已同步到 ${provider}`, 'success');
+          setStatus('同步成功');
+        } else {
+          const errMsg = (response && response.error) ? String(response.error) : '未知错误';
+          this.showMessage(`同步到 ${provider} 失败：${errMsg}`, 'error');
+          setStatus('同步失败');
+        }
+      });
+    } catch (e) {
+      this.showMessage(`同步过程中出现异常：${e.message}`, 'error');
+      setStatus('同步失败');
+    }
+  }
+
+  // 获取云提供商配置
+  getCloudProviderConfig(provider) {
+    switch (provider) {
+      case 'github':
+        const token = (this.settings.githubToken || '').trim();
+        const owner = (this.settings.githubOwner || '').trim();
+        const repo = (this.settings.githubRepo || '').trim();
+        const format = (this.settings.githubFormat || 'json');
+        const dualUpload = !!this.settings.githubDualUpload;
+        
+        if (!token || !owner || !repo) return null;
+        return { token, owner, repo, format, dualUpload };
+        
+      case 'webdav':
+        const webdavUrl = (this.settings.webdavUrl || '').trim();
+        const webdavUsername = (this.settings.webdavUsername || '').trim();
+        const webdavPassword = (this.settings.webdavPassword || '').trim();
+        const webdavPath = (this.settings.webdavPath || '').trim();
+        
+        if (!webdavUrl || !webdavUsername || !webdavPassword) return null;
+        return { baseUrl: webdavUrl, username: webdavUsername, password: webdavPassword, targetPath: webdavPath || '/bookmarks', dualUpload: true };
+        
+      case 'googledrive':
+        const googleClientId = (this.settings.googleClientId || '').trim();
+        const googleClientSecret = (this.settings.googleClientSecret || '').trim();
+        const googleFolderId = (this.settings.googleFolderId || '').trim();
+        
+        if (!googleClientId || !googleClientSecret) return null;
+        return { clientId: googleClientId, clientSecret: googleClientSecret, folderId: googleFolderId };
+        
+      default:
+        return null;
+    }
+  }
+
   async syncToGithub() {
     const statusEl = document.getElementById('githubSyncStatus');
-    const setStatus = (text) => { if (statusEl) statusEl.textContent = text; };
+    const cloudStatusEl = document.getElementById('cloudSyncStatus');
+    const setStatus = (text) => { 
+      if (statusEl) statusEl.textContent = text; 
+      if (cloudStatusEl) cloudStatusEl.textContent = text;
+    };
 
     const token = (this.settings.githubToken || '').trim();
     const owner = (this.settings.githubOwner || '').trim();
