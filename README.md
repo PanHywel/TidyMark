@@ -24,7 +24,8 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
 
 - Organize-only (default recommendation): does not override New Tab; no navigation UI; retains bookmark organizing, classification, dead-links, backup, and GitHub sync. Download: `tidymark-organize-<version>.zip` from GitHub Releases, or load `extensions/organize/` in Developer Mode.
   - Stores (Organize-only):  
-    - Chrome Web Store: https://chromewebstore.google.com/detail/pbpfkmnamjpcomlcbdjhbgcpijfafiai?utm_source=item-share-cb
+     - Chrome Web Store: https://chromewebstore.google.com/detail/pbpfkmnamjpcomlcbdjhbgcpijfafiai?utm_source=item-share-cb
+     - Microsoft Edge Add-ons: https://microsoftedge.microsoft.com/addons/detail/dhpcgmaljdomhglcfjijpnhmaeppppfa
 - Full (with navigation): includes a New Tab navigation and settings; other features are the same. Available via stores or GitHub Releases.
   - Stores (Full):  
     - Chrome Web Store: https://chromewebstore.google.com/detail/tidymark/kfjmkmodmoabhcmgeojbnjbipgiknfkb?utm_source=item-share-cb  
