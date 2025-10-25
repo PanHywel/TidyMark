@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="8" cy="8" r="7" fill="url(#grad1)" stroke="#fff" stroke-width="0.5"/>
+  
+  <!-- 书签图标 -->
+  <path d="M4 3 C4 2.5 4.5 2 5 2 L11 2 C11.5 2 12 2.5 12 3 L12 13 L8 10 L4 13 Z" 
+        fill="#fff" stroke="none"/>
+  
+  <!-- 整理标记 -->
+  <circle cx="11" cy="5" r="1.5" fill="#ffd700" stroke="#fff" stroke-width="0.3"/>
+</svg>

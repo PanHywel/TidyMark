@@ -131,7 +131,7 @@ class OptionsManager {
       this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','ollama'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','custom'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -272,6 +272,9 @@ class OptionsManager {
   // 保存设置
   async saveSettings() {
     try {
+      // 验证AI模型配置
+      this.validateAiModel();
+
       // 检查是否在Chrome扩展环境中
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         await chrome.storage.sync.set(this.settings);
@@ -285,6 +288,40 @@ class OptionsManager {
     } catch (error) {
     console.error((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败') + ':', error);
     this.showMessage((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败'), 'error');
+    }
+  }
+
+  // 验证AI模型配置
+  validateAiModel() {
+    const provider = String(this.settings.aiProvider || '').toLowerCase();
+    const model = String(this.settings.aiModel || '').trim();
+
+    if (!model) return; // 空模型名将使用默认值
+
+    let validModels = [];
+
+    switch (provider) {
+      case 'openai':
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        break;
+      case 'deepseek':
+        validModels = ['deepseek-chat'];
+        break;
+      case 'ollama':
+        // Ollama 支持任意模型，不验证
+        return;
+      case 'custom':
+        // 自定义提供商支持任意模型，不验证
+        return;
+      default:
+        // 未知提供商，使用默认值
+        break;
+    }
+
+    if (validModels.length > 0 && !validModels.includes(model)) {
+      console.warn(`[AI设置] 模型 "${model}" 不适用于提供商 "${provider}"，正在重置为默认模型`);
+      this.settings.aiModel = validModels[0];
+      this.showMessage(`AI模型 "${model}" 不受支持，已重置为 "${validModels[0]}"`, 'warning');
     }
   }
 
@@ -353,10 +390,18 @@ class OptionsManager {
 
     const aiModel = document.getElementById('aiModel');
     if (aiModel) {
-      aiModel.addEventListener('change', (e) => {
-        this.settings.aiModel = e.target.value;
-        this.saveSettings();
-      });
+      // 根据当前元素类型绑定不同事件
+      if (aiModel.tagName === 'SELECT') {
+        aiModel.addEventListener('change', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      } else if (aiModel.tagName === 'INPUT') {
+        aiModel.addEventListener('input', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      }
     }
 
     // AI 提示词模板输入事件
@@ -1134,7 +1179,7 @@ class OptionsManager {
   }
 
   // 展示整理预览并进行二次确认（移植自插件弹窗，适配设置页）
-  async showOrganizePreviewDialog(preview) {
+  async showOrganizePreviewDialog(preview = {}) {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -1923,7 +1968,13 @@ class OptionsManager {
       aiApiUrl.value = this.settings.aiApiUrl || '';
       aiApiUrl.placeholder = defaultUrl || '';
     }
-    if (aiModel) aiModel.value = this.settings.aiModel || '';
+    if (aiModel) {
+      if (aiModel.tagName === 'INPUT') {
+        aiModel.value = this.settings.aiModel || '';
+      } else if (aiModel.tagName === 'SELECT') {
+        aiModel.value = this.settings.aiModel || '';
+      }
+    }
     if (maxTokensInput) maxTokensInput.value = (this.settings.maxTokens ?? 8192);
     if (aiBatchSizeInput) aiBatchSizeInput.value = (this.settings.aiBatchSize ?? 120);
     if (aiConcurrencyInput) aiConcurrencyInput.value = (this.settings.aiConcurrency ?? 3);
@@ -2712,7 +2763,7 @@ class OptionsManager {
   async testAiConnection() {
     const testBtn = document.getElementById('testAiConnection');
     const resultSpan = document.getElementById('testResult');
-    
+
     testBtn.disabled = true;
     testBtn.innerHTML = '<span class="loading"></span> 测试中...';
     resultSpan.textContent = '';
@@ -2720,6 +2771,15 @@ class OptionsManager {
     try {
       const { aiProvider, aiApiKey, aiApiUrl, aiModel } = this.settings;
       const p = String(aiProvider || '').toLowerCase();
+
+      // 详细日志：当前配置
+      console.log('[AI Test] === 开始测试AI连接 ===');
+      console.log('[AI Test] 当前配置:', {
+        provider: aiProvider,
+        apiUrl: aiApiUrl,
+        model: aiModel,
+        hasApiKey: !!aiApiKey
+      });
       if (p === 'ollama') {
         if (!aiApiUrl || !aiModel) {
           throw new Error('请填写 API 端点，并选择模型');
@@ -2735,11 +2795,16 @@ class OptionsManager {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
+      // 详细日志：请求信息
+      console.log('[AI Test] 测试端点:', testUrl);
+      console.log('[AI Test] 请求方法:', testUrl.endsWith('/models') || testUrl.endsWith('/api/tags') ? 'GET' : 'POST');
+
       const headers = {
         'Content-Type': 'application/json'
       };
       if (p !== 'ollama' && aiApiKey) {
         headers['Authorization'] = `Bearer ${aiApiKey}`;
+        console.log('[AI Test] 使用认证头: Bearer [API_KEY_HIDDEN]');
       }
 
       let res;
@@ -2748,17 +2813,23 @@ class OptionsManager {
         if (p === 'ollama') {
           // Ollama：优先 GET /api/tags；否则 POST /api/chat
           if (testUrl.endsWith('/api/tags')) {
+            console.log('[AI Test] 发送 Ollama GET 请求到 /api/tags');
             res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
           } else {
             const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+            console.log('[AI Test] 发送 Ollama POST 请求到:', aiApiUrl);
+            console.log('[AI Test] 请求体:', body);
             res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
           }
         } else {
           // OpenAI/DeepSeek：/v1/models 用 GET；否则 POST /chat/completions
           if (testUrl.endsWith('/models')) {
+            console.log('[AI Test] 发送 OpenAI/DeepSeek GET 请求到:', testUrl);
             res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
           } else {
             const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+            console.log('[AI Test] 发送 OpenAI/DeepSeek POST 请求到:', aiApiUrl);
+            console.log('[AI Test] 请求体:', body);
             res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
           }
         }
@@ -2767,28 +2838,99 @@ class OptionsManager {
       }
 
       if (!res || !res.ok) {
+        // 详细日志：请求失败信息
+        console.log('[AI Test] === 请求失败 ===');
+        console.log('[AI Test] HTTP状态:', res?.status, res?.statusText);
+        console.log('[AI Test] 响应头:', res ? Object.fromEntries(res.headers.entries()) : null);
+
         let msg = res ? `${res.status} ${res.statusText}` : '网络错误或超时';
         try {
           const data = await res.json();
+          console.log('[AI Test] 错误响应:', data);
           const errMsg = (data && (data.error?.message || data.message)) || '';
-          if (errMsg) msg += `: ${errMsg}`;
-        } catch {}
+          if (errMsg) {
+            msg += `: ${errMsg}`;
+            console.log('[AI Test] 提取的错误消息:', errMsg);
+          }
+        } catch (e) {
+          console.log('[AI Test] 解析错误响应失败:', e);
+        }
         throw new Error(msg);
       }
 
+      // 详细日志：请求成功信息
+      console.log('[AI Test] === 请求成功 ===');
+      console.log('[AI Test] HTTP状态:', res.status, res.statusText);
+      console.log('[AI Test] 响应头:', Object.fromEntries(res.headers.entries()));
+
       // 简单检查响应结构
+      let responseData = null;
+      let parseError = null;
+
       try {
-        const data = await res.json();
-        const looksOk = Array.isArray(data?.data) || Array.isArray(data?.choices);
+        responseData = await res.json();
+        console.log('[AI Test] 原始响应数据:', responseData);
+
+        const looksOk = Array.isArray(responseData?.data) || Array.isArray(responseData?.choices);
         if (!looksOk) {
+          console.log('[AI Test] 响应格式检查失败，不是预期的数组结构');
           throw new Error('响应格式不符合预期');
         }
+
+        console.log('[AI Test] 响应格式检查通过');
       } catch (e) {
-        // 有的返回没有 body（如 204），也视作成功
+        parseError = e;
+        console.log('[AI Test] 解析响应数据失败:', e);
+
+        // 检查是否是 HTML 响应（最常见的问题）
+        if (e instanceof SyntaxError && e.message.includes('<!DOCTYPE')) {
+          // 直接处理 HTML 响应，避免调用 extractHtmlError 函数，防止递归错误
+          const responseText = await res.text();
+          console.log('[AI Test] === 检测到 HTML 响应，非 JSON 数据 ===');
+          console.log('[AI Test] HTML 原始响应:', responseText);
+
+          // 提供更清晰的错误信息
+          const htmlErrorMessage = `API 返回 HTML 错误页面。请检查：1) API 端点是否正确 2) API Key 是否有效 3) 网络连接是否正常 4) 服务是否可用。详情：${e.message}`;
+          console.log('[AI Test] === 连接测试失败（HTML 错误） ===');
+          console.log('[AI Test] 解决建议: 请检查 API 端点配置，确认 API Key 有效性，或尝试其他网络环境后重试');
+
+          // 重新抛出错误
+          const enhancedError = new Error(htmlErrorMessage);
+          throw enhancedError;
+        } else {
+          console.log('[AI Test] 某些API返回空响应（如204），视为正常');
+        }
       }
 
-      resultSpan.textContent = '连接成功';
-      resultSpan.className = 'test-result success';
+      // 只有在成功解析响应且没有解析错误时才显示成功
+      if (responseData && !parseError) {
+        resultSpan.textContent = '连接成功';
+        resultSpan.className = 'test-result success';
+        console.log('[AI Test] === 连接测试成功 ===');
+      } else {
+        // 构建详细的错误信息
+        let errorMessage = '连接失败';
+
+        if (parseError) {
+          if (e instanceof SyntaxError && e.message.includes('<!DOCTYPE')) {
+            errorMessage = 'API 返回了 HTML 错误页面，可能原因：1)API 端点错误 2)API Key 无效 3)服务不可用。请检查配置和网络连接';
+            console.log('[AI Test] === 连接测试失败（HTML 响应） ===');
+          } else {
+            errorMessage += `: 解析响应失败 - ${parseError.message}`;
+            console.log('[AI Test] === 连接测试失败（解析错误） ===');
+          }
+        } else if (!responseData) {
+          errorMessage += ': 响应为空';
+          console.log('[AI Test] === 连接测试失败（空响应） ===');
+        } else {
+          errorMessage += ': 响应格式错误';
+          console.log('[AI Test] === 连接测试失败（格式错误） ===');
+        }
+
+        resultSpan.textContent = errorMessage;
+        resultSpan.className = 'test-result error';
+        throw new Error(errorMessage);
+      }
     } catch (error) {
       resultSpan.textContent = `连接失败: ${error.message}`;
       resultSpan.className = 'test-result error';
@@ -2796,6 +2938,59 @@ class OptionsManager {
       testBtn.disabled = false;
       testBtn.textContent = '测试连接';
     }
+  }
+
+  // 专门处理 HTML 响应的检测函数
+  function isHtmlResponse(text) {
+    if (!text) return false;
+    const trimmedText = text.trim().toLowerCase();
+    return trimmedText.startsWith('<!doctype') ||
+           trimmedText.includes('<html') ||
+           trimmedText.includes('<!doctype html');
+  }
+
+  // 获取 HTML 响应的错误信息
+  function extractHtmlError(htmlText) {
+    if (htmlText.includes('403') || htmlText.includes('forbidden')) {
+      return {
+        type: 'AUTHENTICATION_ERROR',
+        message: 'API Key 无效、权限不足或账户被限制',
+        suggestions: ['检查 API Key', '确认账户权限', '查看 API 使用限额']
+      };
+    }
+    if (htmlText.includes('404') || htmlText.includes('not found')) {
+      return {
+        type: 'NOT_FOUND',
+        message: 'API 端点不存在或服务不可用',
+        suggestions: ['检查 API URL', '确认服务状态', '尝试备用端点']
+      };
+    }
+    if (htmlText.includes('401') || htmlText.includes('unauthorized')) {
+      return {
+        type: 'UNAUTHORIZED',
+        message: 'API Key 无效或已过期',
+        suggestions: ['更新 API Key', '检查账户状态', '确认订阅有效']
+      };
+    }
+    if (htmlText.includes('429') || htmlText.includes('too many requests')) {
+      return {
+        type: 'RATE_LIMIT',
+        message: '请求频率过高，已被限流',
+        suggestions: ['降低请求频率', '等待后重试', '升级 API 计划']
+      };
+    }
+    if (htmlText.includes('cloudflare') || htmlText.includes('challenge')) {
+      return {
+        type: 'FIREWALL',
+        message: '被防火墙或安全系统拦截',
+        suggestions: ['检查网络环境', '尝试其他网络', '联系技术支持']
+      };
+    }
+    return {
+      type: 'UNKNOWN_ERROR',
+      message: 'API 返回了未知错误页面',
+      suggestions: ['检查 API 配置', '确认服务状态', '查看官方文档']
+    };
   }
 
   // 导出备份
@@ -3237,14 +3432,51 @@ class OptionsManager {
     const aiModel = document.getElementById('aiModel');
     if (!aiModel) return;
     const provider = this.settings.aiProvider || 'openai';
+
+    // 对于自定义提供商，使用文本输入框
+    if (provider === 'custom') {
+      // 如果当前是select元素，改为input
+      if (aiModel.tagName === 'SELECT') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'aiModel';
+        input.placeholder = '例如：gpt-4, claude-3-sonnet, deepseek-chat';
+        // 保留原有类名和值
+        input.className = aiModel.className || '';
+        input.value = this.settings.aiModel || '';
+        aiModel.parentNode.replaceChild(input, aiModel);
+
+        // 绑定输入事件
+        input.addEventListener('input', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      }
+      return;
+    }
+
+    // 对于预设提供商，使用原来的select逻辑
+    if (aiModel.tagName === 'INPUT') {
+      const select = document.createElement('select');
+      select.id = 'aiModel';
+      // 保留原有类名和值
+      select.className = aiModel.className || '';
+      const currentValue = aiModel.value;
+      aiModel.parentNode.replaceChild(select, aiModel);
+      aiModel = select;
+      this.settings.aiModel = currentValue;
+    }
+
     let models = [];
     if (provider === 'openai') {
       models = [
         { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (推荐)' },
         { value: 'gpt-4', label: 'GPT-4' },
-        { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }
+        { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+        { value: 'gpt-4o', label: 'GPT-4O' },
+        { value: 'gpt-4o-mini', label: 'GPT-4O Mini' }
       ];
-      if (!['gpt-3.5-turbo','gpt-4','gpt-4-turbo'].includes(this.settings.aiModel)) {
+      if (!['gpt-3.5-turbo','gpt-4','gpt-4-turbo','gpt-4o','gpt-4o-mini'].includes(this.settings.aiModel)) {
         this.settings.aiModel = 'gpt-3.5-turbo';
       }
     } else if (provider === 'deepseek') {
@@ -3477,6 +3709,9 @@ Return only a valid JSON object strictly following the above format — no markd
     if (p === 'ollama') {
       return 'http://localhost:11434/api/chat';
     }
+    if (p === 'custom') {
+      return 'https://openrouter.ai/api/v1/chat/completions';
+    }
     return '';
   }
 
@@ -3493,6 +3728,7 @@ Return only a valid JSON object strictly following the above format — no markd
         return apiUrl;
       }
     }
+    // 自定义提供商也使用 OpenAI 标准的 /v1/models 端点
     try {
       const u = new URL(apiUrl);
       const path = u.pathname;
@@ -3510,21 +3746,30 @@ Return only a valid JSON object strictly following the above format — no markd
   // 构建最小测试请求体（仅在需要 POST 时）
   buildTestPayload(provider, model) {
     const p = (provider || '').toLowerCase();
+
+    // 详细日志：构建测试载荷
+    console.log('[AI Test] 构建测试载荷:', { provider, model });
+
     if (p === 'ollama') {
-      return {
+      const payload = {
         model,
         messages: [{ role: 'user', content: 'ping' }],
         stream: false,
         options: { num_predict: 1, temperature: 0 }
       };
+      console.log('[AI Test] Ollama 测试载荷:', payload);
+      return payload;
     }
+
     // OpenAI/DeepSeek 通用兼容体
-    return {
+    const payload = {
       model,
       messages: [{ role: 'user', content: 'ping' }],
       max_tokens: 1,
       temperature: 0
     };
+    console.log('[AI Test] OpenAI/DeepSeek 测试载荷:', payload);
+    return payload;
   }
 
   // 设置头部与底部的版本号显示

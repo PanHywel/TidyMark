@@ -1,0 +1,6 @@
+{
+  "appName": { "message": "TidyMark" },
+  "appShortName": { "message": "TidyMark" },
+  "appDesc": { "message": "智能書籤整理：自動分類、失效檢測、歸檔與備份/雲同步。" },
+  "actionTitle": { "message": "TidyMark - 書籤管理" }
+}
