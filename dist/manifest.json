@@ -1,0 +1,71 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_appName__",
+  "short_name": "__MSG_appShortName__",
+  "version": "1.4.23",
+  "description": "__MSG_appDesc__",
+  "default_locale": "en",
+  
+  "permissions": [
+    "bookmarks",
+    "storage",
+    "downloads",
+    "activeTab",
+    "alarms",
+    "contextMenus",
+    "notifications",
+    "search"
+  ],
+  "host_permissions": [
+    "https://*.bing.com/*",
+    "https://geocoding-api.open-meteo.com/*",
+    "https://api.open-meteo.com/*",
+    "https://60s.viki.moe/*",
+    "https://60api.09cdn.xyz/*",
+    "https://60s.zeabur.app/*",
+    "https://60s.crystelf.top/*",
+    "https://cqxx.site/*",
+    "https://api.yanyua.icu/*",
+    "https://60s.tmini.net/*",
+    "https://60s.7se.cn/*",
+    "https://api.github.com/*",
+    "https://raw.githubusercontent.com/*"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>",
+    "http://localhost:*/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*"
+  ],
+  
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  
+  "background": {
+    "service_worker": "src/background/index.js",
+    "type": "module"
+  },
+  
+  "options_page": "src/pages/options/index.html",
+  "chrome_url_overrides": {
+    "newtab": "src/pages/newtab/index.html"
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#764ba2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f093fb;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="2" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="24" cy="24" r="21" fill="url(#grad1)" stroke="#fff" stroke-width="1.5" filter="url(#shadow)"/>
+  
+  <!-- 主书签图标 -->
+  <path d="M12 9 C12 7.5 13.5 6 15 6 L33 6 C34.5 6 36 7.5 36 9 L36 39 L24 30 L12 39 Z" 
+        fill="#fff" stroke="none"/>
+  
+  <!-- 整理图标 - 齿轮 -->
+  <g transform="translate(32, 14)">
+    <circle cx="0" cy="0" r="6" fill="#ffd700" stroke="#fff" stroke-width="1"/>
+    <path d="M-3,-3 L3,3 M3,-3 L-3,3" stroke="#764ba2" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="2" fill="#764ba2"/>
+  </g>
+  
+  <!-- 分类线条 -->
+  <line x1="15" y1="12" x2="30" y2="12" stroke="#e0e7ff" stroke-width="1.5"/>
+  <line x1="15" y1="16" x2="27" y2="16" stroke="#e0e7ff" stroke-width="1.5"/>
+  <line x1="15" y1="20" x2="24" y2="20" stroke="#e0e7ff" stroke-width="1.5"/>
+  <line x1="15" y1="24" x2="21" y2="24" stroke="#e0e7ff" stroke-width="1.5"/>
+  
+  <!-- 小点装饰 -->
+  <circle cx="18" cy="30" r="1" fill="#e0e7ff"/>
+  <circle cx="21" cy="33" r="1" fill="#e0e7ff"/>
+  <circle cx="24" cy="36" r="1" fill="#e0e7ff"/>
+</svg>

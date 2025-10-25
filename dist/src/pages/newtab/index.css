@@ -1,0 +1,509 @@
+/* 现代、干净风格，暗色/浅色自适应 */
+:root {
+  --bg: #0f1115;
+  --fg: #e6e8ea;
+  --muted: #9aa0a6;
+  --card: #151922;
+  --border: #232838;
+  --accent: #4f8cff;
+  --accent-contrast: #ffffff;
+  --shadow: 0 8px 24px rgba(0,0,0,0.25);
+  /* 玻璃拟态（暗色，继续下调） */
+  --glass-bg: rgba(0,0,0,0.12);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  /* 非聚焦时透明度（分离：搜索框、书签列表） */
+  --search-unfocused-opacity: 0.86;
+  --bookmarks-unfocused-opacity: 0.86;
+  /* 非聚焦时透明度（新增：60s栏目） */
+  --sixty-unfocused-opacity: 0.86;
+  /* 非聚焦时透明度（新增：热门栏目） */
+  --top-visited-unfocused-opacity: 0.86;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fa;
+    --fg: #374151; /* 更柔和的浅色主题前景色 */
+    --muted: #6b7280;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --accent: #2563eb;
+    --accent-contrast: #ffffff;
+    --shadow: 0 8px 24px rgba(0,0,0,0.08);
+    /* 玻璃拟态（浅色，继续下调） */
+    --glass-bg: rgba(0,0,0,0.08);
+    --glass-border: rgba(255,255,255,0.06);
+    --glass-shadow: 0 10px 24px rgba(0,0,0,0.08);
+  }
+}
+
+/* 手动覆盖主题（优先级高于系统） */
+:root[data-theme="dark"] {
+  --bg: #0f1115;
+  --fg: #e6e8ea;
+  --muted: #9aa0a6;
+  --card: #151922;
+  --border: #232838;
+  --accent: #4f8cff;
+  --accent-contrast: #ffffff;
+  --shadow: 0 8px 24px rgba(0,0,0,0.25);
+}
+
+:root[data-theme="light"] {
+  --bg: #f7f8fa;
+  --fg: #374151; /* 更柔和的浅色主题前景色 */
+  --muted: #6b7280;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --accent: #2563eb;
+  --accent-contrast: #ffffff;
+  --shadow: 0 8px 24px rgba(0,0,0,0.08);
+  --glass-bg: rgba(0,0,0,0.08);
+  --glass-border: rgba(255,255,255,0.06);
+  --glass-shadow: 0 10px 24px rgba(0,0,0,0.08);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  overflow-x: hidden; /* 防止横向滚动 */
+  min-height: 100vh; /* 保证视口高度铺满 */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 统一支持 HTML hidden 属性，不被组件 display 覆盖 */
+[hidden] { display: none !important; }
+
+/* 小屏与移动端禁用 fixed，避免滚动时出现“变形/抖动” */
+@media (max-width: 768px) {
+  body {
+    background-attachment: scroll;
+    background-size: cover;
+    background-position: center;
+  }
+}
+
+.page {
+  width: 100%;
+  max-width: 80%;
+  margin: 0 auto;
+  padding: 32px 24px 24px;
+  min-width: 0;
+  position: relative; /* 让右上角工具条基于页面定位 */
+  z-index: 1; /* 置于壁纸暗层之上 */
+}
+
+.header { text-align: center; margin-bottom: 28px; position: relative; }
+.header-content { display: inline-block; position: relative; }
+.time {
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.subtitle { color: var(--muted); margin-top: 8px; }
+.time { text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+.subtitle { text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+/* 外部搜索提示已移除，保留输入框占位符提示 */
+.topbar { position: absolute; top: 12px; right: 24px; z-index: 2; }
+.theme-dropdown { position: relative; }
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 140px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 6px;
+}
+.dropdown-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.dropdown-item:hover { background: rgba(255,255,255,0.06); }
+.theme-toggle { display: flex; gap: 8px; align-items: center; }
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  cursor: pointer;
+}
+.theme-btn:hover { filter: brightness(1.05); }
+.theme-btn.active { outline: 2px solid var(--accent); }
+.header-controls { display: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.theme-select {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--fg);
+  padding: 8px 12px;
+  min-width: 140px;
+}
+
+.main { display: grid; gap: 24px; min-width: 0; }
+
+
+/* 外部搜索提示已移除 */
+
+/* 天气摘要条 */
+.weather-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: 8px; /* 与副标题保持间距 */
+  color: var(--fg);
+  cursor: pointer; /* 可点击指示 */
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.weather-icon {
+  width: 20px;
+  height: 20px;
+}
+.weather-main {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.weather-city {
+  font-weight: 600;
+}
+.weather-temp {
+  font-weight: 600;
+}
+.weather-desc {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.weather-refresh {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.weather-refresh:hover { color: var(--accent); }
+
+.search {
+  display: grid;
+  grid-template-columns: 1fr auto; /* 输入 + 按钮 */
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+  transition: opacity 160ms ease;
+}
+
+/* 非聚焦态统一调暗（不影响交互） */
+.search:not(:hover):not(:focus-within) { opacity: var(--search-unfocused-opacity); }
+.bookmarks { transition: opacity 160ms ease; }
+.bookmarks:not(:hover) { opacity: var(--bookmarks-unfocused-opacity); }
+
+/* 60s 栏目非悬停时的透明度（可配置） */
+#sixty-seconds { transition: opacity 160ms ease; }
+#sixty-seconds:not(:hover) { opacity: var(--sixty-unfocused-opacity); }
+/* 热门栏目透明度控制 */
+#top-visited:not(:hover) { opacity: var(--top-visited-unfocused-opacity); }
+.search input {
+  appearance: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 16px;
+  padding: 10px 12px;
+}
+.search input::placeholder { color: var(--muted); }
+.search button {
+  appearance: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: var(--card);
+  color: var(--fg);
+  height: 36px;
+  width: 36px; /* 改为方形按钮承载图标 */
+  padding: 0; /* 去除文字内边距 */
+  border-radius: 999px;
+  font-weight: 600;
+  display: inline-flex; /* 居中图标 */
+  align-items: center;
+  justify-content: center;
+}
+.search button:hover { filter: brightness(1.05); border-color: var(--accent); }
+.search button:focus { outline: none; box-shadow: 0 0 0 2px rgba(79,140,255,0.24); }
+/* 图标显示优化 */
+.search button svg { display: block; }
+
+/* 副标题中的 60s 提示（与天气并排） */
+/* 副标题主文案可被 60s 提示替换 */
+#subtitle-main { display: block; }
+
+/* 60s 读懂世界样式 */
+.sixty-body {
+  display: grid;
+  grid-template-columns: 200px 1fr; /* 封面更大 + 内容 */
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+/* 整体作为链接时的统一悬浮效果 */
+.sixty-body.is-link { cursor: pointer; }
+.sixty-body.is-link:hover { filter: brightness(1.05); }
+.sixty-body.is-link:hover .sixty-news span:nth-child(2) { text-decoration: underline; }
+.sixty-cover {
+  width: 100%;
+  height: 140px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.sixty-content { display: grid; gap: 8px; }
+.sixty-meta { color: var(--muted); font-size: 12px; }
+.sixty-tip { color: var(--muted); font-size: 12px; }
+.sixty-news {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.sixty-news-link {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 8px;
+  align-items: start;
+  text-decoration: none;
+  color: inherit;
+}
+.sixty-news-link:hover { filter: brightness(1.08); }
+.sixty-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: 7px;
+}
+.sixty-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+.section-head-right { display: flex; align-items: center; gap: 10px; }
+/* 原文按钮已移除，保留日期右对齐容器 */
+
+@media (max-width: 900px) {
+  .sixty-body { grid-template-columns: 1fr; }
+  .sixty-cover { height: 160px; }
+}
+
+.bookmarks { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; width: 100%; min-width: 0; }
+@media (max-width: 900px) { .bookmarks { grid-template-columns: 1fr; } }
+
+.bookmarks-placeholder {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 6px 0 0;
+  text-align: center;
+}
+
+.section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  max-width: 100%;
+  min-width: 0; /* 允许内容在网格中收缩，避免撑宽 */
+  transition: box-shadow 120ms ease, opacity 120ms ease;
+  position: relative; /* 为明确的上下插入条提供定位上下文 */
+}
+.section.dragging { opacity: 0.6; }
+.section.drop-before { box-shadow: 0 0 0 1px rgba(79,140,255,0.18); }
+.section.drop-after { box-shadow: 0 0 0 1px rgba(79,140,255,0.18); }
+
+/* 更明确的落位提示：顶部/底部插入条 */
+.section.drop-before::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 6px;
+  border-radius: 6px 6px 0 0;
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.section.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 6px;
+  border-radius: 0 0 6px 6px;
+  background: var(--accent);
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.08);
+}
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+}
+.section-header:active { cursor: grabbing; }
+.section-head-left { display: flex; align-items: center; gap: 8px; }
+.drag-handle {
+  width: 24px; height: 24px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--muted);
+  cursor: grab;
+}
+.drag-handle:hover { filter: brightness(1.05); color: var(--fg); }
+.drag-handle:active { cursor: grabbing; }
+.section-title { font-weight: 600; }
+.section-count { color: var(--muted); font-size: 12px; }
+
+/* 拖拽过程中防止误选中文本 */
+body.drag-active { user-select: none; }
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  min-width: 0;
+  max-height: clamp(240px, 40vh, 420px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.list::-webkit-scrollbar { width: 8px; }
+.list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.list::-webkit-scrollbar-thumb:hover { background: rgba(79,140,255,0.35); }
+.list::-webkit-scrollbar-track { background: transparent; }
+.item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto; /* 允许中间列收缩 */
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  min-width: 0; /* 修复网格项溢出 */
+  text-decoration: none; /* 当 .item 为链接时去掉下划线 */
+  color: inherit; /* 链接文本颜色继承 */
+}
+.item:hover { background: rgba(255,255,255,0.04); }
+.bullet {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 6px;
+}
+.item-main { min-width: 0; }
+
+.title {
+  overflow: hidden;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* 多行省略 */
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.url { color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+.open-btn { color: var(--accent); text-decoration: none; font-weight: 600; white-space: nowrap; }
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  color: var(--muted);
+}
+.brand { display: flex; align-items: center; gap: 8px; }
+ .brand img { width: 18px; height: 18px; }
+
+/* 移除暗层，仅保留文字阴影以增强可读性 */
+.header-content::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  transform: none;
+  top: -8px;
+  /* 去掉固定宽度，使用左右边距来自适应扩展 */
+  height: calc(100% + 16px);
+  border-radius: 16px;
+  z-index: -1; /* 放在内容之后，不遮挡文字 */
+  pointer-events: none; /* 不影响点击等交互 */
+  display: none; /* 默认不显示，仅壁纸时显示 */
+}
+
+/* 有壁纸时给 Header 加一层轻薄玻璃拟态背景（不覆盖整页） */
+body.has-wallpaper .header-content::before {
+  display: block;
+  background: var(--glass-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* 明亮主题：有壁纸时，Header 文本改为亮色以提高适配性 */
+@media (prefers-color-scheme: light) {
+  body.has-wallpaper .header { color: #ffffff; }
+  /* 覆盖副标题、天气、搜索提示为亮色 */
+  body.has-wallpaper .subtitle,
+  body.has-wallpaper .weather-inline,
+  body.has-wallpaper .weather-inline .weather-desc,
+  body.has-wallpaper .weather-refresh { color: rgba(255,255,255,0.9); }
+}
+
+:root[data-theme="light"] body.has-wallpaper .header { color: #ffffff; }
+/* 手动明亮主题下同样覆盖为亮色 */
+:root[data-theme="light"] body.has-wallpaper .subtitle,
+:root[data-theme="light"] body.has-wallpaper .weather-inline,
+:root[data-theme="light"] body.has-wallpaper .weather-inline .weather-desc,
+:root[data-theme="light"] body.has-wallpaper .weather-refresh { color: rgba(255,255,255,0.9); }
+
+/* 通用：有壁纸时提升副标题与天气文字对比度（所有主题） */
+body.has-wallpaper .subtitle,
+body.has-wallpaper #subtitle-main,
+body.has-wallpaper .weather-inline,
+body.has-wallpaper .weather-inline .weather-desc,
+body.has-wallpaper .weather-refresh {
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}

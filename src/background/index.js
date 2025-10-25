@@ -1973,6 +1973,48 @@ Return only a valid JSON object strictly following the above format — no markd
   );
 }
 
+// 验证模型与提供商的兼容性
+function validateModelForProvider(model, provider) {
+  if (!model || !provider) {
+    return { valid: false, error: '模型和提供商参数不能为空' };
+  }
+
+  const modelName = String(model).trim().toLowerCase();
+  const providerName = String(provider).trim().toLowerCase();
+
+  // 检查 reasoner 类思考模型（返回格式不符合扩展期望）
+  if (modelName.includes('reasoner')) {
+    return { valid: false, error: '当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。' };
+  }
+
+  // 根据提供商验证模型
+  switch (providerName) {
+    case 'deepseek':
+      // DeepSeek 官方 API 只支持特定模型
+      if (!['deepseek-chat'].includes(modelName)) {
+        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-chat"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
+      }
+      break;
+    case 'openai':
+      const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+      if (!openaiModels.includes(modelName)) {
+        return { valid: false, error: `OpenAI API 不支持模型 "${model}"。支持的模型: ${openaiModels.join(', ')}` };
+      }
+      break;
+    case 'ollama':
+      // Ollama 支持任意模型，跳过验证
+      break;
+    case 'custom':
+      // 自定义提供商支持任意模型，包括所有 OpenAI 兼容格式
+      // 不进行模型验证，让用户自由配置 API 端点和模型
+      break;
+    default:
+      return { valid: false, error: `未知的AI提供商: "${provider}"` };
+  }
+
+  return { valid: true };
+}
+
 // 调用AI服务
 async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt }) {
   // 屏蔽不兼容的「reasoner」思考型模型（返回格式不符合本扩展期望）
@@ -1983,9 +2025,32 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
     }
   } catch (_) { }
   const p = String(provider || '').toLowerCase();
+
+  // 验证模型配置
+  const validationResult = validateModelForProvider(model, provider);
+  if (!validationResult.valid) {
+    throw new Error(validationResult.error);
+  }
   let url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.openai.com/v1/chat/completions';
   let headers = { 'Content-Type': 'application/json' };
   let body;
+
+  console.log('[AI Debug] === requestAI 开始 ===');
+  console.log('[AI Debug] 请求参数:', {
+    provider,
+    url,
+    model,
+    maxTokens,
+    promptLength: prompt.length,
+    hasApiKey: !!apiKey
+  });
+
+  // 详细日志：验证结果
+  if (!validationResult.valid) {
+    console.log('[AI Debug] === 模型验证失败 ===');
+    console.log('[AI Debug] 验证错误:', validationResult.error);
+  }
+
   if (p === 'ollama') {
     url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'http://localhost:11434/api/chat';
     // Ollama 本地服务无需鉴权
@@ -2002,9 +2067,11 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    console.log('[AI Debug] 使用 Ollama 协议');
   } else {
-    // OpenAI/DeepSeek 兼容接口
+    // OpenAI/DeepSeek/自定义提供商 兼容接口
     headers['Authorization'] = `Bearer ${apiKey}`;
+    console.log('[AI Debug] 使用认证头: Bearer [API_KEY_HIDDEN]');
     body = {
       model,
       max_tokens: maxTokens || 8192,
@@ -2014,23 +2081,50 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    console.log('[AI Debug] 使用 OpenAI 兼容协议');
   }
 
-  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`AI请求失败: ${resp.status} ${text}`);
-  }
-  const data = await resp.json();
-  // 提取内容为字符串
+  console.log('[AI Debug] 最终请求URL:', url);
+  console.log('[AI Debug] 请求体:', JSON.stringify(body, null, 2));
+
   try {
-    if (p === 'ollama') {
-      return (data && data.message && typeof data.message.content === 'string') ? data.message.content : '';
+    const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+
+    console.log('[AI Debug] HTTP响应状态:', resp.status);
+    console.log('[AI Debug] HTTP响应头:', Object.fromEntries(resp.headers.entries()));
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error('[AI Debug] API请求失败详情:', {
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: Object.fromEntries(resp.headers.entries()),
+        responseBody: text
+      });
+      throw new Error(`AI请求失败: ${resp.status} ${text}`);
     }
-    const content = data.choices?.[0]?.message?.content;
-    return content || '';
-  } catch (e) {
-    throw new Error('AI响应解析失败');
+
+    const data = await resp.json();
+    console.log('[AI Debug] API原始响应:', JSON.stringify(data, null, 2));
+
+    // 提取内容为字符串
+    try {
+      if (p === 'ollama') {
+        const content = (data && data.message && typeof data.message.content === 'string') ? data.message.content : '';
+        console.log('[AI Debug] Ollama 解析内容:', content);
+        return content || '';
+      }
+      const content = data.choices?.[0]?.message?.content;
+      console.log('[AI Debug] 标准API解析内容:', content);
+      return content || '';
+    } catch (e) {
+      console.error('[AI Debug] 响应解析失败:', e);
+      console.error('[AI Debug] 响应数据:', data);
+      throw new Error('AI响应解析失败');
+    }
+  } catch (error) {
+    console.error('[AI Debug] fetch错误:', error);
+    throw error;
   }
 }
 
@@ -2125,11 +2219,26 @@ async function organizeByPlan(plan) {
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
 async function organizePlanByAiInference(scopeFolderIds = []) {
   // 读取设置以获取 AI 参数和语言
-  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'aiBatchSize', 'aiConcurrency']);
+  const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
+
+  // === AI推理调试日志开始 ===
+  console.log('[AI Debug] === AI推理调试开始 ===');
+  console.log('[AI Debug] 当前设置:', {
+    enableAI: settings.enableAI,
+    provider: settings.aiProvider,
+    apiUrl: settings.aiApiUrl,
+    model: settings.aiModel,
+    apiKey: settings.aiApiKey ? `sk-****${settings.aiApiKey.slice(-6)}` : '未设置',
+    maxTokens: settings.maxTokens,
+    classificationLanguage: settings.classificationLanguage,
+    scopeFolderIds: scopeFolderIds
+  });
   if (!settings.enableAI) {
+    console.error('[AI Debug] AI 未启用');
     throw new Error('AI 未启用');
   }
   if ((String(settings.aiProvider || '').toLowerCase() !== 'ollama') && !settings.aiApiKey) {
+    console.error('[AI Debug] AI API Key 未配置');
     throw new Error('AI API Key 未配置');
   }
 
@@ -2155,6 +2264,11 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     flat.forEach(b => flatRaw.push({ ...b, _originScopeId: scopeId }));
   }
 
+  // 调试日志：书签处理
+  console.log('[AI Debug] 原始书签总数:', flattenBookmarks(bookmarksTrees).length);
+  console.log('[AI Debug] 过滤后有URL的书签数量:', flatRaw.length);
+  console.log('[AI Debug] 书签样例:', flatRaw.slice(0, 3).map(b => ({ id: b.id, title: b.title || '无标题', url: b.url || '无URL' })));
+
   const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
   const language = settings.classificationLanguage || 'auto';
 
@@ -2163,8 +2277,15 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3;
   const chunks = chunkArray(items, batchSize);
 
+  console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length });
+
   const tasks = chunks.map((chunk, idx) => async () => {
+    console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
+
     const prompt = await buildInferencePrompt({ language, items: chunk });
+    console.log(`[AI Debug] 批次 ${idx + 1} 提示词长度:`, prompt.length);
+    console.log(`[AI Debug] 批次 ${idx + 1} 提示词预览:`, prompt.substring(0, 200) + '...');
+
     const aiResult = await requestAIWithRetry({
       provider: settings.aiProvider || 'openai',
       apiUrl: settings.aiApiUrl || '',
@@ -2172,32 +2293,58 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
       model: settings.aiModel || 'gpt-3.5-turbo',
       maxTokens: settings.maxTokens || 8192,
       prompt
-    }, { retries: 2, baseDelayMs: 1200, label: `infer-${idx + 1}/${chunks.length}` });
+    }, { retries: 2, baseDelayMs: 1200, label: `infer-${idx+1}/${chunks.length}` });
+
+    console.log(`[AI Debug] 批次 ${idx + 1} AI原始响应:`, aiResult);
     const parsed = parseAiJsonContent(aiResult);
+    console.log(`[AI Debug] 批次 ${idx + 1} 解析结果:`, parsed);
+
     return parsed;
   });
 
   const results = await runPromisesWithConcurrency(tasks, concurrency);
+
+  console.log('[AI Debug] 所有批次处理完成，结果数量:', results.length);
+  console.log('[AI Debug] 所有批次结果:', results);
 
   // 合并分类与分配
   const allCategories = new Set();
   const assignments = [];
   const lowIds = new Set();
   for (const r of results) {
-    if (!r || !Array.isArray(r.assignments)) continue;
+    console.log('[AI Debug] 处理单个结果:', r);
+    if (!r || !Array.isArray(r.assignments)) {
+      console.log('[AI Debug] 跳过无效结果:', r);
+      continue;
+    }
     if (Array.isArray(r.categories)) {
       r.categories.forEach(c => { if (c && typeof c === 'string') allCategories.add(c); });
     }
     for (const a of r.assignments) {
       if (!a || !a.id || !a.to_key) continue;
       assignments.push(a);
+      allCategories.add(a.to_key);
       if (typeof a.confidence === 'number' && a.confidence < 0.5) lowIds.add(a.id);
     }
     const lows = (r.notes && Array.isArray(r.notes.low_confidence_items)) ? r.notes.low_confidence_items : [];
     lows.forEach(id => lowIds.add(id));
   }
 
+  console.log('[AI Debug] 合并后统计:', {
+    totalAssignments: assignments.length,
+    categoriesCount: allCategories.size,
+    lowConfidenceCount: lowIds.size,
+    allCategories: Array.from(allCategories)
+  });
+
   if (assignments.length === 0 || allCategories.size === 0) {
+    console.error('[AI Debug] AI推理结果为空或无有效分类');
+    console.error('[AI Debug] 详细状态:', {
+      assignmentsLength: assignments.length,
+      categoriesSize: allCategories.size,
+      resultsLength: results.length,
+      hasValidResults: results.some(r => r && Array.isArray(r.assignments))
+    });
     throw new Error('AI 推理结果为空或无有效分类');
   }
 
@@ -2230,6 +2377,15 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   }
 
   plan.classified = Object.keys(plan.categories).reduce((sum, k) => sum + (k !== '其他' ? plan.categories[k].count : 0), 0);
+
+  console.log('[AI Debug] 最终计划结果:', {
+    total: plan.total,
+    classified: plan.classified,
+    categoriesCount: Object.keys(plan.categories).length,
+    categories: Object.keys(plan.categories),
+    detailsCount: plan.details.length
+  });
+
   // 附带元信息，便于前端确认时传递范围
   return { ...plan, meta: { scopeFolderIds: Array.isArray(scopeFolderIds) ? scopeFolderIds : [] } };
 }

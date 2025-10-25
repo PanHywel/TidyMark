@@ -1,3 +1,4 @@
+
 // options.js - 设置页面逻辑
 
 class OptionsManager {
@@ -75,7 +76,12 @@ class OptionsManager {
           // 整理范围（移除目标父目录）
           'organizeScopeFolderId',
           // 多选整理范围（新增）
-          'organizeScopeFolderIds'
+          'organizeScopeFolderIds',
+          // 新增：云端 WebDAV/GDrive 配置
+          'webdavUrl', 'webdavUsername', 'webdavPassword', 'webdavPath', 'webdavFormat', 'webdavDualUpload', 'webdavAutoSyncDaily', 'webdavLastAutoSyncDate',
+          'gdriveToken', 'gdriveFolderId', 'gdriveBaseName', 'gdriveFormat', 'gdriveDualUpload',
+          // 兼容：旧版坚果云（Nutstore）键
+          'nutstoreUrl', 'nutstoreUsername', 'nutstorePassword', 'nutstorePath'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -113,7 +119,12 @@ class OptionsManager {
           'deadScanDuplicates',
           'deadScanFolderId',
           'organizeScopeFolderId',
-          'organizeScopeFolderIds'
+          'organizeScopeFolderIds',
+          // 新增：云端 WebDAV/GDrive 配置
+          'webdavUrl', 'webdavUsername', 'webdavPassword', 'webdavPath', 'webdavFormat', 'webdavDualUpload', 'webdavAutoSyncDaily', 'webdavLastAutoSyncDate',
+          'gdriveToken', 'gdriveFolderId', 'gdriveBaseName', 'gdriveFormat', 'gdriveDualUpload',
+          // 兼容：旧版坚果云（Nutstore）键
+          'nutstoreUrl', 'nutstoreUsername', 'nutstorePassword', 'nutstorePath'
         ];
         
         keys.forEach(key => {
@@ -128,10 +139,26 @@ class OptionsManager {
         });
       }
 
+      // 兼容迁移：若未设置 WebDAV 且存在旧 Nutstore 键，将其迁移到 WebDAV
+      (() => {
+        const _webdavUrl = (result.webdavUrl || '').trim();
+        const _webdavUsername = (result.webdavUsername || '').trim();
+        const _webdavPassword = (result.webdavPassword || '').trim();
+        const _webdavPath = (result.webdavPath || '').trim();
+        const hasWebdav = !!(_webdavUrl || _webdavUsername || _webdavPassword || _webdavPath);
+        const hasNutstore = !!(result.nutstoreUrl || result.nutstoreUsername || result.nutstorePassword || result.nutstorePath);
+        if (!hasWebdav && hasNutstore) {
+          result.webdavUrl = String(result.nutstoreUrl || '');
+          result.webdavUsername = String(result.nutstoreUsername || '');
+          result.webdavPassword = String(result.nutstorePassword || '');
+          result.webdavPath = String(result.nutstorePath || 'tidymark/backups');
+        }
+      })();
+
       this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','ollama'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -214,7 +241,17 @@ class OptionsManager {
         // 多选整理范围（为空表示全部）
         organizeScopeFolderIds: Array.isArray(result.organizeScopeFolderIds)
           ? result.organizeScopeFolderIds.map(v => String(v))
-          : (result.organizeScopeFolderId ? [String(result.organizeScopeFolderId)] : [])
+          : (result.organizeScopeFolderId ? [String(result.organizeScopeFolderId)] : []),
+        // 云端：WebDAV
+        webdavUrl: (result.webdavUrl || '').trim(),
+        webdavUsername: (result.webdavUsername || '').trim(),
+        webdavPassword: (result.webdavPassword || '').trim(),
+        webdavPath: (result.webdavPath || 'tidymark/backups').trim(),
+        // 云端：Google Drive
+        gdriveToken: (result.gdriveToken || '').trim(),
+        gdriveFolderId: (result.gdriveFolderId || '').trim(),
+        gdriveBaseName: (result.gdriveBaseName || 'tidymark-backup').trim(),
+        gdriveFormat: ['json','html'].includes(result.gdriveFormat) ? result.gdriveFormat : 'json'
       };
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
@@ -263,7 +300,20 @@ class OptionsManager {
         deadTimeoutMs: 8000,
         deadIgnorePrivateIp: false,
         deadScanDuplicates: false,
-        deadScanFolderId: null
+        deadScanFolderId: null,
+        // 默认云端设置
+        webdavUrl: '',
+        webdavUsername: '',
+        webdavPassword: '',
+        webdavPath: 'tidymark/backups',
+        webdavFormat: 'json',
+        webdavDualUpload: false,
+        webdavAutoSyncDaily: false,
+        webdavLastAutoSyncDate: '',
+        gdriveToken: '',
+        gdriveFolderId: '',
+        gdriveBaseName: 'tidymark-backup',
+        gdriveFormat: 'json'
       };
       this.classificationRules = this.settings.classificationRules;
     }
@@ -272,6 +322,9 @@ class OptionsManager {
   // 保存设置
   async saveSettings() {
     try {
+      // 验证AI模型配置
+      this.validateAiModel();
+
       // 检查是否在Chrome扩展环境中
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         await chrome.storage.sync.set(this.settings);
@@ -285,6 +338,43 @@ class OptionsManager {
     } catch (error) {
     console.error((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败') + ':', error);
     this.showMessage((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败'), 'error');
+    }
+  }
+
+  // 验证AI模型配置
+  validateAiModel() {
+    const provider = String(this.settings.aiProvider || '').toLowerCase();
+    const model = String(this.settings.aiModel || '').trim();
+
+    if (!model) return; // 空模型名将使用默认值
+
+    let validModels = [];
+
+    switch (provider) {
+      case 'openai':
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        break;
+      case 'deepseek':
+        validModels = ['deepseek-chat'];
+        break;
+      case 'iflow':
+        validModels = ['deepseek-chat', 'deepseek-coder'];
+        break;
+      case 'ollama':
+        // Ollama 支持任意模型，不验证
+        return;
+      case 'custom':
+        // 自定义提供商支持任意模型，不验证
+        return;
+      default:
+        // 未知提供商，使用默认值
+        break;
+    }
+
+    if (validModels.length > 0 && !validModels.includes(model)) {
+      console.warn(`[AI设置] 模型 "${model}" 不适用于提供商 "${provider}"，正在重置为默认模型`);
+      this.settings.aiModel = validModels[0];
+      this.showMessage(`AI模型 "${model}" 不受支持，已重置为 "${validModels[0]}"`, 'warning');
     }
   }
 
@@ -353,10 +443,18 @@ class OptionsManager {
 
     const aiModel = document.getElementById('aiModel');
     if (aiModel) {
-      aiModel.addEventListener('change', (e) => {
-        this.settings.aiModel = e.target.value;
-        this.saveSettings();
-      });
+      // 根据当前元素类型绑定不同事件
+      if (aiModel.tagName === 'SELECT') {
+        aiModel.addEventListener('change', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      } else if (aiModel.tagName === 'INPUT') {
+        aiModel.addEventListener('input', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      }
     }
 
     // AI 提示词模板输入事件
@@ -847,7 +945,7 @@ class OptionsManager {
     const githubSyncBtn = document.getElementById('githubSyncBtn');
     if (githubSyncBtn) {
       githubSyncBtn.addEventListener('click', () => {
-        this.syncToCloud('github');
+        this.syncToGithub();
       });
     }
 
@@ -868,8 +966,191 @@ class OptionsManager {
     const quickGithubSyncBtn = document.getElementById('quickGithubSyncBtn');
     if (quickGithubSyncBtn) {
       quickGithubSyncBtn.addEventListener('click', () => {
-        this.syncToCloud('github');
+        const cloudProvider = document.getElementById('cloudProvider');
+        const pv = cloudProvider ? cloudProvider.value : 'github';
+        // 先切到同步页
         this.switchTab('sync');
+        // 根据当前选择的云执行
+        if (pv === 'github') {
+          this.syncToGithub();
+        } else {
+          const msg = '该云提供商的同步尚未实现';
+          this.showMessage(msg, 'warning');
+          const cloudStatusEl = document.getElementById('cloudSyncStatus');
+          if (cloudStatusEl) cloudStatusEl.textContent = msg;
+        }
+      });
+    }
+
+    // 配置页快速同步按钮
+    const configCloudSyncBtn = document.getElementById('configCloudSyncBtn');
+    if (configCloudSyncBtn) {
+      configCloudSyncBtn.addEventListener('click', () => {
+        const pvSel = document.getElementById('configCloudProvider');
+        const pv = pvSel ? pvSel.value : 'webdav';
+        const configStatusEl = document.getElementById('configSyncStatus');
+        if (configStatusEl) configStatusEl.textContent = '正在同步...';
+        this.syncToCloud(pv);
+      });
+    }
+
+    // 云备份提供商切换与按钮事件
+    const cloudProvider = document.getElementById('cloudProvider');
+    const webdavFields = document.getElementById('webdavFields');
+    const gdriveFields = document.getElementById('gdriveFields');
+    const githubFields = document.getElementById('githubFields');
+    const cloudSyncBtn = document.getElementById('cloudSyncBtn');
+    const cloudStatusEl = document.getElementById('cloudSyncStatus');
+    // 操作指南 details 容器
+    const guideGithub = document.getElementById('cloudGuideGithub');
+    const guideWebdav = document.getElementById('cloudGuideWebdav');
+    const guideGdrive = document.getElementById('cloudGuideGdrive');
+
+    // WebDAV/Nutstore 字段事件绑定与初始值
+    const webdavUrlInput = document.getElementById('webdavUrl');
+    const webdavUsernameInput = document.getElementById('webdavUsername');
+    const webdavPasswordInput = document.getElementById('webdavPassword');
+    const webdavPathInput = document.getElementById('webdavPath');
+
+    if (webdavUrlInput) {
+      webdavUrlInput.value = this.settings.webdavUrl || '';
+      webdavUrlInput.addEventListener('input', (e) => {
+        this.settings.webdavUrl = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (webdavUsernameInput) {
+      webdavUsernameInput.value = this.settings.webdavUsername || '';
+      webdavUsernameInput.addEventListener('input', (e) => {
+        this.settings.webdavUsername = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (webdavPasswordInput) {
+      webdavPasswordInput.value = this.settings.webdavPassword || '';
+      webdavPasswordInput.addEventListener('input', (e) => {
+        this.settings.webdavPassword = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (webdavPathInput) {
+      webdavPathInput.value = this.settings.webdavPath || 'tidymark/backups';
+      webdavPathInput.addEventListener('input', (e) => {
+        this.settings.webdavPath = e.target.value;
+        this.saveSettings();
+      });
+    }
+
+    const webdavFormatSelect = document.getElementById('webdavFormat');
+    if (webdavFormatSelect) {
+      webdavFormatSelect.value = this.settings.webdavFormat || 'json';
+      webdavFormatSelect.addEventListener('change', (e) => {
+        const val = String(e.target.value || 'json');
+        this.settings.webdavFormat = ['json','html'].includes(val) ? val : 'json';
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    const webdavDual = document.getElementById('webdavDualUpload');
+    if (webdavDual) {
+      webdavDual.checked = !!this.settings.webdavDualUpload;
+      webdavDual.addEventListener('change', (e) => {
+        this.settings.webdavDualUpload = !!e.target.checked;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    const webdavAutoDaily = document.getElementById('webdavAutoSyncDaily');
+    if (webdavAutoDaily) {
+      webdavAutoDaily.checked = !!this.settings.webdavAutoSyncDaily;
+      webdavAutoDaily.addEventListener('change', (e) => {
+        this.settings.webdavAutoSyncDaily = !!e.target.checked;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+
+    // Google Drive 字段事件绑定
+    const gdriveTokenEl = document.getElementById('gdriveToken');
+    const gdriveFolderIdEl = document.getElementById('gdriveFolderId');
+    const gdriveBaseNameEl = document.getElementById('gdriveBaseName');
+    const gdriveFormatEl = document.getElementById('gdriveFormat');
+    const gdriveDualEl = document.getElementById('gdriveDualUpload');
+
+    if (gdriveTokenEl) {
+      gdriveTokenEl.value = this.settings.gdriveToken || '';
+      gdriveTokenEl.addEventListener('input', (e) => {
+        this.settings.gdriveToken = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (gdriveFolderIdEl) {
+      gdriveFolderIdEl.value = this.settings.gdriveFolderId || '';
+      gdriveFolderIdEl.addEventListener('input', (e) => {
+        this.settings.gdriveFolderId = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (gdriveBaseNameEl) {
+      gdriveBaseNameEl.value = this.settings.gdriveBaseName || 'tidymark-backup';
+      gdriveBaseNameEl.addEventListener('input', (e) => {
+        this.settings.gdriveBaseName = e.target.value;
+        this.saveSettings();
+      });
+    }
+    if (gdriveFormatEl) {
+      gdriveFormatEl.value = this.settings.gdriveFormat || 'json';
+      gdriveFormatEl.addEventListener('change', (e) => {
+        const val = String(e.target.value || 'json');
+        this.settings.gdriveFormat = ['json','html'].includes(val) ? val : 'json';
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+    if (gdriveDualEl) {
+      gdriveDualEl.checked = !!this.settings.gdriveDualUpload;
+      gdriveDualEl.addEventListener('change', (e) => {
+        this.settings.gdriveDualUpload = !!e.target.checked;
+        this.saveSettings();
+        this.updateSyncConfig();
+      });
+    }
+
+    const updateCloudFieldsVisibility = () => {
+      const pv = cloudProvider ? cloudProvider.value : 'github';
+      if (githubFields) githubFields.style.display = (pv === 'github') ? '' : 'none';
+      if (webdavFields) webdavFields.style.display = (pv === 'webdav') ? '' : 'none';
+      if (gdriveFields) gdriveFields.style.display = (pv === 'gdrive') ? '' : 'none';
+      // 同步显示对应操作指南
+      if (guideGithub) guideGithub.style.display = (pv === 'github') ? '' : 'none';
+      if (guideWebdav) guideWebdav.style.display = (pv === 'webdav') ? '' : 'none';
+      if (guideGdrive) guideGdrive.style.display = (pv === 'gdrive') ? '' : 'none';
+      // 显示/隐藏 GitHub 配置卡片
+      const githubConfigCard = document.getElementById('githubConfigCard');
+      if (githubConfigCard) githubConfigCard.style.display = (pv === 'github') ? '' : 'none';
+    };
+
+    if (cloudProvider) {
+      // 默认选中 GitHub
+      if (!cloudProvider.value) cloudProvider.value = 'github';
+      cloudProvider.addEventListener('change', () => {
+        updateCloudFieldsVisibility();
+      });
+      updateCloudFieldsVisibility();
+    }
+
+    if (cloudStatusEl) {
+      try {
+        cloudStatusEl.textContent = window.I18n ? (window.I18n.t('sync.cloud.status.idle') || '尚未同步') : '尚未同步';
+      } catch {
+        cloudStatusEl.textContent = '尚未同步';
+      }
+    }
+
+    if (cloudSyncBtn) {
+      cloudSyncBtn.addEventListener('click', () => {
+        const pv = cloudProvider ? cloudProvider.value : 'github';
+        this.syncToCloud(pv);
       });
     }
 
@@ -1134,7 +1415,7 @@ class OptionsManager {
   }
 
   // 展示整理预览并进行二次确认（移植自插件弹窗，适配设置页）
-  async showOrganizePreviewDialog(preview) {
+  async showOrganizePreviewDialog(preview = {}) {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2020,10 +2301,59 @@ class OptionsManager {
     if (autoDaily) autoDaily.checked = !!this.settings.githubAutoSyncDaily;
     // 已移除 autoOnPopup 选项
 
+    // 配置页快速同步默认提供商与状态
+    const configCloudProvider = document.getElementById('configCloudProvider');
+    if (configCloudProvider) {
+      const mainSel = document.getElementById('cloudProvider');
+      configCloudProvider.value = mainSel ? mainSel.value : 'webdav';
+    }
+    const configQuickStatus = document.getElementById('configSyncStatus');
+    if (configQuickStatus && !configQuickStatus.textContent) {
+      configQuickStatus.textContent = '尚未同步';
+    }
+
+    // WebDAV 值回显
+    const webdavUrlInput = document.getElementById('webdavUrl');
+    const webdavUsernameInput = document.getElementById('webdavUsername');
+    const webdavPasswordInput = document.getElementById('webdavPassword');
+    const webdavPathInput = document.getElementById('webdavPath');
+    const webdavFormatSelect = document.getElementById('webdavFormat');
+    const webdavDualUploadCheckbox = document.getElementById('webdavDualUpload');
+    const webdavFormatLabel = document.querySelector('label[for="webdavFormat"]');
+    const webdavAutoDaily = document.getElementById('webdavAutoSyncDaily');
+    if (webdavUrlInput) webdavUrlInput.value = this.settings.webdavUrl || '';
+    if (webdavUsernameInput) webdavUsernameInput.value = this.settings.webdavUsername || '';
+    if (webdavPasswordInput) webdavPasswordInput.value = this.settings.webdavPassword || '';
+    if (webdavPathInput) webdavPathInput.value = this.settings.webdavPath || '';
+    if (webdavFormatSelect) webdavFormatSelect.value = this.settings.webdavFormat || 'json';
+    if (webdavDualUploadCheckbox) webdavDualUploadCheckbox.checked = !!this.settings.webdavDualUpload;
+    if (webdavAutoDaily) webdavAutoDaily.checked = !!this.settings.webdavAutoSyncDaily;
+
+    // Google Drive 值回显
+    const gdriveTokenInput = document.getElementById('gdriveToken');
+    const gdriveFolderIdInput = document.getElementById('gdriveFolderId');
+    const gdriveBaseNameInput = document.getElementById('gdriveBaseName');
+    const gdriveFormatSelect = document.getElementById('gdriveFormat');
+    const gdriveDualUploadCheckbox = document.getElementById('gdriveDualUpload');
+    const gdriveFormatLabel = document.querySelector('label[for="gdriveFormat"]');
+    if (gdriveTokenInput) gdriveTokenInput.value = this.settings.gdriveToken || '';
+    if (gdriveFolderIdInput) gdriveFolderIdInput.value = this.settings.gdriveFolderId || '';
+    if (gdriveBaseNameInput) gdriveBaseNameInput.value = this.settings.gdriveBaseName || 'tidymark-backup';
+    if (gdriveFormatSelect) gdriveFormatSelect.value = this.settings.gdriveFormat || 'json';
+    if (gdriveDualUploadCheckbox) gdriveDualUploadCheckbox.checked = !!this.settings.gdriveDualUpload;
+
     // 勾选双格式时隐藏备份格式选择器
     const showFormat = !this.settings.githubDualUpload;
     if (formatSelect) formatSelect.style.display = showFormat ? '' : 'none';
     if (formatLabel) formatLabel.style.display = showFormat ? '' : 'none';
+
+    const showWebdavFormat = !this.settings.webdavDualUpload;
+    if (webdavFormatSelect) webdavFormatSelect.style.display = showWebdavFormat ? '' : 'none';
+    if (webdavFormatLabel) webdavFormatLabel.style.display = showWebdavFormat ? '' : 'none';
+
+    const showGdriveFormat = !this.settings.gdriveDualUpload;
+    if (gdriveFormatSelect) gdriveFormatSelect.style.display = showGdriveFormat ? '' : 'none';
+    if (gdriveFormatLabel) gdriveFormatLabel.style.display = showGdriveFormat ? '' : 'none';
 
     // 动态路径提示
     if (pathHintEl) {
@@ -2057,20 +2387,42 @@ class OptionsManager {
   // 每日首次打开自动同步（设置页）
   async _maybeRunDailyAutoSync() {
     try {
-      if (!this.settings.githubAutoSyncDaily) return;
-      const owner = (this.settings.githubOwner || '').trim();
-      const repo = (this.settings.githubRepo || '').trim();
-      const token = (this.settings.githubToken || '').trim();
-      if (!owner || !repo || !token) return;
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       const todayStr = `${yyyy}-${mm}-${dd}`;
-      if (this.settings.githubLastAutoSyncDate === todayStr) return;
-      this.settings.githubLastAutoSyncDate = todayStr;
-      await this.saveSettings();
-      this.syncToGithub();
+
+      // GitHub 自动同步
+      if (this.settings.githubAutoSyncDaily) {
+        const owner = (this.settings.githubOwner || '').trim();
+        const repo = (this.settings.githubRepo || '').trim();
+        const token = (this.settings.githubToken || '').trim();
+        if (owner && repo && token) {
+          if (this.settings.githubLastAutoSyncDate !== todayStr) {
+            this.settings.githubLastAutoSyncDate = todayStr;
+            await this.saveSettings();
+            this.syncToGithub();
+            return; // 当天触发一次即可
+          }
+        }
+      }
+
+      // WebDAV 自动同步
+      if (this.settings.webdavAutoSyncDaily) {
+        const baseUrl = (this.settings.webdavUrl || '').trim();
+        const username = (this.settings.webdavUsername || '').trim();
+        const password = (this.settings.webdavPassword || '').trim();
+        const targetPath = (this.settings.webdavPath || '').trim();
+        if (baseUrl && username && password && targetPath) {
+          if (this.settings.webdavLastAutoSyncDate !== todayStr) {
+            this.settings.webdavLastAutoSyncDate = todayStr;
+            await this.saveSettings();
+            this.syncToCloud('webdav');
+            return;
+          }
+        }
+      }
     } catch (e) {
       console.warn('每日自动同步尝试失败', e);
     }
@@ -2886,49 +3238,63 @@ class OptionsManager {
     }
   }
 
-  // 触发 GitHub 同步
   // 通用云同步方法
   async syncToCloud(provider) {
-    const statusEl = document.getElementById('githubSyncStatus');
-    const cloudStatusEl = document.getElementById('cloudSyncStatus');
+    const statusEl = document.getElementById('cloudSyncStatus');
+    const providerStatusEl = document.getElementById(`${provider}SyncStatus`);
+    const configPageStatusEl = document.getElementById('configSyncStatus');
     const setStatus = (text) => { 
       if (statusEl) statusEl.textContent = text; 
-      if (cloudStatusEl) cloudStatusEl.textContent = text;
+      if (providerStatusEl) providerStatusEl.textContent = text;
+      if (configPageStatusEl) configPageStatusEl.textContent = text;
     };
 
     try {
-      // 获取提供商配置
+      setStatus('正在同步...');
+
+      // 获取对应提供商的配置
       const config = this.getCloudProviderConfig(provider);
       if (!config) {
-        this.showMessage(`请填写完整的 ${provider} 配置`, 'error');
+        const msg = `请先配置 ${provider.toUpperCase()} 同步参数`;
+        this.showMessage(msg, 'error');
         setStatus('配置不完整');
         return;
       }
 
-      setStatus(`正在同步到 ${provider}...`);
-      
-      // 发送通用云同步消息
-      chrome.runtime.sendMessage({
-        action: 'syncCloudBackup',
-        payload: { provider, config }
-      }, (response) => {
-        if (chrome.runtime && chrome.runtime.lastError) {
-          console.error('[Options] sendMessage 回调 lastError:', chrome.runtime.lastError);
+      // 针对 WebDAV：在同步前请求域名权限（MV3 运行时权限）
+      if (provider === 'webdav') {
+        try {
+          const originPattern = new URL(config.baseUrl).origin + '/*';
+          const granted = await chrome.permissions.contains({ origins: [originPattern] });
+          if (!granted) {
+            await chrome.permissions.request({ origins: [originPattern] });
+          }
+        } catch (permErr) {
+          console.warn('[CloudSync] 请求运行时权限失败:', permErr);
         }
-        console.log('[Options] 收到 syncCloudBackup 回调：', response);
-        
-        if (response && response.success) {
-          this.showMessage(`已同步到 ${provider}`, 'success');
-          setStatus('同步成功');
-        } else {
-          const errMsg = (response && response.error) ? String(response.error) : '未知错误';
-          this.showMessage(`同步到 ${provider} 失败：${errMsg}`, 'error');
-          setStatus('同步失败');
-        }
+      }
+
+      // 发送同步请求到后台脚本
+      const response = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: 'syncCloudBackup',
+          payload: { provider, config }
+        }, resolve);
       });
-    } catch (e) {
-      this.showMessage(`同步过程中出现异常：${e.message}`, 'error');
-      setStatus('同步失败');
+
+      if (response && response.success) {
+        const msg = response.message || '同步成功';
+        this.showMessage(msg, 'success');
+        setStatus('同步成功');
+      } else {
+        const error = response?.error || '同步失败';
+        this.showMessage(error, 'error');
+        setStatus('同步失败');
+      }
+    } catch (error) {
+      console.error('[CloudSync] 同步异常:', error);
+      this.showMessage('同步过程中发生异常', 'error');
+      setStatus('同步异常');
     }
   }
 
@@ -2939,34 +3305,50 @@ class OptionsManager {
         const token = (this.settings.githubToken || '').trim();
         const owner = (this.settings.githubOwner || '').trim();
         const repo = (this.settings.githubRepo || '').trim();
-        const format = (this.settings.githubFormat || 'json');
-        const dualUpload = !!this.settings.githubDualUpload;
-        
         if (!token || !owner || !repo) return null;
-        return { token, owner, repo, format, dualUpload };
-        
+        return {
+          token,
+          owner,
+          repo,
+          format: this.settings.githubFormat || 'json',
+          dualUpload: !!this.settings.githubDualUpload
+        };
+      
       case 'webdav':
         const webdavUrl = (this.settings.webdavUrl || '').trim();
         const webdavUsername = (this.settings.webdavUsername || '').trim();
         const webdavPassword = (this.settings.webdavPassword || '').trim();
-        const webdavPath = (this.settings.webdavPath || '').trim();
-        
         if (!webdavUrl || !webdavUsername || !webdavPassword) return null;
-        return { baseUrl: webdavUrl, username: webdavUsername, password: webdavPassword, targetPath: webdavPath || '/bookmarks', dualUpload: true };
-        
+        return {
+          baseUrl: webdavUrl,
+          username: webdavUsername,
+          password: webdavPassword,
+          targetPath: this.settings.webdavPath || 'tidymark/backups',
+          format: this.settings.webdavFormat || 'json',
+          dualUpload: !!this.settings.webdavDualUpload
+        };
+      
+      case 'gdrive':
       case 'googledrive':
-        const googleClientId = (this.settings.googleClientId || '').trim();
-        const googleClientSecret = (this.settings.googleClientSecret || '').trim();
-        const googleFolderId = (this.settings.googleFolderId || '').trim();
-        
-        if (!googleClientId || !googleClientSecret) return null;
-        return { clientId: googleClientId, clientSecret: googleClientSecret, folderId: googleFolderId };
-        
+        const gdriveToken = (this.settings.gdriveToken || '').trim();
+        const gdriveFolderId = (this.settings.gdriveFolderId || '').trim();
+        const gdriveBaseName = (this.settings.gdriveBaseName || 'tidymark-backup');
+        const gdriveFormat = (this.settings.gdriveFormat || 'json');
+        if (!gdriveToken) return null;
+        return {
+          accessToken: gdriveToken,
+          folderId: gdriveFolderId || 'root',
+          baseName: gdriveBaseName,
+          format: gdriveFormat,
+          dualUpload: !!this.settings.gdriveDualUpload
+        };
+      
       default:
         return null;
     }
   }
 
+  // 触发 GitHub 同步
   async syncToGithub() {
     const statusEl = document.getElementById('githubSyncStatus');
     const cloudStatusEl = document.getElementById('cloudSyncStatus');
