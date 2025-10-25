@@ -1,5 +1,7 @@
 // background.js - 后台脚本
 import '../../services/i18n.js';
+// 导入云同步服务
+import '../../services/cloudSyncService.js';
 
 // 初始化 i18n（后台环境无 DOM，避免顶层 await）
 try {
@@ -14,7 +16,7 @@ try {
 // 扩展安装时的初始化
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log('TidyMark 扩展已安装/更新');
-  
+
   if (details.reason === 'install') {
     // 首次安装时的初始化
     await initializeExtension();
@@ -23,10 +25,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('扩展已更新到新版本');
   }
 
-  // 注册每日 GitHub 自动同步闹钟（MV3 service worker可被唤醒）
+  // 注册每日自动同步闹钟（MV3 service worker可被唤醒）
   try {
     chrome.alarms.create('tidymarkDailyGithubAutoSync', { periodInMinutes: 1440 });
-    console.log('[AutoSync] 已注册每日 GitHub 自动同步闹钟');
+    chrome.alarms.create('tidymarkDailyWebdavAutoSync', { periodInMinutes: 1440 });
+    console.log('[AutoSync] 已注册每日 GitHub/WebDAV 自动同步闹钟');
   } catch (e) {
     console.warn('[AutoSync] 创建自动同步闹钟失败', e);
   }
@@ -47,6 +50,7 @@ chrome.runtime.onStartup.addListener(async () => {
   // 启动后尝试进行每日自动同步（仅当配置完整且当天未同步）
   try {
     await maybeRunDailyGithubAutoSync('startup');
+    await maybeRunDailyWebdavAutoSync('startup');
   } catch (e) {
     console.warn('[AutoSync] 启动自动同步失败', e);
   }
@@ -57,7 +61,7 @@ chrome.runtime.onStartup.addListener(async () => {
   } catch (e) {
     console.warn('[ContextMenus] 启动时注册失败', e);
   }
-  
+
   // 尝试初始化通知能力（无需显式初始化，只做能力检测日志）
   try {
     if (chrome.notifications) {
@@ -82,12 +86,15 @@ chrome.action.onClicked.addListener(() => {
 // 通过闹钟周期性唤醒并执行每日一次的 GitHub 自动同步
 try {
   chrome.alarms.onAlarm.addListener(async (alarm) => {
-    if (alarm && alarm.name === 'tidymarkDailyGithubAutoSync') {
-      try {
+    if (!alarm || !alarm.name) return;
+    try {
+      if (alarm.name === 'tidymarkDailyGithubAutoSync') {
         await maybeRunDailyGithubAutoSync('alarm');
-      } catch (e) {
-        console.warn('[AutoSync] 闹钟触发自动同步失败', e);
+      } else if (alarm.name === 'tidymarkDailyWebdavAutoSync') {
+        await maybeRunDailyWebdavAutoSync('alarm');
       }
+    } catch (e) {
+      console.warn('[AutoSync] 闹钟触发自动同步失败', e);
     }
   });
 } catch (e) {
@@ -98,7 +105,7 @@ try {
 async function initializeExtension() {
   try {
     // 设置默认配置
-  const defaultSettings = {
+    const defaultSettings = {
       autoBackup: true,
       backupPath: '',
       autoClassify: true,
@@ -124,7 +131,7 @@ async function initializeExtension() {
 
     // 检查是否已有设置
     const existingSettings = await chrome.storage.sync.get(Object.keys(defaultSettings));
-    
+
     // 只设置不存在的配置项
     const settingsToSet = {};
     for (const [key, value] of Object.entries(defaultSettings)) {
@@ -142,7 +149,7 @@ async function initializeExtension() {
 
     // 创建初始备份
     await createBookmarkBackup();
-    
+
     console.log('扩展初始化完成');
   } catch (error) {
     console.error('扩展初始化失败:', error);
@@ -262,11 +269,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   try {
     const codes = Array.from(String(action || '')).map(c => c.charCodeAt(0));
     console.log('[onMessage] action 调试：', { action, length: String(action || '').length, codes });
-  } catch (_) {}
+  } catch (_) { }
 
   // 兼容不可见空白字符导致的匹配失败
   if (typeof action === 'string' && action.replace(/\s/g, '') === 'syncGithubBackup') {
     handleSyncGithubBackup(request.payload, sendResponse);
+    return true;
+  }
+  if (typeof action === 'string' && action.replace(/\s/g, '') === 'syncCloudBackup') {
+    handleSyncCloudBackup(request.payload, sendResponse);
+    return true;
+  }
+  if (typeof action === 'string' && action.replace(/\s/g, '') === 'testCloudConnection') {
+    handleTestCloudConnection(request.payload, sendResponse);
     return true;
   }
 
@@ -320,6 +335,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
     case 'importGithubConfig':
       handleImportGithubConfig(request.payload, sendResponse);
+      break;
+    case 'syncCloudBackup':
+      handleSyncCloudBackup(request.payload, sendResponse);
+      break;
+    case 'testCloudConnection':
+      handleTestCloudConnection(request.payload, sendResponse);
       break;
     default:
       console.warn('[onMessage] 未知操作:', action, '完整请求:', request);
@@ -452,7 +473,7 @@ async function handleSyncGithubBackup(payload, sendResponse) {
     let branch = 'main';
     const path = 'tidymark/backups/tidymark-backup.json';
     const pathHtml = 'tidymark/backups/tidymark-bookmarks.html';
-    const fmt = ['json','html'].includes(String(format)) ? String(format) : 'json';
+    const fmt = ['json', 'html'].includes(String(format)) ? String(format) : 'json';
 
     // 确保有最新备份
     let { lastBackup } = await chrome.storage.local.get(['lastBackup']);
@@ -522,7 +543,7 @@ async function handleSyncGithubBackup(payload, sendResponse) {
 
     // 获取仓库默认分支（更稳健，兼容 master/main 等）
     try {
-      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
         headers: {
           'Authorization': `token ${token}`,
           'Accept': 'application/vnd.github.v3+json'
@@ -621,10 +642,12 @@ async function handleSyncGithubBackup(payload, sendResponse) {
     if (allOk) {
       const last = results[results.length - 1];
       console.log('[SyncGithub] 所有上传成功，最后一个文件链接:', last && last.data);
-      sendResponse({ success: true, data: {
-        contentPath: dualUpload ? `${path} & ${pathHtml}` : (fmt === 'json' ? path : pathHtml),
-        htmlUrl: (last && last.data && last.data.content && last.data.content.html_url) || (last && last.data && last.data.commit && last.data.commit.html_url) || null
-      }});
+      sendResponse({
+        success: true, data: {
+          contentPath: dualUpload ? `${path} & ${pathHtml}` : (fmt === 'json' ? path : pathHtml),
+          htmlUrl: (last && last.data && last.data.content && last.data.content.html_url) || (last && last.data && last.data.commit && last.data.commit.html_url) || null
+        }
+      });
     } else {
       const firstErr = results.find(r => !r.success)?.error || '未知错误';
       console.error('[SyncGithub] 有上传失败，错误信息:', firstErr);
@@ -684,7 +707,7 @@ async function handleSyncGithubConfig(payload, sendResponse) {
 
     // 获取默认分支
     try {
-      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
         headers: {
           'Authorization': `token ${token}`,
           'Accept': 'application/vnd.github.v3+json'
@@ -709,7 +732,7 @@ async function handleSyncGithubConfig(payload, sendResponse) {
         try {
           // 尝试将被当作 Latin-1 的 UTF-8 字节串还原为 UTF-8
           repaired = decodeURIComponent(escape(original));
-        } catch {}
+        } catch { }
         // 选择包含更多中文字符的版本；若修复产生替换符或不可打印字符则回退
         const hasReplacement = /\uFFFD/.test(repaired);
         const repairedCJK = cjkCount(repaired);
@@ -760,7 +783,7 @@ async function handleSyncGithubConfig(payload, sendResponse) {
         try {
           const fallbackBranch = 'master';
           let fbSha;
-          try { const fbGetRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(fallbackBranch)}`, { headers }); if (fbGetRes.status === 200) { const fbData = await fbGetRes.json(); fbSha = fbData && fbData.sha; } } catch {}
+          try { const fbGetRes = await fetch(`${baseUrl}?ref=${encodeURIComponent(fallbackBranch)}`, { headers }); if (fbGetRes.status === 200) { const fbData = await fbGetRes.json(); fbSha = fbData && fbData.sha; } } catch { }
           const fbBody = { ...body, branch: fallbackBranch }; if (fbSha) fbBody.sha = fbSha;
           const fbPutRes = await fetch(baseUrl, { method: 'PUT', headers, body: JSON.stringify(fbBody) });
           if (fbPutRes.status === 201 || fbPutRes.status === 200) { const fbData = await fbPutRes.json(); return { success: true, data: fbData }; }
@@ -795,7 +818,7 @@ async function handleImportGithubConfig(payload, sendResponse) {
     // 获取默认分支
     let branch = 'main';
     try {
-      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}` , {
+      const repoInfoRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
         headers: {
           'Authorization': `token ${token}`,
           'Accept': 'application/vnd.github.v3+json'
@@ -890,10 +913,10 @@ async function createBookmarkBackup() {
   try {
     // 获取所有书签
     const bookmarks = await chrome.bookmarks.getTree();
-    
+
     // 获取当前设置
     const settings = await chrome.storage.sync.get();
-    
+
     // 创建备份数据
     const backupData = {
       version: '1.0',
@@ -932,7 +955,7 @@ async function createBookmarkBackup() {
 async function checkAndBackupBookmarks() {
   try {
     const settings = await chrome.storage.sync.get(['autoBackup', 'lastBackupTime', 'backupInterval']);
-    
+
     if (!settings.autoBackup) {
       return;
     }
@@ -968,7 +991,7 @@ async function checkAndArchiveOldBookmarks() {
     try {
       const { visitStats: vs } = await chrome.storage.local.get(['visitStats']);
       if (vs && typeof vs === 'object' && vs.lastByBookmark) lastByBookmark = vs.lastByBookmark || {};
-    } catch (_) {}
+    } catch (_) { }
 
     // 找到/创建“归档”文件夹
     const archiveFolder = await findOrCreateFolder('归档');
@@ -1035,7 +1058,7 @@ async function maybeRunDailyGithubAutoSync(trigger = 'manual') {
   }
 
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   if (settings.githubLastAutoSyncDate === todayStr) {
     console.log('[AutoSync] 今日已自动同步过，跳过');
     return;
@@ -1059,6 +1082,82 @@ async function maybeRunDailyGithubAutoSync(trigger = 'manual') {
   }
 }
 
+// 每日自动同步 WebDAV（后台）
+async function maybeRunDailyWebdavAutoSync(trigger = 'manual') {
+  const settings = await chrome.storage.sync.get([
+    'webdavAutoSyncDaily', 'webdavUrl', 'webdavUsername', 'webdavPassword', 'webdavPath', 'webdavFormat', 'webdavDualUpload', 'webdavLastAutoSyncDate'
+  ]);
+
+  if (!settings.webdavAutoSyncDaily) {
+    console.log('[AutoSync] 未开启 WebDAV 每日自动同步，跳过');
+    return;
+  }
+
+  const baseUrl = String(settings.webdavUrl || '').trim();
+  const username = String(settings.webdavUsername || '').trim();
+  const password = String(settings.webdavPassword || '').trim();
+  const targetPath = String(settings.webdavPath || '').trim();
+  const format = (settings.webdavFormat === 'html' ? 'html' : 'json');
+  const dualUpload = !!settings.webdavDualUpload;
+
+  if (!baseUrl || !username || !password || !targetPath) {
+    console.warn('[AutoSync] WebDAV 配置不完整，跳过自动同步');
+    return;
+  }
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if (settings.webdavLastAutoSyncDate === todayStr) {
+    console.log('[AutoSync] WebDAV 今日已自动同步过，跳过');
+    return;
+  }
+
+  // 检查动态权限（后台无法弹窗请求，只在已有权限时执行）
+  try {
+    const origin = new URL(baseUrl).origin;
+    const originPattern = `${origin}/*`;
+    const hasPerm = await chrome.permissions.contains({ origins: [originPattern] });
+    if (!hasPerm) {
+      console.warn('[AutoSync] 无 WebDAV 域名访问权限，跳过自动同步:', originPattern);
+      return;
+    }
+  } catch (e) {
+    console.warn('[AutoSync] 检查 WebDAV 权限失败，尝试继续执行', e);
+  }
+
+  // 构建同步配置
+  const config = { baseUrl, username, password, targetPath, format, dualUpload };
+
+  console.log(`[AutoSync] 触发 WebDAV 每日自动同步（${trigger}）`);
+
+  try {
+    const cloudSyncService = globalThis.CloudSyncService;
+    if (!cloudSyncService) {
+      console.warn('[AutoSync] 云同步服务未初始化');
+      return;
+    }
+
+    // 确保备份数据可用
+    await createBookmarkBackup();
+    const { lastBackup } = await chrome.storage.local.get(['lastBackup']);
+    const backup = lastBackup;
+    if (!backup || !backup.bookmarks) {
+      console.warn('[AutoSync] 无法获取书签备份数据，跳过');
+      return;
+    }
+
+    const result = await cloudSyncService.syncBackup('webdav', config, backup);
+    if (result && result.success) {
+      console.log('[AutoSync] WebDAV 自动同步成功');
+      try { await chrome.storage.sync.set({ webdavLastAutoSyncDate: todayStr }); } catch (e) { console.warn('[AutoSync] 记录 WebDAV 最后自动同步日期失败', e); }
+    } else {
+      console.warn('[AutoSync] WebDAV 自动同步失败', result?.error);
+    }
+  } catch (e) {
+    console.warn('[AutoSync] WebDAV 自动同步异常', e);
+  }
+}
+
 // 自动分类书签
 async function autoClassifyBookmarks(options = {}) {
   try {
@@ -1066,7 +1165,7 @@ async function autoClassifyBookmarks(options = {}) {
     // 获取分类规则
     let rules;
     try {
-      const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules','classificationLanguage']);
+      const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules', 'classificationLanguage']);
       const lang = resolveClassificationLanguage(classificationLanguage);
       rules = classificationRules || getDefaultClassificationRules(lang);
       console.log('[autoClassify] 规则加载完成:', Array.isArray(rules) ? rules.length : 0);
@@ -1161,27 +1260,27 @@ async function autoClassifyBookmarks(options = {}) {
       }
     }
 
-  // 移动书签到对应文件夹
-  let moved = 0;
-  const oldParentCandidates = new Set();
-  for (const { bookmark, category, scopeFolderId } of preview.details) {
-    const sid = scopeFolderId || '';
-    if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
-    // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
-    let targetFolder = categoryFoldersByScope[sid][category];
-    if (!targetFolder && category === otherName) {
-      const otherNm = translateCategoryName('其他', clsLang);
-      const parentId = sid ? String(sid) : '1';
-      categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
-      targetFolder = categoryFoldersByScope[sid][otherNm];
+    // 移动书签到对应文件夹
+    let moved = 0;
+    const oldParentCandidates = new Set();
+    for (const { bookmark, category, scopeFolderId } of preview.details) {
+      const sid = scopeFolderId || '';
+      if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
+      // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
+      let targetFolder = categoryFoldersByScope[sid][category];
+      if (!targetFolder && category === otherName) {
+        const otherNm = translateCategoryName('其他', clsLang);
+        const parentId = sid ? String(sid) : '1';
+        categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        targetFolder = categoryFoldersByScope[sid][otherNm];
+      }
+      if (!targetFolder) continue; // 未创建文件夹则不移动
+      if (bookmark.parentId !== targetFolder.id) {
+        if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
+        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+        moved++;
+      }
     }
-    if (!targetFolder) continue; // 未创建文件夹则不移动
-    if (bookmark.parentId !== targetFolder.id) {
-      if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-      await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-      moved++;
-    }
-  }
 
     const results = {
       ...preview,
@@ -1240,7 +1339,7 @@ async function autoClassifyBookmarks(options = {}) {
 function classifyBookmark(bookmark, rules) {
   const title = bookmark.title.toLowerCase();
   const url = bookmark.url.toLowerCase();
-  
+
   for (const rule of rules) {
     for (const keyword of rule.keywords) {
       if (title.includes(keyword.toLowerCase()) || url.includes(keyword.toLowerCase())) {
@@ -1248,7 +1347,7 @@ function classifyBookmark(bookmark, rules) {
       }
     }
   }
-  
+
   return '其他';
 }
 
@@ -1291,7 +1390,7 @@ async function findOrCreateFolder(name) {
 // 扁平化书签树
 function flattenBookmarks(bookmarkTree) {
   const result = [];
-  
+
   function traverse(nodes) {
     for (const node of nodes) {
       if (node.url) {
@@ -1302,7 +1401,7 @@ function flattenBookmarks(bookmarkTree) {
       }
     }
   }
-  
+
   traverse(bookmarkTree);
   return result;
 }
@@ -1323,11 +1422,11 @@ async function getBookmarkStats() {
   try {
     const bookmarks = await chrome.bookmarks.getTree();
     const flatBookmarks = flattenBookmarks(bookmarks);
-    
+
     // 按文件夹统计
     const folderStats = {};
     const bookmarksByFolder = {};
-    
+
     function traverseForStats(nodes, parentTitle = '根目录') {
       for (const node of nodes) {
         if (node.url) {
@@ -1343,9 +1442,9 @@ async function getBookmarkStats() {
         }
       }
     }
-    
+
     traverseForStats(bookmarks);
-    
+
     // 计算每个文件夹的书签数量
     for (const [folder, bookmarkList] of Object.entries(bookmarksByFolder)) {
       folderStats[folder] = bookmarkList.length;
@@ -1366,7 +1465,7 @@ async function getBookmarkStats() {
 // 计算书签总数
 async function countBookmarks(bookmarkTree) {
   let count = 0;
-  
+
   function traverse(nodes) {
     for (const node of nodes) {
       if (node.url) {
@@ -1377,7 +1476,7 @@ async function countBookmarks(bookmarkTree) {
       }
     }
   }
-  
+
   traverse(bookmarkTree);
   return count;
 }
@@ -1385,8 +1484,8 @@ async function countBookmarks(bookmarkTree) {
 // AI分类功能（第二版功能）
 async function classifyBookmarksWithAI(bookmarks) {
   try {
-    const { aiProvider, aiApiKey, aiApiUrl, classificationLanguage } = await chrome.storage.sync.get(['aiProvider', 'aiApiKey', 'aiApiUrl','classificationLanguage']);
-    
+    const { aiProvider, aiApiKey, aiApiUrl, classificationLanguage } = await chrome.storage.sync.get(['aiProvider', 'aiApiKey', 'aiApiUrl', 'classificationLanguage']);
+
     if (!aiApiKey) {
       throw new Error('AI API Key 未配置');
     }
@@ -1442,7 +1541,7 @@ function parseAiJsonContent(result) {
     candidate = fenced[1].trim();
   }
   // 移除可能的起止栅栏残留
-  candidate = candidate.replace(/^```[a-zA-Z]*\s*/,'').replace(/```$/,'').trim();
+  candidate = candidate.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim();
 
   // 去掉前置说明，保留第一个 JSON 起始到末尾的平衡块
   const firstBrace = candidate.indexOf('{');
@@ -1567,7 +1666,7 @@ function salvageReassignedItemsFromText(text) {
   };
 }
 async function refinePreviewWithAI(preview) {
-  const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','maxCategories','aiBatchSize','aiConcurrency']);
+  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'maxCategories', 'aiBatchSize', 'aiConcurrency']);
   if (!settings.enableAI) {
     return preview;
   }
@@ -1607,7 +1706,7 @@ async function refinePreviewWithAI(preview) {
       model: settings.aiModel || 'gpt-3.5-turbo',
       maxTokens: settings.maxTokens || 8192,
       prompt
-    }, { retries: 2, baseDelayMs: 1200, label: `batch-${idx+1}/${chunks.length}` });
+    }, { retries: 2, baseDelayMs: 1200, label: `batch-${idx + 1}/${chunks.length}` });
     const parsed = parseAiJsonContent(aiResult);
     return parsed;
   });
@@ -1744,7 +1843,7 @@ async function requestAIWithRetry(params, { retries = 2, baseDelayMs = 1000, lab
       const isRateLimit = msg.includes('429');
       if (attempt >= retries) throw e;
       const delay = Math.round(baseDelayMs * Math.pow(2, attempt));
-      console.warn(`[AI] 请求失败${label ? ' ['+label+']' : ''}，${isRateLimit ? '速率限制' : '错误'}，${delay}ms 后重试 (第 ${attempt+1}/${retries} 次)`);
+      console.warn(`[AI] 请求失败${label ? ' [' + label + ']' : ''}，${isRateLimit ? '速率限制' : '错误'}，${delay}ms 后重试 (第 ${attempt + 1}/${retries} 次)`);
       await new Promise(r => setTimeout(r, delay));
       attempt++;
     }
@@ -1770,11 +1869,11 @@ async function buildOptimizationPrompt({ language, categories, items }) {
     if (aiPromptOrganize && String(aiPromptOrganize).trim().length > 0) {
       return fillPromptTemplate(aiPromptOrganize, { language, categoriesJson, itemsJson });
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // 默认模板（与旧版一致）
   return (
-`
+    `
 You are a meticulous Information Architecture and Intelligent Classification Expert.
 Your task is not to modify or create categories.
 Instead, you must intelligently reassign and organize bookmarks within the existing category structure.
@@ -1834,11 +1933,11 @@ async function buildInferencePrompt({ language, items }) {
     if (aiPromptInfer && String(aiPromptInfer).trim().length > 0) {
       return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson });
     }
-  } catch (_) {}
+  } catch (_) { }
 
   // 默认模板（与旧版一致）
   return (
-`
+    `
 You are a world-class Information Architecture and Taxonomy Expert.
 Your task is to infer a clean, human-understandable category taxonomy from bookmarks, without any preset categories.
 
@@ -1918,6 +2017,13 @@ function validateModelForProvider(model, provider) {
 
 // 调用AI服务
 async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt }) {
+  // 屏蔽不兼容的「reasoner」思考型模型（返回格式不符合本扩展期望）
+  try {
+    const m = String(model || '').toLowerCase();
+    if (m.includes('reasoner')) {
+      throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。');
+    }
+  } catch (_) { }
   const p = String(provider || '').toLowerCase();
 
   // 验证模型配置
@@ -2127,7 +2233,6 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     classificationLanguage: settings.classificationLanguage,
     scopeFolderIds: scopeFolderIds
   });
-
   if (!settings.enableAI) {
     console.error('[AI Debug] AI 未启用');
     throw new Error('AI 未启用');
@@ -2191,7 +2296,6 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     }, { retries: 2, baseDelayMs: 1200, label: `infer-${idx+1}/${chunks.length}` });
 
     console.log(`[AI Debug] 批次 ${idx + 1} AI原始响应:`, aiResult);
-
     const parsed = parseAiJsonContent(aiResult);
     console.log(`[AI Debug] 批次 ${idx + 1} 解析结果:`, parsed);
 
@@ -2361,7 +2465,7 @@ async function showAddNotification({ title, url, category }) {
 // 处理右键菜单点击
 chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
   try {
-    const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules','classificationLanguage']);
+    const { classificationRules, classificationLanguage } = await chrome.storage.sync.get(['classificationRules', 'classificationLanguage']);
     const lang = resolveClassificationLanguage(classificationLanguage);
     const rules = classificationRules || getDefaultClassificationRules(lang);
 
@@ -2390,9 +2494,85 @@ chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
       await chrome.bookmarks.move(created.id, { parentId: folder.id });
     }
     console.log(`[ContextMenus] 已添加并分类到 "${category}"`, { title, url: targetUrl });
-    // 显示通知
-    await showAddNotification({ title, url: targetUrl, category });
   } catch (e) {
-    console.warn('[ContextMenus] 右键菜单处理失败', e);
+    console.warn('[ContextMenus] 处理失败:', e);
   }
 });
+
+// 通用云同步处理函数
+async function handleSyncCloudBackup(payload, sendResponse) {
+  try {
+    console.log('[CloudSync] 开始云同步:', payload);
+
+    const { provider, config } = payload;
+    if (!provider || !config) {
+      throw new Error('缺少必要的同步参数');
+    }
+
+    // 统一 provider 映射，兼容别名
+    const normalizedProvider = (String(provider).trim().toLowerCase() === 'gdrive') ? 'googledrive' : String(provider).trim().toLowerCase();
+
+    // 使用通用云同步服务
+    const cloudSyncService = globalThis.CloudSyncService;
+    if (!cloudSyncService) {
+      throw new Error('云同步服务未初始化');
+    }
+
+    // 构建书签备份数据
+    await createBookmarkBackup();
+    const { lastBackup } = await chrome.storage.local.get(['lastBackup']);
+    const backup = lastBackup;
+    if (!backup || !backup.bookmarks) {
+      throw new Error('无法获取书签备份数据');
+    }
+
+    const result = await cloudSyncService.syncBackup(normalizedProvider, config, backup);
+
+    sendResponse({
+      success: result.success,
+      message: result.success ? '同步成功' : (result.error || '同步失败'),
+      data: result
+    });
+  } catch (error) {
+    console.error('[CloudSync] 同步失败:', error);
+    sendResponse({
+      success: false,
+      error: error.message || '同步失败'
+    });
+  }
+}
+
+// 测试云连接处理函数
+async function handleTestCloudConnection(payload, sendResponse) {
+  try {
+    console.log('[CloudSync] 测试连接:', payload);
+
+    const { provider, config } = payload;
+    if (!provider || !config) {
+      throw new Error('缺少必要的连接参数');
+    }
+
+    // 统一 provider 映射，兼容别名
+    const normalizedProvider = (String(provider).trim().toLowerCase() === 'gdrive') ? 'googledrive' : String(provider).trim().toLowerCase();
+
+    // 使用通用云同步服务
+    const cloudSyncService = globalThis.CloudSyncService;
+    if (!cloudSyncService) {
+      throw new Error('云同步服务未初始化');
+    }
+
+    const result = await cloudSyncService.testConnection(normalizedProvider, config);
+
+    sendResponse({
+      success: true,
+      message: result.message,
+      data: result
+    });
+  } catch (error) {
+    console.error('[CloudSync] 连接测试失败:', error);
+    sendResponse({
+      success: false,
+      error: error.message || '连接测试失败'
+    });
+  }
+}
