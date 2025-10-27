@@ -1,3 +1,4 @@
+
 // options.js - 设置页面逻辑
 
 class OptionsManager {
@@ -157,7 +158,7 @@ class OptionsManager {
       this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','ollama'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -321,6 +322,9 @@ class OptionsManager {
   // 保存设置
   async saveSettings() {
     try {
+      // 验证AI模型配置
+      this.validateAiModel();
+
       // 检查是否在Chrome扩展环境中
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         await chrome.storage.sync.set(this.settings);
@@ -334,6 +338,43 @@ class OptionsManager {
     } catch (error) {
     console.error((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败') + ':', error);
     this.showMessage((window.I18n ? window.I18n.t('options.save.fail') : '保存设置失败'), 'error');
+    }
+  }
+
+  // 验证AI模型配置
+  validateAiModel() {
+    const provider = String(this.settings.aiProvider || '').toLowerCase();
+    const model = String(this.settings.aiModel || '').trim();
+
+    if (!model) return; // 空模型名将使用默认值
+
+    let validModels = [];
+
+    switch (provider) {
+      case 'openai':
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        break;
+      case 'deepseek':
+        validModels = ['deepseek-chat'];
+        break;
+      case 'iflow':
+        validModels = ['deepseek-chat', 'deepseek-coder'];
+        break;
+      case 'ollama':
+        // Ollama 支持任意模型，不验证
+        return;
+      case 'custom':
+        // 自定义提供商支持任意模型，不验证
+        return;
+      default:
+        // 未知提供商，使用默认值
+        break;
+    }
+
+    if (validModels.length > 0 && !validModels.includes(model)) {
+      console.warn(`[AI设置] 模型 "${model}" 不适用于提供商 "${provider}"，正在重置为默认模型`);
+      this.settings.aiModel = validModels[0];
+      this.showMessage(`AI模型 "${model}" 不受支持，已重置为 "${validModels[0]}"`, 'warning');
     }
   }
 
@@ -402,10 +443,18 @@ class OptionsManager {
 
     const aiModel = document.getElementById('aiModel');
     if (aiModel) {
-      aiModel.addEventListener('change', (e) => {
-        this.settings.aiModel = e.target.value;
-        this.saveSettings();
-      });
+      // 根据当前元素类型绑定不同事件
+      if (aiModel.tagName === 'SELECT') {
+        aiModel.addEventListener('change', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      } else if (aiModel.tagName === 'INPUT') {
+        aiModel.addEventListener('input', (e) => {
+          this.settings.aiModel = e.target.value;
+          this.saveSettings();
+        });
+      }
     }
 
     // AI 提示词模板输入事件
@@ -1366,7 +1415,7 @@ class OptionsManager {
   }
 
   // 展示整理预览并进行二次确认（移植自插件弹窗，适配设置页）
-  async showOrganizePreviewDialog(preview) {
+  async showOrganizePreviewDialog(preview = {}) {
     return new Promise((resolve) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';

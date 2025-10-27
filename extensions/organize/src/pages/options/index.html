@@ -212,16 +212,15 @@
                 <option value="openai">OpenAI</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="ollama">Ollama</option>
+                <option value="custom">自定义提供商</option>
               </select>
-              <p class="setting-desc" data-i18n="ai.provider.desc">选择您偏好的 AI 服务提供商</p>
+              <p class="setting-desc" data-i18n="ai.provider.desc">选择您偏好的 AI 服务提供商，或选择自定义以使用其他兼容服务</p>
             </div>
 
             <div class="setting-item">
-              <label for="aiModel" data-i18n="ai.model.label">模型选择</label>
-              <select id="aiModel">
-    <option value="" disabled selected data-i18n="ai.model.placeholder">请选择模型</option>
-              </select>
-              <p class="setting-desc" data-i18n="ai.model.desc">不同模型的准确性和成本不同</p>
+              <label for="aiModel" data-i18n="ai.model.label">模型ID</label>
+              <input type="text" id="aiModel" placeholder="例如：gpt-4, claude-3-sonnet, deepseek-chat" />
+              <p class="setting-desc" data-i18n="ai.model.desc">输入模型的API标识符，支持任何OpenAI兼容接口的模型</p>
             </div>
 
             <div class="setting-item">
