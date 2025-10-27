@@ -383,7 +383,8 @@ class OptionsManager {
     // 标签切换
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.switchTab(e.target.dataset.tab);
+        const tab = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.tab) || (e.target && e.target.dataset && e.target.dataset.tab);
+        if (tab) this.switchTab(tab);
       });
     });
 
