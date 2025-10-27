@@ -3,3 +3,4 @@ playwright/.cache/
 claude.md
 .claude
 .DS_Store
+dist
