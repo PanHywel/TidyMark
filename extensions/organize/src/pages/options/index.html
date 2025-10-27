@@ -20,7 +20,7 @@
           <button id="languageIconBtn" class="lang-icon" aria-label="Language" aria-expanded="false">
             <svg class="lang-icon-svg" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" width="16" height="16" aria-hidden="true">
               <path d="M516.864 85.333333l82.261333 19.114667c-10.069333 42.837333 9.984 82.730667 68.053334 124.330667 135.509333 97.024 167.509333 151.722667 128.981333 272.64-22.698667 71.253333 4.821333 97.28 99.84 97.28V682.666667c-145.92 0-223.018667-72.96-180.394667-206.592 24.874667-77.994667 11.434667-100.906667-97.834666-179.2-83.456-59.733333-119.722667-131.84-100.906667-211.541334z" fill="currentColor"></path>
-              <path d="M134.656 440.32a384 384 0 0 0 495.445333 437.162667c-23.594667-54.528-49.322667-66.730667-97.28-65.365334-5.845333 0.128-10.837333 0.426667-21.76 1.066667-82.688 4.992-123.818667-5.333333-162.688-64.426667-43.477333-65.962667-29.866667-113.664 22.613334-174.165333l6.229333-7.168c39.082667-44.8 42.794667-58.794667 14.421333-99.584-31.744-45.653333-49.365333-48.085333-115.669333-29.098667-62.293333 17.792-102.229333 21.717333-141.312 1.578667z m26.368-84.394667c21.418667 16.341333 40.448 15.36 91.477333 0.768 97.408-27.861333 151.637333-20.309333 209.194667 62.421334 55.808 80.213333 41.642667 133.546667-20.181333 204.416l-6.058667 6.954666c-30.293333 34.986667-33.194667 45.013333-15.786667 71.381334 16.981333 25.856 31.317333 29.44 86.229334 26.154666 11.861333-0.725333 17.450667-1.024 24.490666-1.237333 81.664-2.304 137.813333 28.16 177.237334 115.712A384 384 0 1 0 161.066667 355.925333zM512 981.333333C252.8 981.333333 42.666667 771.2 42.666667 512S252.8 42.666667 512 42.666667s469.333333 210.133333 469.333333 469.333333-210.133333 469.333333-469.333333 469.333333z" fill="currentColor"></path>
+              <path d="M134.656 440.32a384 384 0 0 0 495.445333 437.162667c-23.594667-54.528-49.322667-66.730667-97.28-65.365334-5.845333 0.128-10.837333 0.426667-21.76 1.066667-82.688 4.992-123.818667-5.333333-162.688-64.426667-43.477333-65.962667-29.866667-113.664 22.613334-174.165333l6.229333-7.168c39.082667-44.8 42.794667-58.794667 14.421333-99.584-31.744-45.653333-49.365333-48.085333-115.669333-29.098667-62.293333 17.792-102.229333 21.717333-141.312 1.578667z m26.368-84.394667c21.418667 16.341333 40.448 15.36 91.477333 0.768 97.408-27.861333 151.637333-20.309333 209.194667 62.421334 55.808 80.213333 41.642667 133.546667-20.181333 204.416l-6.058667 6.954666c-30.293333 34.986667-33.194667 45.013333-15.786667 71.381334 16.981333 25.856 31.317333 29.44 86.229334 26.154666 11.861333-0.725333 17.450667-1.024 24.490666-1.237333 81.664-2.304 137.813333 28.16 177.237334 115.712A384 384 0 1 0 161.066667 355.925333zM512 981.333333C252.8 981.333333 42.666667 771.2 42.666667 512S252.8 42.666667 512 42.666667s469.333333 210.133333 469.333333 469.333333-210.133333 469.333333-469.333333 469.333333 469.333333z" fill="currentColor"></path>
             </svg>
           </button>
           <div id="langMenu" class="lang-menu">
@@ -174,6 +174,31 @@
     <label for="archiveOlderThanDays" data-i18n="options.archive.threshold.label">归档阈值（距今多少天前）</label>
             <input type="number" id="archiveOlderThanDays" min="7" max="3650" step="1" placeholder="180">
     <p class="setting-desc" data-i18n="options.archive.threshold.desc">按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 配置页快速同步 -->
+      <div class="section">
+        <div class="section-header">
+          <h3>☁️ 快速同步</h3>
+          <div class="section-description">
+            <p>在设置页快速触发备份到云；完整配置请前往“同步导出”。</p>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <div class="setting-item">
+            <label for="configCloudProvider">备份提供商</label>
+            <select id="configCloudProvider">
+              <option value="github">GitHub</option>
+              <option value="webdav">WebDAV（通用）</option>
+              <option value="gdrive">Google Drive</option>
+            </select>
+            <p class="setting-desc inline-hint">将使用已在“同步导出”中填写的对应配置。</p>
+          </div>
+          <div class="setting-item" style="align-self: end;">
+            <button class="btn btn-accent" id="configCloudSyncBtn">一键同步</button>
+            <span id="configSyncStatus" class="setting-desc inline-hint" style="margin-left: 8px;">尚未同步</span>
           </div>
         </div>
       </div>
@@ -440,63 +465,172 @@
 
           <div class="info-card">
             <div class="card-header">
-              <h3 data-i18n="sync.github.header">☁️ GitHub 云同步</h3>
+              <h3 data-i18n="sync.cloud.header">☁️ 云同步与备份</h3>
             </div>
             <div class="card-content">
-              <p class="setting-desc" data-i18n="sync.github.desc">配置个人访问令牌与仓库信息，备份将自动保存到默认路径</p>
+              <p class="setting-desc" data-i18n="sync.cloud.desc">支持 GitHub、WebDAV（通用/坚果云）与 Google Drive</p>
+              <p class="setting-desc" data-i18n="sync.cloud.note.noSync">说明：当前仅支持备份，不支持双向同步。</p>
+
               <div class="form-grid">
-                <label for="githubToken" data-i18n="sync.github.token.label">GitHub Token</label>
-                <input type="password" id="githubToken" data-i18n-placeholder="sync.github.token.ph" />
-
-                <label for="githubOwner" data-i18n="sync.github.owner.label">仓库所有者</label>
-                <input type="text" id="githubOwner" data-i18n-placeholder="sync.github.owner.ph" />
-
-                <label for="githubRepo" data-i18n="sync.github.repo.label">仓库名</label>
-                <input type="text" id="githubRepo" data-i18n-placeholder="sync.github.repo.ph" />
-  <p class="setting-desc full-row" id="githubPathHint" data-i18n="sync.github.path.hint">将在目标仓库创建备份文件；路径示例：<code>tidymark/backups/tidymark-backup.json</code> 或 <code>tidymark/backups/tidymark-bookmarks.html</code>。</p>
-
-  <label for="githubFormat" data-i18n="sync.github.format.label">备份格式</label>
-                <select id="githubFormat">
-  <option value="json" data-i18n="sync.github.format.json">JSON（插件备份）</option>
-  <option value="html" data-i18n="sync.github.format.html">HTML（Chrome 书签）</option>
+                <label for="cloudProvider" data-i18n="sync.cloud.provider.label">备份提供商</label>
+                <select id="cloudProvider">
+                  <option value="github" data-i18n="sync.cloud.provider.github">GitHub</option>
+                  <option value="webdav" data-i18n="sync.cloud.provider.webdav">WebDAV（通用）</option>
+                  <option value="gdrive" data-i18n="sync.cloud.provider.gdrive">Google Drive</option>
                 </select>
 
-                <label class="setting-label full-row" for="githubDualUpload">
-                  <input type="checkbox" id="githubDualUpload" />
-                  <span class="checkmark"></span>
-  <span data-i18n="sync.github.dualFormat">同时上传两种格式</span>
-                </label>
+                <!-- GitHub 配置字段 -->
+                <div class="full-row" id="githubFields">
+                  <div class="form-grid">
+                    <label for="githubToken" data-i18n="sync.github.token.label">GitHub Token</label>
+                    <input type="password" id="githubToken" data-i18n-placeholder="sync.github.token.ph" />
 
-                <label class="setting-label full-row" for="githubAutoSyncDaily">
-                  <input type="checkbox" id="githubAutoSyncDaily" />
-                  <span class="checkmark"></span>
-  <span data-i18n="sync.github.autoDaily">自动同步到 GitHub（每日一次）</span>
-                </label>
-  <p class="setting-desc full-row" data-i18n="sync.github.note">说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。</p>
-              </div>
-              <div class="action-row">
-                <button class="btn btn-accent" id="githubSyncBtn" data-i18n="sync.github.run">一键同步到 GitHub</button>
-              </div>
-              <p class="setting-desc" id="githubSyncStatus" data-i18n="sync.github.status.idle">尚未同步</p>
+                    <label for="githubOwner" data-i18n="sync.github.owner.label">仓库所有者</label>
+                    <input id="githubOwner" data-i18n-placeholder="sync.github.owner.ph" />
 
-              <div class="action-row">
-                <button class="btn btn-outline" id="githubConfigSyncBtn" data-i18n="sync.github.config.upload">备份配置到 GitHub</button>
-                <button class="btn btn-outline" id="githubConfigImportBtn" data-i18n="sync.github.config.import">从 GitHub 同步配置</button>
-              </div>
-              <p class="setting-desc" id="githubConfigStatus" data-i18n="sync.github.config.status.idle">尚未进行配置同步</p>
+                    <label for="githubRepo" data-i18n="sync.github.repo.label">仓库名</label>
+                    <input id="githubRepo" data-i18n-placeholder="sync.github.repo.ph" />
 
-              <details style="margin-top:12px;">
-  <summary data-i18n="sync.github.guide.header">GitHub 操作指南</summary>
-                <ol class="setting-desc" style="margin-top:8px;">
-  <li data-i18n="sync.github.guide.security">安全提示：建议创建私人仓库，配置可能包含密钥等敏感信息，避免公开泄露。</li>
-  <li data-i18n="sync.github.guide.step1">创建或准备仓库：可在 GitHub 主页右上角 <em>+</em> → <em>New repository</em> 新建仓库，默认分支通常为 <code>main</code>。</li>
-  <li data-i18n="sync.github.guide.step2">生成个人访问令牌（PAT）：进入个人设置 → <em>Developer settings</em> → <em>Personal access tokens</em>，创建令牌并至少勾选 <code>repo</code> 权限；复制令牌保存到 <em>GitHub Token</em> 字段。</li>
-  <li data-i18n="sync.github.guide.step3">填写同步配置：Owner（用户名或组织名）、Repo（仓库名）、备份格式（JSON/HTML）。可启用“同时上传两种格式”以在仓库生成两份文件。</li>
-  <li data-i18n="sync.github.guide.step4">验证与导入：点击“一键同步到 GitHub”后，到仓库查看文件是否更新。若选择或启用 HTML，同步的文件可在 Chrome 书签管理器导入（Chrome：书签管理器 → 右上角“⋮” → 导入书签）。</li>
+                    <label for="githubFormat" data-i18n="sync.cloud.format.label">备份格式</label>
+                    <select id="githubFormat">
+                      <option value="json" data-i18n="sync.cloud.format.json">JSON</option>
+                      <option value="html" data-i18n="sync.cloud.format.html">HTML</option>
+                    </select>
+
+                    <label class="full-row setting-label">
+                      <input type="checkbox" id="githubDualUpload" />
+                      <span class="checkmark"></span>
+                      <span data-i18n="sync.cloud.dual.label">同时上传两种格式</span>
+                    </label>
+
+                    <label class="full-row setting-label">
+                      <input type="checkbox" id="githubAutoSyncDaily" />
+                      <span class="checkmark"></span>
+                      <span data-i18n="sync.github.autoDaily">自动同步到 GitHub（每日一次）</span>
+                    </label>
+
+                    <p class="setting-desc full-row" data-i18n="sync.github.note">说明：同步为单向备份，仅将本地书签备份到仓库；不会从仓库还原到浏览器。</p>
+                  </div>
+                </div>
+
+                <!-- WebDAV/Nutstore 配置字段 -->
+                <div class="full-row" id="webdavFields" style="display:none;">
+                  <div class="form-grid">
+                    <label class="full-row" for="webdavUrl" data-i18n="sync.webdav.url.label">WebDAV 基地址</label>
+                    <input class="full-row" id="webdavUrl" data-i18n-placeholder="sync.webdav.url.ph" />
+
+                    <label for="webdavUsername" data-i18n="sync.webdav.username.label">用户名</label>
+                    <input id="webdavUsername" />
+
+                    <label for="webdavPassword" data-i18n="sync.webdav.password.label">密码/应用专用密码</label>
+                    <input type="password" id="webdavPassword" />
+
+                    <label class="full-row" for="webdavPath" data-i18n="sync.webdav.path.label">目标路径</label>
+                    <input class="full-row" id="webdavPath" data-i18n-placeholder="sync.webdav.path.ph" />
+                    <p class="setting-desc full-row" id="webdavPathHint">提示：目标路径建议填写 <code>tidymark/backups</code>；需提前在云端创建该文件夹，否则可能失败（部分服务不支持自动递归创建）。</p>
+
+                    <label for="webdavFormat" data-i18n="sync.cloud.format.label">备份格式</label>
+                    <select id="webdavFormat">
+                      <option value="json" data-i18n="sync.cloud.format.json">JSON</option>
+                      <option value="html" data-i18n="sync.cloud.format.html">HTML</option>
+                    </select>
+
+                    <label class="full-row setting-label">
+                      <input type="checkbox" id="webdavDualUpload" />
+                      <span class="checkmark"></span>
+                      <span data-i18n="sync.cloud.dual.label">同时上传两种格式</span>
+                    </label>
+
+                    <label class="full-row setting-label">
+                      <input type="checkbox" id="webdavAutoSyncDaily" />
+                      <span class="checkmark"></span>
+                      <span data-i18n="sync.webdav.autoDaily">自动同步到 WebDAV（每日一次）</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Google Drive 配置字段 -->
+                <div class="full-row" id="gdriveFields" style="display:none;">
+                  <div class="form-grid">
+                    <label for="gdriveToken" data-i18n="sync.gdrive.token.label">访问令牌（OAuth）</label>
+                    <input id="gdriveToken" data-i18n-placeholder="sync.gdrive.token.ph" />
+                    <label for="gdriveFolderId" data-i18n="sync.gdrive.folder.label">目标文件夹 ID（可选）</label>
+                    <input id="gdriveFolderId" data-i18n-placeholder="sync.gdrive.folder.ph" />
+                    <label for="gdriveBaseName" data-i18n="sync.gdrive.basename.label">文件名（不含扩展名）</label>
+                    <input id="gdriveBaseName" data-i18n-placeholder="sync.gdrive.basename.ph" />
+                    <label for="gdriveFormat" data-i18n="sync.cloud.format.label">备份格式</label>
+                    <select id="gdriveFormat">
+                      <option value="json" data-i18n="sync.cloud.format.json">JSON</option>
+                      <option value="html" data-i18n="sync.cloud.format.html">HTML</option>
+                    </select>
+                    <label class="full-row setting-label">
+                      <input type="checkbox" id="gdriveDualUpload" />
+                      <span class="checkmark"></span>
+                      <span data-i18n="sync.cloud.dual.label">同时上传两种格式</span>
+                    </label>
+                  </div>
+                  <p class="setting-desc" data-i18n="sync.gdrive.note">说明：当前采用手动令牌方式；后续可提供一键登录。</p>
+                </div>
+              </div>
+
+              <!-- 提供商操作指南 -->
+              <details id="cloudGuideGithub" class="provider-guide" style="display:none;">
+                <summary data-i18n="sync.github.guide.header">GitHub 操作指南</summary>
+                <p class="setting-desc" data-i18n="sync.github.guide.security">安全提示</p>
+                <ol class="setting-desc">
+                  <li data-i18n="sync.github.guide.step1">步骤1</li>
+                  <li data-i18n="sync.github.guide.step2">步骤2</li>
+                  <li data-i18n="sync.github.guide.step3">步骤3</li>
+                  <li data-i18n="sync.github.guide.step4">步骤4</li>
                 </ol>
               </details>
+
+              <details id="cloudGuideWebdav" class="provider-guide" style="display:none;">
+                <summary data-i18n="sync.webdav.guide.header">WebDAV 操作指南</summary>
+                <p class="setting-desc" data-i18n="sync.webdav.guide.security">安全提示</p>
+                <ol class="setting-desc">
+                  <li data-i18n="sync.webdav.guide.step1">步骤1</li>
+                  <li data-i18n="sync.webdav.guide.step2">步骤2</li>
+                  <li data-i18n="sync.webdav.guide.step3">步骤3</li>
+                  <li data-i18n="sync.webdav.guide.step4">步骤4</li>
+                </ol>
+              </details>
+
+              <details id="cloudGuideGdrive" class="provider-guide" style="display:none;">
+                <summary data-i18n="sync.gdrive.guide.header">Google Drive 操作指南</summary>
+                <p class="setting-desc" data-i18n="sync.gdrive.guide.security">安全提示</p>
+                <ol class="setting-desc">
+                  <li data-i18n="sync.gdrive.guide.step1">步骤1</li>
+                  <li data-i18n="sync.gdrive.guide.step2">步骤2</li>
+                  <li data-i18n="sync.gdrive.guide.step3">步骤3</li>
+                  <li data-i18n="sync.gdrive.guide.step4">步骤4</li>
+                </ol>
+              </details>
+
+              <div class="action-row">
+                <button class="btn btn-accent" id="cloudSyncBtn" data-i18n="sync.cloud.run">一键同步到所选云</button>
+              </div>
+              <p class="setting-desc" id="cloudSyncStatus" data-i18n="sync.cloud.status.idle">尚未同步</p>
+
+              <!-- GitHub 配置同步（并入云同步卡片） -->
+              <div id="githubConfigCard" style="display:none; margin-top: 16px;">
+                <div class="card-header" style="padding: 0;">
+                  <h3 data-i18n="sync.github.config.header">⚙️ GitHub 配置同步</h3>
+                </div>
+                <p class="setting-desc" data-i18n="sync.github.config.desc">此功能仅用于将插件配置备份到 GitHub 或从 GitHub 导入配置；与书签备份不同。</p>
+                <div class="action-row">
+                  <button class="btn btn-outline" id="githubConfigSyncBtn" data-i18n="sync.github.config.upload">备份配置到 GitHub</button>
+                  <button class="btn btn-outline" id="githubConfigImportBtn" data-i18n="sync.github.config.import">从 GitHub 同步配置</button>
+                </div>
+                <p class="setting-desc" id="githubConfigStatus" data-i18n="sync.github.config.status.idle">尚未进行配置同步</p>
+              </div>
+
+              </div>
             </div>
           </div>
+        </div>
+
+        
         </div>
       </div>
     </section>
