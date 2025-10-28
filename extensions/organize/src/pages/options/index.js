@@ -71,6 +71,8 @@ class OptionsManager {
           // 失效扫描新增配置
           'deadTimeoutMs',
           'deadIgnorePrivateIp',
+          'deadEnableDnsCheck',
+          'deadIgnoreDnsOk',
           'deadScanDuplicates',
           'deadScanFolderId',
           // 整理范围（移除目标父目录）
@@ -116,6 +118,8 @@ class OptionsManager {
           'deadStrictMode',
           'deadTimeoutMs',
           'deadIgnorePrivateIp',
+          'deadEnableDnsCheck',
+          'deadIgnoreDnsOk',
           'deadScanDuplicates',
           'deadScanFolderId',
           'organizeScopeFolderId',
@@ -237,6 +241,8 @@ class OptionsManager {
           return 8000;
         })(),
         deadIgnorePrivateIp: result.deadIgnorePrivateIp !== undefined ? !!result.deadIgnorePrivateIp : false,
+        deadEnableDnsCheck: result.deadEnableDnsCheck !== undefined ? !!result.deadEnableDnsCheck : false,
+        deadIgnoreDnsOk: result.deadIgnoreDnsOk !== undefined ? !!result.deadIgnoreDnsOk : false,
         deadScanDuplicates: result.deadScanDuplicates !== undefined ? !!result.deadScanDuplicates : false,
         // 多选整理范围（为空表示全部）
         organizeScopeFolderIds: Array.isArray(result.organizeScopeFolderIds)
@@ -299,6 +305,8 @@ class OptionsManager {
         githubLastAutoSyncDate: '',
         deadTimeoutMs: 8000,
         deadIgnorePrivateIp: false,
+        deadEnableDnsCheck: false,
+        deadIgnoreDnsOk: false,
         deadScanDuplicates: false,
         deadScanFolderId: null,
         // 默认云端设置
@@ -803,6 +811,16 @@ class OptionsManager {
       });
     }
 
+    // 失效检测：启用 DNS 检测
+    const deadEnableDnsCheck = document.getElementById('deadEnableDnsCheck');
+    if (deadEnableDnsCheck) {
+      deadEnableDnsCheck.checked = !!this.settings.deadEnableDnsCheck;
+      deadEnableDnsCheck.addEventListener('change', (e) => {
+        this.settings.deadEnableDnsCheck = !!e.target.checked;
+        this.saveSettings();
+      });
+    }
+
     // 失效检测：扫描重复书签
     const deadScanDuplicates = document.getElementById('deadScanDuplicates');
     if (deadScanDuplicates) {
@@ -1161,6 +1179,7 @@ class OptionsManager {
     const deadResults = document.getElementById('deadResults');
     const deadResultsList = document.getElementById('deadResultsList');
     const deadSelectAll = document.getElementById('deadSelectAll');
+    const deadIgnoreDnsOk = document.getElementById('deadIgnoreDnsOk');
     const deadDeleteBtn = document.getElementById('deadDeleteBtn');
     const deadMoveBtn = document.getElementById('deadMoveBtn');
 
@@ -1181,6 +1200,26 @@ class OptionsManager {
           cb.checked = !!deadSelectAll.checked;
         });
       });
+    }
+
+    // 结果列表：忽略 DNS 成功项（无需重新扫描，动态隐藏/显示）
+    if (deadIgnoreDnsOk && deadResultsList) {
+      deadIgnoreDnsOk.checked = !!this.settings.deadIgnoreDnsOk;
+      const applyDnsFilter = () => {
+        const hideOk = !!deadIgnoreDnsOk.checked;
+        this.settings.deadIgnoreDnsOk = hideOk;
+        // 保存设置
+        this.saveSettings();
+        // 动态隐藏包含 DNS 成功的项（根据 data 属性更稳健）
+        deadResultsList.querySelectorAll('.list-item').forEach(li => {
+          const dnsStatus = (li.getAttribute('data-dns-status') || '').toLowerCase();
+          const hasDnsOk = dnsStatus === 'ok';
+          li.style.display = (hideOk && hasDnsOk) ? 'none' : '';
+        });
+      };
+      deadIgnoreDnsOk.addEventListener('change', applyDnsFilter);
+      // 初始化时应用一次（如果有结果列表）
+      applyDnsFilter();
     }
 
     if (deadDeleteBtn && deadResultsList) {
@@ -2537,10 +2576,36 @@ class OptionsManager {
               avoidPopups: true
             });
             if (!status.ok) {
-              dead.push({ id: b.id, title: b.title, url: b.url, status: status.statusText });
+              const entry = { id: b.id, title: b.title, url: b.url, status: status.statusText };
+              if (this.settings.deadEnableDnsCheck) {
+                try {
+                  const domain = this._extractDomain(b.url);
+                  const dnsDiag = await this._dnsCheckDomain(domain);
+                  if (dnsDiag) {
+                    entry.dns = dnsDiag;
+                    const summary = this._formatDnsSummary(dnsDiag);
+                    entry.status = `${entry.status} ${summary ? `| ${summary}` : ''}`;
+                  }
+                } catch (e) {
+                  entry.status = `${entry.status} | DNS 检测错误`;
+                }
+              }
+              dead.push(entry);
             }
           } catch (e) {
-            dead.push({ id: b.id, title: b.title, url: b.url, status: '网络错误' });
+            const entry = { id: b.id, title: b.title, url: b.url, status: '网络错误' };
+            if (this.settings.deadEnableDnsCheck) {
+              try {
+                const domain = this._extractDomain(b.url);
+                const dnsDiag = await this._dnsCheckDomain(domain);
+                if (dnsDiag) {
+                  entry.dns = dnsDiag;
+                  const summary = this._formatDnsSummary(dnsDiag);
+                  entry.status = `${entry.status} ${summary ? `| ${summary}` : ''}`;
+                }
+              } catch (_) {}
+            }
+            dead.push(entry);
           } finally {
             done++;
             if (progressEl) progressEl.textContent = `${done} / ${total}`;
@@ -2559,13 +2624,18 @@ class OptionsManager {
       }
 
       // 渲染结果
-      if (dead.length === 0) {
+      // 根据设置过滤掉 DNS 成功的条目
+      const filtered = (this.settings.deadEnableDnsCheck && this.settings.deadIgnoreDnsOk)
+        ? dead.filter(d => !(d.dns && d.dns.status === 'ok'))
+        : dead;
+
+      if (filtered.length === 0) {
         containerEl.hidden = false;
         listEl.innerHTML = `<li class="list-item"><span class="title">${window.I18n.t('dead.none')}</span></li>`;
       } else {
         containerEl.hidden = false;
-        listEl.innerHTML = dead.map(d => `
-          <li class="list-item" data-id="${d.id}">
+        listEl.innerHTML = filtered.map(d => `
+          <li class="list-item" data-id="${d.id}" data-dns-status="${d.dns ? d.dns.status : ''}">
             <input type="checkbox" data-id="${d.id}" ${d.ids ? `data-ids="${d.ids.join(',')}"` : ''} aria-label="${window.I18n ? window.I18n.t('dead.checkbox') : '选择'}">
             <div class="info">
               <div class="title">${this.escapeHtml(d.title || d.url)}</div>
@@ -2615,6 +2685,253 @@ class OptionsManager {
   // 提供跨语言的候选名称，避免语言切换后找不到原文件夹
   getDeadFolderNames() {
     return ['失效书签', '失效書籤', 'Dead Links', 'Недействительные ссылки'];
+  }
+
+  // —— DNS 检测逻辑 ——
+  _extractDomain(url) {
+    try { return new URL(url).hostname; } catch { return ''; }
+  }
+
+  async _dnsGetCache(domain) {
+    const key = `dnsCheck:${domain}`;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const obj = await new Promise(resolve => chrome.storage.local.get([key], resolve));
+        return obj[key] || null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  async _dnsSetCache(domain, data) {
+    const key = `dnsCheck:${domain}`;
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        await new Promise(resolve => chrome.storage.local.set({ [key]: data }, resolve));
+      }
+    } catch (_) {}
+  }
+
+  async _dnsQueryDomain(domain, type = 'A') {
+    // 根据语言设置默认 DoH 提供商顺序：简体中文优先阿里，其它语言优先谷歌
+    const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
+      ? window.I18n.getLanguageSync()
+      : (navigator.language || 'en');
+    const normalized = (window.I18n && typeof window.I18n.normalize === 'function')
+      ? window.I18n.normalize(lang)
+      : lang;
+    const isZhCN = normalized === 'zh-CN' || normalized === 'zh_CN';
+
+    // 区分不同提供商的参数格式：
+    // - Alidns 优先使用 DoH wire 格式：GET /dns-query?dns=base64url(dns-message)，Accept: application/dns-message
+    // - Google 使用 JSON：GET /resolve?name=域名&type=记录类型，Accept: application/dns-json
+    // - Cloudflare 使用 JSON：GET /dns-query?name=域名&type=记录类型，Accept: application/dns-json
+    const dohProviders = isZhCN
+      ? [
+          { name: 'alidns', mode: 'wire', url: 'https://dns.alidns.com/dns-query?dns={wire}' },
+          { name: 'cloudflare', mode: 'json', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
+          { name: 'google', mode: 'json', url: 'https://dns.google/resolve?name={domain}&type={type}' }
+        ]
+      : [
+          { name: 'google', mode: 'json', url: 'https://dns.google/resolve?name={domain}&type={type}' },
+          { name: 'cloudflare', mode: 'json', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
+          { name: 'alidns', mode: 'wire', url: 'https://dns.alidns.com/dns-query?dns={wire}' }
+        ];
+
+    for (const prov of dohProviders) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        if (prov.name === 'alidns' && prov.mode === 'wire') {
+          // 构造 DNS wire 格式查询报文并 base64url 编码
+          const wireMsg = this._buildDnsWireQuery(domain, type);
+          const wireParam = this._base64UrlEncode(wireMsg);
+          const url = prov.url.replace('{wire}', wireParam);
+          const resp = await fetch(url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/dns-message' },
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const buf = await resp.arrayBuffer();
+          const jsonLike = this._parseDnsWireMessageToJsonLike(new Uint8Array(buf));
+          if (jsonLike) return { provider: prov.name, result: jsonLike };
+
+          // 失败时降级尝试 Alidns JSON 接口
+          const fallbackUrl = `https://dns.alidns.com/dns-query?name=${encodeURIComponent(domain)}&type=${type}`;
+          const fallbackResp = await fetch(fallbackUrl, {
+            method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal
+          });
+          if (fallbackResp.ok) {
+            const json = await fallbackResp.json();
+            return { provider: prov.name, result: json };
+          }
+        } else if (prov.name === 'google') {
+          const url = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
+          const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          return { provider: prov.name, result: json };
+        } else if (prov.name === 'cloudflare') {
+          const url = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
+          const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          return { provider: prov.name, result: json };
+        }
+      } catch (err) {
+        // 尝试下一个 provider
+      }
+    }
+    return { provider: null, result: null };
+  }
+
+  _interpretDnsResult(domain, json, provider) {
+    if (!json) {
+      return { domain, status: 'dead', ip: [], dnsProvider: provider, checkedAt: (new Date()).toISOString() };
+    }
+    const statusCode = json.Status;
+    const answer = Array.isArray(json.Answer) ? json.Answer : [];
+    const ips = answer.filter(a => a.type === 1 || a.type === 28).map(a => a.data);
+    let status;
+    if (statusCode === 0 && ips.length > 0) status = 'ok';
+    else if (statusCode === 3) status = 'dead';
+    else status = 'suspect';
+    return { domain, status, ip: ips, dnsProvider: provider, checkedAt: (new Date()).toISOString() };
+  }
+
+  // 构造最小 DNS 报文：header + question
+  _buildDnsWireQuery(domain, type = 'A') {
+    const labels = domain.split('.').filter(Boolean);
+    const nameLen = labels.reduce((sum, l) => sum + 1 + l.length, 0) + 1; // +1 末尾 0
+    const qtype = (type === 'AAAA') ? 28 : 1;
+    const buf = new Uint8Array(12 + nameLen + 4);
+    let o = 0;
+    // ID
+    buf[o++] = 0x12; buf[o++] = 0x34;
+    // Flags: 标准查询
+    buf[o++] = 0x01; buf[o++] = 0x00;
+    // QDCOUNT=1
+    buf[o++] = 0x00; buf[o++] = 0x01;
+    // ANCOUNT, NSCOUNT, ARCOUNT = 0
+    buf[o++] = 0x00; buf[o++] = 0x00;
+    buf[o++] = 0x00; buf[o++] = 0x00;
+    buf[o++] = 0x00; buf[o++] = 0x00;
+    // QNAME
+    for (const l of labels) {
+      const bytes = new TextEncoder().encode(l);
+      buf[o++] = bytes.length;
+      buf.set(bytes, o);
+      o += bytes.length;
+    }
+    buf[o++] = 0x00; // terminator
+    // QTYPE
+    buf[o++] = (qtype >> 8) & 0xff; buf[o++] = qtype & 0xff;
+    // QCLASS = IN(1)
+    buf[o++] = 0x00; buf[o++] = 0x01;
+    return buf;
+  }
+
+  _base64UrlEncode(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    const b64 = btoa(s);
+    return b64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+
+  // 将 DNS 二进制响应解析为近似 JSON 结构（包含 Status/Answer）
+  _parseDnsWireMessageToJsonLike(buf) {
+    try {
+      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+      let o = 0;
+      const id = dv.getUint16(o); o += 2;
+      const flags = dv.getUint16(o); o += 2;
+      const qr = (flags & 0x8000) !== 0;
+      const rcode = flags & 0x000f;
+      const qd = dv.getUint16(o); o += 2;
+      const an = dv.getUint16(o); o += 2;
+      const ns = dv.getUint16(o); o += 2;
+      const ar = dv.getUint16(o); o += 2;
+
+      // 跳过 Question
+      const readName = () => {
+        let labels = [];
+        while (true) {
+          const len = buf[o++];
+          if (len === 0) break;
+          if ((len & 0xC0) === 0xC0) { // pointer
+            const ptr = ((len & 0x3F) << 8) | buf[o++];
+            // 简化：不追溯指针，还原失败则退出
+            break;
+          }
+          const part = new TextDecoder().decode(buf.slice(o, o + len));
+          labels.push(part);
+          o += len;
+        }
+        return labels.join('.');
+      };
+
+      for (let i = 0; i < qd; i++) {
+        readName();
+        o += 4; // QTYPE + QCLASS
+      }
+
+      const answers = [];
+      const toIPv4 = (arr) => arr.join('.');
+      const toIPv6 = (arr) => arr.map((v, i) => (i % 2 === 0 ? ((arr[i] << 8) | arr[i + 1]).toString(16) : null)).filter(x => x !== null).join(':').replace(/(^|:)0(:0)+(:|$)/, '$1::');
+
+      for (let i = 0; i < an; i++) {
+        // NAME（可能是指针），简化跳过
+        const b0 = buf[o];
+        if ((b0 & 0xC0) === 0xC0) { o += 2; } else { readName(); }
+        const type = dv.getUint16(o); o += 2;
+        const klass = dv.getUint16(o); o += 2;
+        const ttl = dv.getUint32(o); o += 4;
+        const rdlen = dv.getUint16(o); o += 2;
+        let data = '';
+        if (type === 1 && rdlen === 4) {
+          const a = [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]];
+          data = toIPv4(a);
+        } else if (type === 28 && rdlen === 16) {
+          const seg = [];
+          for (let j = 0; j < 16; j++) seg.push(buf[o + j]);
+          data = toIPv6(seg);
+        }
+        o += rdlen;
+        if (data) answers.push({ name: '', type, TTL: ttl, data });
+      }
+
+      return { Status: rcode, Answer: answers };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _formatDnsSummary(diag) {
+    if (!diag) return '';
+    if (diag.status === 'dead') return `DNS 无解析 (${diag.dnsProvider || '—'})`;
+    if (diag.status === 'ok') return `DNS 解析: ${diag.ip.join(', ')} (${diag.dnsProvider || '—'})`;
+    return `DNS 可疑 (${diag.dnsProvider || '—'})`;
+  }
+
+  async _dnsCheckDomain(domain) {
+    if (!domain) return null;
+    const cached = await this._dnsGetCache(domain);
+    const weekMs = 7 * 24 * 3600 * 1000;
+    if (cached) {
+      try {
+        const ts = new Date(cached.checkedAt).getTime();
+        if (!isNaN(ts) && (Date.now() - ts) < weekMs) return cached;
+      } catch (_) {}
+    }
+    const { provider, result } = await this._dnsQueryDomain(domain, 'A');
+    const interpreted = this._interpretDnsResult(domain, result, provider);
+    await this._dnsSetCache(domain, interpreted);
+    return interpreted;
   }
 
   // 工具：获取全部书签（扁平化）

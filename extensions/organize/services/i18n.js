@@ -476,6 +476,10 @@
     'dead.timeout.tip': { 'zh-CN': '请求最大等待时间，范围 1–60 秒', 'zh-TW': '請求最大等待時間，範圍 1–60 秒', 'en': 'Maximum request wait time, range 1–60 seconds', 'ru': 'Максимальное время ожидания запроса: 1–60 сек.' },
     'dead.ignorePrivate.tip': { 'zh-CN': '跳过如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x', 'zh-TW': '跳過如 127.0.0.1、localhost、10.x、192.168.x、172.16–31.x', 'en': 'Skip addresses like 127.0.0.1, localhost, 10.x, 192.168.x, 172.16–31.x', 'ru': 'Пропускать адреса: 127.0.0.1, localhost, 10.x, 192.168.x, 172.16–31.x' },
     'dead.scanDuplicates.tip': { 'zh-CN': '按 URL 分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走', 'zh-TW': '按 URL 分組標記重複，僅展示一條代表項，可勾選後統一刪除或移走', 'en': 'Group by URL to mark duplicates; show one representative; allow bulk delete or move', 'ru': 'Группировать по URL для пометки дубликатов; показывать один представитель; массовое удаление/перемещение' }
+    ,
+    'dead.dns.label': { 'zh-CN': '启用 DNS 检测', 'zh-TW': '啟用 DNS 檢測', 'en': 'Enable DNS Check', 'ru': 'Включить проверку DNS' },
+    'dead.dns.tip': { 'zh-CN': '开启后对不可达链接进行 DoH 解析诊断并展示结果', 'zh-TW': '開啟後對不可達連結進行 DoH 解析診斷並展示結果', 'en': 'Diagnose unreachable links via DoH and show results', 'ru': 'Диагностика недоступных ссылок через DoH и показ результатов' },
+    'dead.dns.ignoreOk.label': { 'zh-CN': '忽略 DNS 解析成功项', 'zh-TW': '忽略 DNS 解析成功項', 'en': 'Ignore items with successful DNS resolution', 'ru': 'Игнорировать элементы с успешным разрешением DNS' }
   };
   Object.assign(translations, translationsDead);
   

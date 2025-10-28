@@ -30,7 +30,10 @@
     "https://60s.7se.cn/*",
     "https://api.github.com/*",
     "https://raw.githubusercontent.com/*",
-    "https://dav.jianguoyun.com/*"
+    "https://dav.jianguoyun.com/*",
+    "https://dns.google/*",
+    "https://cloudflare-dns.com/*",
+    "https://dns.alidns.com/*"
   ],
   "optional_host_permissions": [
     "<all_urls>",
@@ -67,6 +70,6 @@
   },
   
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://dns.google https://cloudflare-dns.com https://dns.alidns.com"
   }
 }

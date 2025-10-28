@@ -442,6 +442,11 @@
               <span data-i18n="dead.ignorePrivate.label">忽略内网/本地地址</span>
             </label>
             <label class="setting-label">
+              <input type="checkbox" id="deadEnableDnsCheck">
+              <span class="checkmark"></span>
+              <span data-i18n="dead.dns.label">启用 DNS 检测</span>
+            </label>
+            <label class="setting-label">
               <input type="checkbox" id="deadScanDuplicates">
               <span class="checkmark"></span>
               <span data-i18n="dead.scanDuplicates.label">扫描重复书签</span>
@@ -450,6 +455,7 @@
           <p class="setting-desc inline-hint" data-i18n="dead.timeout.tip">请求最大等待时间，范围 1–60 秒</p>
           <p class="setting-desc inline-hint" data-i18n="dead.ignorePrivate.tip">跳过如
             127.0.0.1、localhost、10.x、192.168.x、172.16–31.x</p>
+          <p class="setting-desc inline-hint" data-i18n="dead.dns.tip">开启后对不可达链接进行 DoH（DNS over HTTPS）解析诊断，展示提供商及解析结果</p>
           <p class="setting-desc inline-hint" data-i18n="dead.scanDuplicates.tip">扫描重复书签：按 URL
             分组标记重复，仅展示一条代表项，可勾选后统一删除或挪走</p>
           <button class="btn btn-primary" id="deadScanBtn" data-i18n="dead.scan.start">开始检测</button>
@@ -461,6 +467,11 @@
               <input type="checkbox" id="deadSelectAll">
               <span class="checkmark"></span>
               <span data-i18n="dead.selectAll">全选</span>
+            </label>
+            <label class="setting-label">
+              <input type="checkbox" id="deadIgnoreDnsOk">
+              <span class="checkmark"></span>
+              <span data-i18n="dead.dns.ignoreOk.label">忽略 DNS 检测成功项</span>
             </label>
             <button class="btn btn-outline" id="deadMoveBtn" data-i18n="dead.moveSelected">挪到“失效”文件夹</button>
             <button class="btn btn-outline btn-danger" id="deadDeleteBtn" data-i18n="dead.deleteSelected">删除选中</button>
