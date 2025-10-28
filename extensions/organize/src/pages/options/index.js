@@ -2722,69 +2722,63 @@ class OptionsManager {
       : lang;
     const isZhCN = normalized === 'zh-CN' || normalized === 'zh_CN';
 
-    // 区分不同提供商的参数格式：
-    // - Alidns 优先使用 DoH wire 格式：GET /dns-query?dns=base64url(dns-message)，Accept: application/dns-message
-    // - Google 使用 JSON：GET /resolve?name=域名&type=记录类型，Accept: application/dns-json
-    // - Cloudflare 使用 JSON：GET /dns-query?name=域名&type=记录类型，Accept: application/dns-json
     const dohProviders = isZhCN
       ? [
-          { name: 'alidns', mode: 'wire', url: 'https://dns.alidns.com/dns-query?dns={wire}' },
-          { name: 'cloudflare', mode: 'json', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
-          { name: 'google', mode: 'json', url: 'https://dns.google/resolve?name={domain}&type={type}' }
+          { name: 'alidns', url: 'https://dns.alidns.com/dns-query?name={domain}&type={type}' },
+          { name: 'cloudflare', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
+          { name: 'google', url: 'https://dns.google/resolve?name={domain}&type={type}' }
         ]
       : [
-          { name: 'google', mode: 'json', url: 'https://dns.google/resolve?name={domain}&type={type}' },
-          { name: 'cloudflare', mode: 'json', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
-          { name: 'alidns', mode: 'wire', url: 'https://dns.alidns.com/dns-query?dns={wire}' }
+          { name: 'google', url: 'https://dns.google/resolve?name={domain}&type={type}' },
+          { name: 'cloudflare', url: 'https://cloudflare-dns.com/dns-query?name={domain}&type={type}' },
+          { name: 'alidns', url: 'https://dns.alidns.com/dns-query?name={domain}&type={type}' }
         ];
-
+    // 按提供商区分请求参数格式
     for (const prov of dohProviders) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-        if (prov.name === 'alidns' && prov.mode === 'wire') {
-          // 构造 DNS wire 格式查询报文并 base64url 编码
-          const wireMsg = this._buildDnsWireQuery(domain, type);
-          const wireParam = this._base64UrlEncode(wireMsg);
-          const url = prov.url.replace('{wire}', wireParam);
-          const resp = await fetch(url, {
-            method: 'GET',
-            headers: { 'Accept': 'application/dns-message' },
-            signal: controller.signal
-          });
+      if (prov.name === 'alidns') {
+        // 优先使用 wire: ?dns=base64url(dns-message)
+        try {
+          const typeCode = (type === 'AAAA') ? 28 : 1; // 仅处理 A/AAAA
+          const wire = this._buildDnsWireQuery(domain, typeCode);
+          const dnsParam = this._base64UrlEncode(wire);
+          const wireUrl = `https://dns.alidns.com/dns-query?dns=${dnsParam}`;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const resp = await fetch(wireUrl, { method: 'GET', headers: { 'Accept': 'application/dns-message' }, signal: controller.signal });
           clearTimeout(timeoutId);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const buf = await resp.arrayBuffer();
           const jsonLike = this._parseDnsWireMessageToJsonLike(new Uint8Array(buf));
-          if (jsonLike) return { provider: prov.name, result: jsonLike };
-
-          // 失败时降级尝试 Alidns JSON 接口
-          const fallbackUrl = `https://dns.alidns.com/dns-query?name=${encodeURIComponent(domain)}&type=${type}`;
-          const fallbackResp = await fetch(fallbackUrl, {
-            method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal
-          });
-          if (fallbackResp.ok) {
-            const json = await fallbackResp.json();
-            return { provider: prov.name, result: json };
+          return { provider: prov.name, result: jsonLike };
+        } catch (_) {
+          // 回退到 JSON（部分环境可能支持）
+          try {
+            const jsonUrl = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
+            const controller2 = new AbortController();
+            const timeoutId2 = setTimeout(() => controller2.abort(), 3000);
+            const resp2 = await fetch(jsonUrl, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller2.signal });
+            clearTimeout(timeoutId2);
+            if (!resp2.ok) throw new Error(`HTTP ${resp2.status}`);
+            const json2 = await resp2.json();
+            return { provider: prov.name, result: json2 };
+          } catch (_) {
+            // 继续下一个 provider
           }
-        } else if (prov.name === 'google') {
-          const url = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
-          const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const json = await resp.json();
-          return { provider: prov.name, result: json };
-        } else if (prov.name === 'cloudflare') {
-          const url = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
-          const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const json = await resp.json();
-          return { provider: prov.name, result: json };
         }
-      } catch (err) {
-        // 尝试下一个 provider
+      } else {
+        // Google/Cloudflare 使用 JSON 接口
+        const url = prov.url.replace('{domain}', encodeURIComponent(domain)).replace('{type}', type);
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/dns-json' }, signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          return { provider: prov.name, result: json };
+        } catch (_) {
+          // 尝试下一个 provider
+        }
       }
     }
     return { provider: null, result: null };
@@ -2804,118 +2798,94 @@ class OptionsManager {
     return { domain, status, ip: ips, dnsProvider: provider, checkedAt: (new Date()).toISOString() };
   }
 
-  // 构造最小 DNS 报文：header + question
-  _buildDnsWireQuery(domain, type = 'A') {
-    const labels = domain.split('.').filter(Boolean);
-    const nameLen = labels.reduce((sum, l) => sum + 1 + l.length, 0) + 1; // +1 末尾 0
-    const qtype = (type === 'AAAA') ? 28 : 1;
-    const buf = new Uint8Array(12 + nameLen + 4);
-    let o = 0;
-    // ID
-    buf[o++] = 0x12; buf[o++] = 0x34;
-    // Flags: 标准查询
-    buf[o++] = 0x01; buf[o++] = 0x00;
-    // QDCOUNT=1
-    buf[o++] = 0x00; buf[o++] = 0x01;
-    // ANCOUNT, NSCOUNT, ARCOUNT = 0
-    buf[o++] = 0x00; buf[o++] = 0x00;
-    buf[o++] = 0x00; buf[o++] = 0x00;
-    buf[o++] = 0x00; buf[o++] = 0x00;
-    // QNAME
-    for (const l of labels) {
-      const bytes = new TextEncoder().encode(l);
-      buf[o++] = bytes.length;
-      buf.set(bytes, o);
-      o += bytes.length;
-    }
-    buf[o++] = 0x00; // terminator
-    // QTYPE
-    buf[o++] = (qtype >> 8) & 0xff; buf[o++] = qtype & 0xff;
-    // QCLASS = IN(1)
-    buf[o++] = 0x00; buf[o++] = 0x01;
-    return buf;
-  }
-
-  _base64UrlEncode(bytes) {
-    let s = '';
-    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    const b64 = btoa(s);
-    return b64.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  }
-
-  // 将 DNS 二进制响应解析为近似 JSON 结构（包含 Status/Answer）
-  _parseDnsWireMessageToJsonLike(buf) {
-    try {
-      const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-      let o = 0;
-      const id = dv.getUint16(o); o += 2;
-      const flags = dv.getUint16(o); o += 2;
-      const qr = (flags & 0x8000) !== 0;
-      const rcode = flags & 0x000f;
-      const qd = dv.getUint16(o); o += 2;
-      const an = dv.getUint16(o); o += 2;
-      const ns = dv.getUint16(o); o += 2;
-      const ar = dv.getUint16(o); o += 2;
-
-      // 跳过 Question
-      const readName = () => {
-        let labels = [];
-        while (true) {
-          const len = buf[o++];
-          if (len === 0) break;
-          if ((len & 0xC0) === 0xC0) { // pointer
-            const ptr = ((len & 0x3F) << 8) | buf[o++];
-            // 简化：不追溯指针，还原失败则退出
-            break;
-          }
-          const part = new TextDecoder().decode(buf.slice(o, o + len));
-          labels.push(part);
-          o += len;
-        }
-        return labels.join('.');
-      };
-
-      for (let i = 0; i < qd; i++) {
-        readName();
-        o += 4; // QTYPE + QCLASS
-      }
-
-      const answers = [];
-      const toIPv4 = (arr) => arr.join('.');
-      const toIPv6 = (arr) => arr.map((v, i) => (i % 2 === 0 ? ((arr[i] << 8) | arr[i + 1]).toString(16) : null)).filter(x => x !== null).join(':').replace(/(^|:)0(:0)+(:|$)/, '$1::');
-
-      for (let i = 0; i < an; i++) {
-        // NAME（可能是指针），简化跳过
-        const b0 = buf[o];
-        if ((b0 & 0xC0) === 0xC0) { o += 2; } else { readName(); }
-        const type = dv.getUint16(o); o += 2;
-        const klass = dv.getUint16(o); o += 2;
-        const ttl = dv.getUint32(o); o += 4;
-        const rdlen = dv.getUint16(o); o += 2;
-        let data = '';
-        if (type === 1 && rdlen === 4) {
-          const a = [buf[o], buf[o + 1], buf[o + 2], buf[o + 3]];
-          data = toIPv4(a);
-        } else if (type === 28 && rdlen === 16) {
-          const seg = [];
-          for (let j = 0; j < 16; j++) seg.push(buf[o + j]);
-          data = toIPv6(seg);
-        }
-        o += rdlen;
-        if (data) answers.push({ name: '', type, TTL: ttl, data });
-      }
-
-      return { Status: rcode, Answer: answers };
-    } catch (_) {
-      return null;
-    }
-  }
-
   _formatDnsSummary(diag) {
     if (!diag) return '';
     if (diag.status === 'dead') return `DNS 无解析 (${diag.dnsProvider || '—'})`;
     if (diag.status === 'ok') return `DNS 解析: ${diag.ip.join(', ')} (${diag.dnsProvider || '—'})`;
     return `DNS 可疑 (${diag.dnsProvider || '—'})`;
+  }
+
+  // —— DNS wire 工具 ——
+  _buildDnsWireQuery(domain, typeCode = 1) {
+    // 标准查询报文：RD=1, QDCOUNT=1, QTYPE/QCLASS=IN
+    const id = Math.floor(Math.random() * 0xffff) & 0xffff;
+    const qnameParts = domain.split('.').filter(Boolean);
+    const qnameLen = qnameParts.reduce((sum, p) => sum + 1 + p.length, 1); // +1 for terminal 0x00
+    const buf = new Uint8Array(12 + qnameLen + 4);
+    const dv = new DataView(buf.buffer);
+    dv.setUint16(0, id);
+    dv.setUint16(2, 0x0100);           // Flags: RD=1
+    dv.setUint16(4, 1);                // QDCOUNT
+    dv.setUint16(6, 0);                // ANCOUNT
+    dv.setUint16(8, 0);                // NSCOUNT
+    dv.setUint16(10, 0);               // ARCOUNT
+    let offset = 12;
+    for (const part of qnameParts) {
+      const len = part.length;
+      buf[offset++] = len;
+      for (let i = 0; i < len; i++) buf[offset++] = part.charCodeAt(i);
+    }
+    buf[offset++] = 0;                 // QNAME terminator
+    dv.setUint16(offset, typeCode);    // QTYPE
+    dv.setUint16(offset + 2, 1);       // QCLASS IN
+    return buf;
+  }
+
+  _base64UrlEncode(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    return b64;
+  }
+
+  _parseDnsWireMessageToJsonLike(bytes) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (bytes.length < 12) return { Status: 2, Answer: [] };
+    const flags = dv.getUint16(2);
+    const rcode = flags & 0x000f;
+    const qd = dv.getUint16(4);
+    let an = dv.getUint16(6);
+    let offset = 12;
+    // 跳过 Question
+    for (let qi = 0; qi < qd; qi++) {
+      while (offset < bytes.length) {
+        const len = bytes[offset++];
+        if (len === 0) break;
+        offset += len;
+      }
+      offset += 4; // QTYPE + QCLASS
+    }
+    const answers = [];
+    for (let ai = 0; ai < an && offset < bytes.length; ai++) {
+      // NAME: label 或压缩指针
+      const first = bytes[offset];
+      if ((first & 0xc0) === 0xc0) {
+        offset += 2;
+      } else {
+        while (offset < bytes.length) {
+          const len = bytes[offset++];
+          if (len === 0) break;
+          offset += len;
+        }
+      }
+      if (offset + 10 > bytes.length) break;
+      const type = dv.getUint16(offset); offset += 2;
+      const cls = dv.getUint16(offset); offset += 2;
+      const ttl = dv.getUint32(offset); offset += 4;
+      const rdlen = dv.getUint16(offset); offset += 2;
+      if (offset + rdlen > bytes.length) break;
+      let data = '';
+      if (type === 1 && rdlen === 4) {
+        data = `${bytes[offset]}.${bytes[offset+1]}.${bytes[offset+2]}.${bytes[offset+3]}`;
+      } else if (type === 28 && rdlen === 16) {
+        const parts = [];
+        for (let i = 0; i < 16; i += 2) parts.push(dv.getUint16(offset + i).toString(16));
+        data = parts.join(':');
+      }
+      offset += rdlen;
+      answers.push({ name: '', type, TTL: ttl, data });
+    }
+    return { Status: rcode, Answer: answers };
   }
 
   async _dnsCheckDomain(domain) {
