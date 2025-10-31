@@ -2032,6 +2032,8 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
     throw new Error(validationResult.error);
   }
   let url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.openai.com/v1/chat/completions';
+  // 规范化 URL：去除首尾空白与末尾句点，避免 CSP/解析错误
+  url = String(url || '').trim().replace(/\.+$/, '');
   let headers = { 'Content-Type': 'application/json' };
   let body;
 
