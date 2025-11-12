@@ -15,6 +15,7 @@ A lightweight Chrome/Edge extension that supports automatic categorization, AI-a
   - Auto-archive old bookmarks: based on “last visited time”, move less-used bookmarks to the “Archive” folder (threshold configurable, default 180 days; fallback to added time when no visit record).
   - Visit frequency stats / usage heat analysis: record bookmark visits and recent activity on the New Tab; supports a “Top” section and basic usage insights.
   - Context menu integration: right-click “Add to TidyMark and categorize”; automatically create and move to the matched category folder.
+  - Shortcut quick search (Full version): open the Quick Search page with a keyboard shortcut; default Alt+K (macOS: Command+Shift+K); toggle available under the "Help" tab in Options.
 
 ## Installation & Variants
 
