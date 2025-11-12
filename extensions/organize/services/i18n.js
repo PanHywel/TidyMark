@@ -594,6 +594,13 @@
     'options.archive.threshold.label': { 'zh-CN': '归档阈值（距今多少天前）', 'zh-TW': '歸檔臨界值（距今多少天前）', 'en': 'Archive threshold (days ago)', 'ru': 'Порог архивации (сколько дней назад)' },
     'options.archive.threshold.desc': { 'zh-CN': '按最近访问时间判断，未有访问记录则按添加时间；默认 180 天。', 'zh-TW': '依最近造訪時間判斷，未有造訪記錄則依新增時間；預設 180 天。', 'en': 'Use last visit time, or added time if none; default 180 days.', 'ru': 'По времени последнего визита, или по времени добавления; по умолчанию 180 дней.' }
   };
+  // Misc options
+  const translationsOptionsMisc = {
+    'options.misc.header': { 'zh-CN': '🧰 其他设置', 'zh-TW': '🧰 其他設定', 'en': '🧰 Other Settings', 'ru': '🧰 Прочие настройки' },
+    'options.misc.quick.toggle': { 'zh-CN': '允许快捷键打开搜索页', 'zh-TW': '允許快捷鍵開啟搜尋頁', 'en': 'Enable shortcut to open Search page', 'ru': 'Разрешить открывать поиск по сочетанию клавиш' },
+    'options.misc.quick.tip': { 'zh-CN': '关闭后，快捷键将不再打开搜索页', 'zh-TW': '關閉後，快捷鍵將不再開啟搜尋頁', 'en': 'When off, the shortcut will not open Search', 'ru': 'При выключении сочетание клавиш не откроет поиск' }
+  };
+  Object.assign(translations, translationsOptionsMisc);
   Object.assign(translations, translationsOptionsNav);
 
   // Organize params dialog & labels

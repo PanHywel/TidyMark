@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "short_name": "__MSG_appShortName__",
-  "version": "1.4.26",
+  "version": "1.4.27",
   "description": "__MSG_appDesc__",
   "default_locale": "en",
   
@@ -11,6 +11,7 @@
     "storage",
     "downloads",
     "activeTab",
+    "tabs",
     "alarms",
     "contextMenus",
     "notifications",
@@ -55,6 +56,16 @@
   "background": {
     "service_worker": "src/background/index.js",
     "type": "module"
+  },
+  
+  "commands": {
+    "open_quick_search": {
+      "suggested_key": {
+        "default": "Alt+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Open quick bookmark search"
+    }
   },
   
   "options_page": "src/pages/options/index.html",

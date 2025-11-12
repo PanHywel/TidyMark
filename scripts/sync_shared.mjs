@@ -10,6 +10,7 @@ const sources = [
   { from: path.join(root, 'icons'), to: path.join(variantRoot, 'icons') },
   { from: path.join(root, 'src', 'background'), to: path.join(variantRoot, 'src', 'background') },
   { from: path.join(root, '_locales'), to: path.join(variantRoot, '_locales') },
+  // 纯书签版不包含快速搜索页面，不同步 search 目录
 ];
 
 const optionsFiles = [

@@ -83,6 +83,91 @@ chrome.action.onClicked.addListener(() => {
   }
 });
 
+// 监听快捷键命令：打开普通窗口并加载搜索页面（占位版）
+try {
+  chrome.commands?.onCommand.addListener(async (command) => {
+    if (command !== 'open_quick_search') return;
+    try {
+      // 若用户关闭了快捷键打开搜索页，则不响应
+      try {
+        const { quickSearchShortcutEnabled } = await chrome.storage.sync.get(['quickSearchShortcutEnabled']);
+        if (quickSearchShortcutEnabled === false) {
+          console.log('[Commands] 快捷键打开搜索已关闭，忽略本次触发');
+          return;
+        }
+      } catch (_) {
+        // 忽略读取失败，按默认开启处理
+      }
+      const url = chrome.runtime.getURL('src/pages/search/index.html');
+      const urlDir = chrome.runtime.getURL('src/pages/search/');
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const windowId = activeTab?.windowId;
+      console.log('[Commands] 触发快速搜索：复用或在当前窗口新开标签', url, 'windowId=', windowId);
+
+      let createdOrExistingTabId = null;
+      const isSearchTab = (t) => {
+        const u = (t && (t.url || t.pendingUrl)) || '';
+        return typeof u === 'string' && (
+          u === url || u.startsWith(url) ||
+          u === urlDir || u.startsWith(urlDir)
+        );
+      };
+
+      if (windowId) {
+        const tabsInWindow = await chrome.tabs.query({ windowId });
+        const existing = tabsInWindow.find(isSearchTab);
+        if (existing?.id) {
+          createdOrExistingTabId = existing.id;
+          await chrome.tabs.update(existing.id, { active: true });
+          try { await chrome.windows.update(windowId, { focused: true }); } catch (_) {}
+        } else {
+          // 当前窗口未找到，则尝试跨窗口全局查找并激活
+          const allTabs = await chrome.tabs.query({});
+          const existingGlobal = allTabs.find(isSearchTab);
+          if (existingGlobal?.id) {
+            createdOrExistingTabId = existingGlobal.id;
+            await chrome.tabs.update(existingGlobal.id, { active: true });
+            try { await chrome.windows.update(existingGlobal.windowId, { focused: true }); } catch (_) {}
+          } else {
+            const newTab = await chrome.tabs.create({ windowId, url, active: true });
+            createdOrExistingTabId = newTab?.id ?? null;
+          }
+        }
+      } else {
+        // 无当前窗口信息，尝试全局复用
+        const allTabs = await chrome.tabs.query({});
+        const existingGlobal = allTabs.find(isSearchTab);
+        if (existingGlobal?.id) {
+          createdOrExistingTabId = existingGlobal.id;
+          await chrome.tabs.update(existingGlobal.id, { active: true });
+          try { await chrome.windows.update(existingGlobal.windowId, { focused: true }); } catch (_) {}
+        } else {
+          const newTab = await chrome.tabs.create({ url, active: true });
+          createdOrExistingTabId = newTab?.id ?? null;
+        }
+      }
+
+      // 使用 runtime 广播消息，扩展页可直接接收，避免 tabs.sendMessage 仅面向内容脚本的问题
+      try {
+        // 小延迟以确保新标签内容完成初次渲染
+        setTimeout(() => {
+          try { chrome.runtime.sendMessage({ type: 'focusSearchInput' }); } catch (_) {}
+        }, 50);
+      } catch (_) {}
+    } catch (err) {
+      console.warn('[Commands] 在当前窗口打开标签页失败，尝试直接创建', err);
+      try {
+        const fallbackUrl = chrome.runtime.getURL('src/pages/search/index.html');
+        await chrome.tabs.create({ url: fallbackUrl, active: true });
+      } catch (e2) {
+        console.warn('[Commands] 直接创建标签页也失败', e2);
+      }
+    }
+  });
+} catch (e) {
+  console.warn('[Commands] 注册命令监听失败', e);
+}
+
 // 通过闹钟周期性唤醒并执行每日一次的 GitHub 自动同步
 try {
   chrome.alarms.onAlarm.addListener(async (alarm) => {
@@ -125,6 +210,8 @@ async function initializeExtension() {
       wallpaperEnabled: true,
       searchEnabled: true,
       showStats: true,
+      // Misc：快捷键打开搜索页默认开启
+      quickSearchShortcutEnabled: true,
       lastBackupTime: null,
       backupInterval: 24 * 60 * 60 * 1000 // 24小时
     };

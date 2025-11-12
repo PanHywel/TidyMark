@@ -24,8 +24,23 @@
       }
     } catch (e) {}
   }
+  function hideHelpQuickSearchToggle() {
+    try {
+      const toggle = document.getElementById('quickSearchShortcutEnabled');
+      if (toggle) {
+        const card = toggle.closest('.info-card');
+        if (card) {
+          card.remove();
+        } else {
+          const row = toggle.closest('.setting-item');
+          if (row) row.style.display = 'none';
+        }
+      }
+    } catch (e) {}
+  }
   document.addEventListener('DOMContentLoaded', () => {
     removeNavElements();
     patchOptionsManager();
+    hideHelpQuickSearchToggle();
   });
 })();

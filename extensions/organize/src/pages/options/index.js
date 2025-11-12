@@ -83,7 +83,9 @@ class OptionsManager {
           'webdavUrl', 'webdavUsername', 'webdavPassword', 'webdavPath', 'webdavFormat', 'webdavDualUpload', 'webdavAutoSyncDaily', 'webdavLastAutoSyncDate',
           'gdriveToken', 'gdriveFolderId', 'gdriveBaseName', 'gdriveFormat', 'gdriveDualUpload',
           // 兼容：旧版坚果云（Nutstore）键
-          'nutstoreUrl', 'nutstoreUsername', 'nutstorePassword', 'nutstorePath'
+          'nutstoreUrl', 'nutstoreUsername', 'nutstorePassword', 'nutstorePath',
+          // Misc：快捷键打开搜索的开关
+          'quickSearchShortcutEnabled'
         ]);
       } else {
         // 在非扩展环境中使用localStorage作为fallback
@@ -159,7 +161,7 @@ class OptionsManager {
         }
       })();
 
-      this.settings = {
+        this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
         aiProvider: ['openai','deepseek','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
@@ -214,7 +216,7 @@ class OptionsManager {
           if (Number.isFinite(num)) return Math.max(1, Math.min(50, num));
           return 10;
         })(),
-        autoArchiveOldBookmarks: result.autoArchiveOldBookmarks !== undefined ? !!result.autoArchiveOldBookmarks : false,
+          autoArchiveOldBookmarks: result.autoArchiveOldBookmarks !== undefined ? !!result.autoArchiveOldBookmarks : false,
         archiveOlderThanDays: (() => {
           const v = result.archiveOlderThanDays;
           const num = typeof v === 'string' ? parseInt(v, 10) : v;
@@ -257,8 +259,11 @@ class OptionsManager {
         gdriveToken: (result.gdriveToken || '').trim(),
         gdriveFolderId: (result.gdriveFolderId || '').trim(),
         gdriveBaseName: (result.gdriveBaseName || 'tidymark-backup').trim(),
-        gdriveFormat: ['json','html'].includes(result.gdriveFormat) ? result.gdriveFormat : 'json'
-      };
+          gdriveFormat: ['json','html'].includes(result.gdriveFormat) ? result.gdriveFormat : 'json'
+        };
+
+        // 其他设置（快捷键开关）
+        this.settings.quickSearchShortcutEnabled = result.quickSearchShortcutEnabled !== undefined ? !!result.quickSearchShortcutEnabled : true;
 
       this.classificationRules = this.settings.classificationRules || this.getDefaultRules();
     } catch (error) {
@@ -901,6 +906,15 @@ class OptionsManager {
     if (resetData) {
       resetData.addEventListener('click', () => {
         this.resetSettings();
+      });
+    }
+
+    // 其他设置：快捷键打开搜索的开关
+    const qsToggle = document.getElementById('quickSearchShortcutEnabled');
+    if (qsToggle) {
+      qsToggle.addEventListener('change', (e) => {
+        this.settings.quickSearchShortcutEnabled = !!e.target.checked;
+        this.saveSettings();
       });
     }
 
@@ -2131,6 +2145,9 @@ class OptionsManager {
     this.updateAiConfig();
     this.updateWidgetConfig();
     this.updateSyncConfig();
+    // 回显其他设置
+    const qsToggle = document.getElementById('quickSearchShortcutEnabled');
+    if (qsToggle) qsToggle.checked = this.settings.quickSearchShortcutEnabled !== false;
   }
 
   // 更新分类规则
