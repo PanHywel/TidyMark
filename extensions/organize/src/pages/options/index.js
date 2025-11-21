@@ -3455,6 +3455,163 @@ class OptionsManager {
     }
   }
 
+  // 统计书签树中的书签数量
+  countBookmarksInTree(bookmarkTree) {
+    let count = 0;
+    
+    const countNode = (node) => {
+      if (node.url) {
+        count++;
+      }
+      if (node.children) {
+        node.children.forEach(countNode);
+      }
+    };
+    
+    if (Array.isArray(bookmarkTree)) {
+      bookmarkTree.forEach(countNode);
+    } else {
+      countNode(bookmarkTree);
+    }
+    
+    return count;
+  }
+
+  // 清除所有书签（保留根文件夹）
+  async clearAllBookmarks() {
+    try {
+      const bookmarkTree = await chrome.bookmarks.getTree();
+      
+      // 递归删除所有书签和文件夹（保留Chrome的根文件夹）
+      const deleteNode = async (node) => {
+        if (node.children) {
+          // 从后往前删除子节点，避免索引问题
+          for (let i = node.children.length - 1; i >= 0; i--) {
+            await deleteNode(node.children[i]);
+          }
+        }
+        
+        // 不删除根节点和Chrome的特殊文件夹（书签栏、其他书签、移动设备书签）
+        if (node.id && node.id !== '0' && node.id !== '1' && node.id !== '2' && node.id !== '3') {
+          try {
+            if (node.url) {
+              await chrome.bookmarks.remove(node.id);
+            } else {
+              await chrome.bookmarks.removeTree(node.id);
+            }
+          } catch (e) {
+            console.warn(`删除节点失败 ${node.id}:`, e);
+          }
+        }
+      };
+      
+      // 处理根节点的所有子节点
+      if (bookmarkTree[0] && bookmarkTree[0].children) {
+        for (const rootChild of bookmarkTree[0].children) {
+          if (rootChild.children) {
+            // 清空每个根文件夹的内容，但保留文件夹本身
+            for (let i = rootChild.children.length - 1; i >= 0; i--) {
+              await deleteNode(rootChild.children[i]);
+            }
+          }
+        }
+      }
+      
+      console.log('所有书签已清除');
+    } catch (error) {
+      console.error('清除书签失败:', error);
+      throw error;
+    }
+  }
+
+  // 递归导入书签树
+  async importBookmarkTree(bookmarkTree, parentId = null) {
+    let created = 0;
+    let failed = 0;
+    
+    // 处理单个节点
+    const importNode = async (node, parentId) => {
+      try {
+        let newNode = null;
+        
+        if (node.url) {
+          // 创建书签
+          newNode = await chrome.bookmarks.create({
+            parentId: parentId,
+            title: node.title || node.url,
+            url: node.url
+          });
+          created++;
+        } else if (node.children && node.title) {
+          // 创建文件夹（跳过根节点和Chrome特殊文件夹）
+          if (node.id === '0' || node.id === '1' || node.id === '2' || node.id === '3') {
+            // 对于Chrome的特殊文件夹，使用现有的ID
+            newNode = { id: node.id };
+          } else {
+            newNode = await chrome.bookmarks.create({
+              parentId: parentId,
+              title: node.title
+            });
+          }
+        }
+        
+        // 递归导入子节点
+        if (node.children && newNode) {
+          for (const child of node.children) {
+            const result = await importNode(child, newNode.id);
+            created += result.created;
+            failed += result.failed;
+          }
+        }
+        
+        return { created: 0, failed: 0 };
+      } catch (error) {
+        console.error(`导入节点失败: ${node.title || node.url}`, error);
+        failed++;
+        return { created: 0, failed: 1 };
+      }
+    };
+    
+    // 处理导入的书签树
+    if (Array.isArray(bookmarkTree)) {
+      // 如果是数组（完整的书签树）
+      if (bookmarkTree[0] && bookmarkTree[0].children) {
+        // 遍历根节点的子节点（书签栏、其他书签等）
+        for (const rootChild of bookmarkTree[0].children) {
+          // 查找对应的Chrome文件夹
+          let targetParentId = null;
+          
+          if (rootChild.id === '1' || rootChild.title === '书签栏' || rootChild.title === 'Bookmarks Bar') {
+            targetParentId = '1'; // 书签栏
+          } else if (rootChild.id === '2' || rootChild.title === '其他书签' || rootChild.title === 'Other Bookmarks') {
+            targetParentId = '2'; // 其他书签
+          } else if (rootChild.id === '3' || rootChild.title === '移动设备书签' || rootChild.title === 'Mobile Bookmarks') {
+            targetParentId = '3'; // 移动设备书签
+          } else {
+            // 其他文件夹导入到其他书签
+            targetParentId = '2';
+          }
+          
+          // 导入该文件夹的子节点
+          if (rootChild.children) {
+            for (const child of rootChild.children) {
+              const result = await importNode(child, targetParentId);
+              created += result.created;
+              failed += result.failed;
+            }
+          }
+        }
+      }
+    } else {
+      // 单个节点
+      const result = await importNode(bookmarkTree, parentId || '2');
+      created += result.created;
+      failed += result.failed;
+    }
+    
+    return { created, failed };
+  }
+
   // 导出备份
   async exportBackup() {
     try {
@@ -3508,20 +3665,110 @@ class OptionsManager {
           throw new Error('无效的备份文件格式');
         }
 
+        // 显示导入选项对话框
+        const dialogHtml = `
+          <div style="margin-bottom: 15px;">
+            <strong>导入选项：</strong>
+          </div>
+          <div style="margin: 10px 0;">
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="importBookmarks" checked style="margin-right: 8px;">
+              <span>导入书签（${this.countBookmarksInTree(backupData.bookmarks)} 个书签）</span>
+            </label>
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="importSettings" checked style="margin-right: 8px;">
+              <span>导入设置</span>
+            </label>
+          </div>
+          <div style="margin: 15px 0;">
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="clearExisting" style="margin-right: 8px;">
+              <span style="color: #d73a49;">清除现有书签（不勾选将合并导入）</span>
+            </label>
+          </div>
+          <div style="margin-top: 15px; padding: 10px; background: #f6f8fa; border-radius: 4px;">
+            <small>
+              备份时间：${new Date(backupData.timestamp).toLocaleString()}<br>
+              版本：${backupData.version}
+            </small>
+          </div>
+        `;
+
         const ok = await this.showConfirmDialog({
           title: '导入备份',
-          message: '导入备份将覆盖当前所有书签和设置，确定要继续吗？',
-          okText: window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定',
+          message: dialogHtml,
+          okText: window.I18n ? (window.I18n.t('modal.confirm') || '导入') : '导入',
           cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
         });
+
         if (ok) {
-          // 这里应该实现实际的导入逻辑
-          // 由于Chrome扩展API的限制，实际实现会更复杂
-    this.showMessage((window.I18n ? window.I18n.t('backup.import.dev') : '备份导入功能正在开发中'), 'info');
+          const importBookmarks = document.getElementById('importBookmarks')?.checked;
+          const importSettings = document.getElementById('importSettings')?.checked;
+          const clearExisting = document.getElementById('clearExisting')?.checked;
+
+          if (!importBookmarks && !importSettings) {
+            this.showMessage('请至少选择一项导入内容', 'warning');
+            return;
+          }
+
+          // 显示进度
+          this.showMessage('正在导入备份...', 'info');
+          
+          let bookmarkCount = 0;
+          let errorCount = 0;
+
+          // 导入设置
+          if (importSettings && backupData.settings) {
+            try {
+              await chrome.storage.sync.clear();
+              await chrome.storage.sync.set(backupData.settings);
+              console.log('设置导入成功');
+            } catch (error) {
+              console.error('导入设置失败:', error);
+              errorCount++;
+            }
+          }
+
+          // 导入书签
+          if (importBookmarks && backupData.bookmarks) {
+            try {
+              // 如果选择清除现有书签
+              if (clearExisting) {
+                await this.clearAllBookmarks();
+              }
+
+              // 递归导入书签
+              const result = await this.importBookmarkTree(backupData.bookmarks);
+              bookmarkCount = result.created;
+              errorCount += result.failed;
+              
+              console.log(`书签导入完成：成功 ${bookmarkCount} 个，失败 ${errorCount} 个`);
+            } catch (error) {
+              console.error('导入书签失败:', error);
+              errorCount++;
+            }
+          }
+
+          // 显示结果
+          if (errorCount === 0) {
+            let message = '导入成功！';
+            if (importBookmarks) message += ` 导入了 ${bookmarkCount} 个书签。`;
+            if (importSettings) message += ' 设置已恢复。';
+            this.showMessage(message, 'success');
+            
+            // 如果导入了设置，刷新页面以应用新设置
+            if (importSettings) {
+              setTimeout(() => {
+                location.reload();
+              }, 2000);
+            }
+          } else {
+            this.showMessage(`导入完成，但有 ${errorCount} 个错误。请查看控制台了解详情。`, 'warning');
+          }
         }
       } catch (error) {
-    console.error((window.I18n ? window.I18n.t('backup.import.fail') : '导入备份失败') + ':', error);
-    this.showMessage((window.I18n ? window.I18n.tf('backup.import.fail', { error: error.message }) : ('导入备份失败: ' + error.message)), 'error');
+        console.error((window.I18n ? window.I18n.t('backup.import.fail') : '导入备份失败') + ':', error);
+        this.showMessage((window.I18n ? window.I18n.tf('backup.import.fail', { error: error.message }) : ('导入备份失败: ' + error.message)), 'error');
       }
     };
     
