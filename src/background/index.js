@@ -1364,8 +1364,16 @@ async function autoClassifyBookmarks(options = {}) {
       if (!targetFolder) continue; // 未创建文件夹则不移动
       if (bookmark.parentId !== targetFolder.id) {
         if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-        moved++;
+        try {
+          await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+          moved++;
+        } catch (err) {
+          if (err.message && err.message.includes('Can\'t find bookmark for id')) {
+            console.warn(`[autoClassifyBookmarks] 书签 ${bookmark.id} 已被删除，跳过移动`);
+          } else {
+            throw err;
+          }
+        }
       }
     }
 
@@ -2238,8 +2246,9 @@ async function organizeByPlan(plan) {
     }
   }
 
-  // 执行移动，遇到“其他”时懒创建
+  // 执行移动，遇到"其他"时懒创建
   let moved = 0;
+  let skipped = 0;
   const oldParentCandidates = new Set();
   for (const { bookmark, category, scopeFolderId } of plan.details || []) {
     const sid = scopeFolderId || '';
@@ -2254,12 +2263,21 @@ async function organizeByPlan(plan) {
     if (!targetFolder) continue;
     if (bookmark.parentId !== targetFolder.id) {
       if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-      await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-      moved++;
+      try {
+        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+        moved++;
+      } catch (err) {
+        if (err.message && err.message.includes('Can\'t find bookmark for id')) {
+          console.warn(`[organizeByPlan] 书签 ${bookmark.id} 已被删除，跳过移动`);
+          skipped++;
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
-  const results = { ...plan, moved };
+  const results = { ...plan, moved, skipped };
   // 同步存储
   try {
     const organizedBookmarkIds = (plan.details || [])
