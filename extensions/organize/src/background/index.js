@@ -2076,24 +2076,80 @@ function validateModelForProvider(model, provider) {
 
   // 根据提供商验证模型
   switch (providerName) {
-    case 'deepseek':
-      // DeepSeek 官方 API 只支持特定模型
-      if (!['deepseek-chat'].includes(modelName)) {
-        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-chat"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
-      }
-      break;
     case 'openai':
       const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
       if (!openaiModels.includes(modelName)) {
         return { valid: false, error: `OpenAI API 不支持模型 "${model}"。支持的模型: ${openaiModels.join(', ')}` };
       }
       break;
+    case 'deepseek':
+      if (!['deepseek-chat'].includes(modelName)) {
+        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-chat"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
+      }
+      break;
+    case 'claude':
+      const claudeModels = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+      if (!claudeModels.includes(modelName)) {
+        return { valid: false, error: `Claude API 不支持模型 "${model}"。支持的模型: ${claudeModels.join(', ')}` };
+      }
+      break;
+    case 'gemini':
+      const geminiModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'];
+      if (!geminiModels.includes(modelName)) {
+        return { valid: false, error: `Gemini API 不支持模型 "${model}"。支持的模型: ${geminiModels.join(', ')}` };
+      }
+      break;
+    case 'qwen':
+      const qwenModels = ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'];
+      if (!qwenModels.includes(modelName)) {
+        return { valid: false, error: `Qwen API 不支持模型 "${model}"。支持的模型: ${qwenModels.join(', ')}` };
+      }
+      break;
+    case 'doubao':
+      const doubaoModels = ['doubao-pro-256k', 'doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k'];
+      if (!doubaoModels.includes(modelName)) {
+        return { valid: false, error: `Doubao API 不支持模型 "${model}"。支持的模型: ${doubaoModels.join(', ')}` };
+      }
+      break;
+    case 'kimi':
+      const kimiModels = ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'];
+      if (!kimiModels.includes(modelName)) {
+        return { valid: false, error: `Kimi API 不支持模型 "${model}"。支持的模型: ${kimiModels.join(', ')}` };
+      }
+      break;
+    case 'zhipu':
+      const zhipuModels = ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo'];
+      if (!zhipuModels.includes(modelName)) {
+        return { valid: false, error: `Zhipu API 不支持模型 "${model}"。支持的模型: ${zhipuModels.join(', ')}` };
+      }
+      break;
+    case 'baichuan':
+      const baichuanModels = ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k', 'Baichuan2-Turbo'];
+      if (!baichuanModels.includes(modelName)) {
+        return { valid: false, error: `Baichuan API 不支持模型 "${model}"。支持的模型: ${baichuanModels.join(', ')}` };
+      }
+      break;
+    case 'minimax':
+      const minimaxModels = ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'];
+      if (!minimaxModels.includes(modelName)) {
+        return { valid: false, error: `MiniMax API 不支持模型 "${model}"。支持的模型: ${minimaxModels.join(', ')}` };
+      }
+      break;
+    case 'spark':
+      const sparkModels = ['spark-max', 'spark-pro', 'spark-lite'];
+      if (!sparkModels.includes(modelName)) {
+        return { valid: false, error: `Spark API 不支持模型 "${model}"。支持的模型: ${sparkModels.join(', ')}` };
+      }
+      break;
+    case 'ernie':
+      const ernieModels = ['ernie-4.0-8k', 'ernie-4.0-turbo-8k', 'ernie-3.5-8k', 'ernie-speed-8k'];
+      if (!ernieModels.includes(modelName)) {
+        return { valid: false, error: `ERNIE API 不支持模型 "${model}"。支持的模型: ${ernieModels.join(', ')}` };
+      }
+      break;
     case 'ollama':
-      // Ollama 支持任意模型，跳过验证
       break;
     case 'custom':
-      // 自定义提供商支持任意模型，包括所有 OpenAI 兼容格式
-      // 不进行模型验证，让用户自由配置 API 端点和模型
       break;
     default:
       return { valid: false, error: `未知的AI提供商: "${provider}"` };
@@ -2140,12 +2196,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
 
   if (p === 'ollama') {
     url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'http://localhost:11434/api/chat';
-    // Ollama 本地服务无需鉴权
     body = {
       model,
       stream: false,
       options: {
-        // 将 maxTokens 映射为生成长度上限，避免过大
         num_predict: Math.min(Number(maxTokens) > 0 ? Number(maxTokens) : 512, 1024),
         temperature: 0.2
       },
@@ -2155,10 +2209,40 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
       ]
     };
     console.log('[AI Debug] 使用 Ollama 协议');
-  } else {
-    // OpenAI/DeepSeek/自定义提供商 兼容接口
+  } else if (p === 'claude') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.anthropic.com/v1/messages';
+    headers['x-api-key'] = apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      system: 'You are a rigorous assistant that only returns strict JSON.',
+      messages: [
+        { role: 'user', content: prompt }
+      ]
+    };
+    console.log('[AI Debug] 使用 Claude 协议');
+  } else if (p === 'gemini') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl.replace('{model}', model) : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    headers = { 'Content-Type': 'application/json' };
+    body = {
+      contents: [
+        {
+          parts: [
+            { text: `You are a rigorous assistant that only returns strict JSON.\n\n${prompt}` }
+          ]
+        }
+      ],
+      generationConfig: {
+        maxOutputTokens: maxTokens || 8192,
+        temperature: 0.2
+      }
+    };
+    console.log('[AI Debug] 使用 Gemini 协议');
+  } else if (p === 'minimax') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.minimax.chat/v1/text/chatcompletion_v2';
     headers['Authorization'] = `Bearer ${apiKey}`;
-    console.log('[AI Debug] 使用认证头: Bearer [API_KEY_HIDDEN]');
     body = {
       model,
       max_tokens: maxTokens || 8192,
@@ -2168,7 +2252,43 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    console.log('[AI Debug] 使用 MiniMax 协议');
+  } else if (p === 'spark') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://spark-api.xf-yun.com/v1/chat/completions';
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
+    console.log('[AI Debug] 使用 Spark 协议');
+  } else if (p === 'ernie') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${model}?access_token=${apiKey}`;
+    headers = { 'Content-Type': 'application/json' };
+    body = {
+      messages: [
+        { role: 'user', content: `You are a rigorous assistant that only returns strict JSON.\n\n${prompt}` }
+      ],
+      temperature: 0.2,
+      max_output_tokens: maxTokens || 8192
+    };
+    console.log('[AI Debug] 使用 ERNIE 协议');
+  } else {
+    headers['Authorization'] = `Bearer ${apiKey}`;
     console.log('[AI Debug] 使用 OpenAI 兼容协议');
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
   }
 
   console.log('[AI Debug] 最终请求URL:', url);
@@ -2199,6 +2319,18 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
       if (p === 'ollama') {
         const content = (data && data.message && typeof data.message.content === 'string') ? data.message.content : '';
         console.log('[AI Debug] Ollama 解析内容:', content);
+        return content || '';
+      } else if (p === 'claude') {
+        const content = data && data.content && Array.isArray(data.content) && data.content[0]?.text ? data.content[0].text : '';
+        console.log('[AI Debug] Claude 解析内容:', content);
+        return content || '';
+      } else if (p === 'gemini') {
+        const content = data && data.candidates && Array.isArray(data.candidates) && data.candidates[0]?.content?.parts?.[0]?.text ? data.candidates[0].content.parts[0].text : '';
+        console.log('[AI Debug] Gemini 解析内容:', content);
+        return content || '';
+      } else if (p === 'ernie') {
+        const content = data && data.result ? data.result : '';
+        console.log('[AI Debug] ERNIE 解析内容:', content);
         return content || '';
       }
       const content = data.choices?.[0]?.message?.content;

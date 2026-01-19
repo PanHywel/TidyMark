@@ -3407,9 +3407,14 @@ class OptionsManager {
     try {
       const { aiProvider, aiApiKey, aiApiUrl, aiModel } = this.settings;
       const p = String(aiProvider || '').toLowerCase();
+      
       if (p === 'ollama') {
         if (!aiApiUrl || !aiModel) {
           throw new Error('请填写 API 端点，并选择模型');
+        }
+      } else if (p === 'gemini') {
+        if (!aiApiKey || !aiModel) {
+          throw new Error('请填写 API Key 并选择模型');
         }
       } else {
         if (!aiApiKey || !aiApiUrl || !aiModel) {
@@ -3417,7 +3422,6 @@ class OptionsManager {
         }
       }
 
-      // 优先调用 /v1/models 进行低成本验证
       const testUrl = this.getTestUrl(aiApiUrl, aiProvider);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
@@ -3425,29 +3429,30 @@ class OptionsManager {
       const headers = {
         'Content-Type': 'application/json'
       };
-      if (p !== 'ollama' && aiApiKey) {
+      
+      if (p === 'claude') {
+        headers['x-api-key'] = aiApiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      } else if (p !== 'ollama' && p !== 'gemini' && p !== 'ernie' && aiApiKey) {
         headers['Authorization'] = `Bearer ${aiApiKey}`;
       }
 
       let res;
       try {
-        // 如果是 /models 测试端点，使用 GET；否则使用 POST 进行最小开销的 Ping
         if (p === 'ollama') {
-          // Ollama：优先 GET /api/tags；否则 POST /api/chat
           if (testUrl.endsWith('/api/tags')) {
             res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
           } else {
             const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
             res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
           }
+        } else if (p === 'gemini') {
+          res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
+        } else if (testUrl.endsWith('/models')) {
+          res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
         } else {
-          // OpenAI/DeepSeek：/v1/models 用 GET；否则 POST /chat/completions
-          if (testUrl.endsWith('/models')) {
-            res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
-          } else {
-            const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
-            res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
-          }
+          const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+          res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
         }
       } finally {
         clearTimeout(timeout);
@@ -3463,15 +3468,13 @@ class OptionsManager {
         throw new Error(msg);
       }
 
-      // 简单检查响应结构
       try {
         const data = await res.json();
-        const looksOk = Array.isArray(data?.data) || Array.isArray(data?.choices);
+        const looksOk = Array.isArray(data?.data) || Array.isArray(data?.choices) || Array.isArray(data?.models) || Array.isArray(data?.candidates);
         if (!looksOk) {
           throw new Error('响应格式不符合预期');
         }
       } catch (e) {
-        // 有的返回没有 body（如 204），也视作成功
       }
 
       resultSpan.textContent = '连接成功';
@@ -4658,16 +4661,28 @@ Return only a valid JSON object strictly following the above format — no markd
 
   // 获取测试端点（优先 /v1/models）
   getTestUrl(apiUrl, provider) {
+    const p = (provider || '').toLowerCase();
     // Ollama 使用 /api/tags 获取本地模型列表
-    if ((provider || '').toLowerCase() === 'ollama') {
+    if (p === 'ollama') {
       try {
         const u = new URL(apiUrl);
         return `${u.origin}/api/tags`;
       } catch {
-        // 常见默认端口
         if (String(apiUrl).includes('11434')) return 'http://localhost:11434/api/tags';
         return apiUrl;
       }
+    }
+    // Claude 使用 /v1/messages
+    if (p === 'claude') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.anthropic.com/v1/messages';
+    }
+    // Gemini 使用模型端点
+    if (p === 'gemini') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://generativelanguage.googleapis.com/v1beta/models';
+    }
+    // ERNIE 使用特定端点
+    if (p === 'ernie') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-4.0-8k';
     }
     try {
       const u = new URL(apiUrl);
@@ -4676,7 +4691,6 @@ Return only a valid JSON object strictly following the above format — no markd
       if (v1Index >= 0) {
         return `${u.origin}/v1/models`;
       }
-      // Fallback：无法推断，直接使用当前 apiUrl
       return apiUrl;
     } catch {
       return apiUrl;
@@ -4694,7 +4708,29 @@ Return only a valid JSON object strictly following the above format — no markd
         options: { num_predict: 1, temperature: 0 }
       };
     }
-    // OpenAI/DeepSeek 通用兼容体
+    if (p === 'claude') {
+      return {
+        model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }]
+      };
+    }
+    if (p === 'gemini') {
+      return {
+        contents: [
+          { parts: [{ text: 'ping' }] }
+        ],
+        generationConfig: { maxOutputTokens: 1, temperature: 0 }
+      };
+    }
+    if (p === 'ernie') {
+      return {
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        max_output_tokens: 1
+      };
+    }
+    // OpenAI/DeepSeek/Qwen/Doubao/Kimi/Zhipu/Baichuan/MiniMax/Spark 通用兼容体
     return {
       model,
       messages: [{ role: 'user', content: 'ping' }],
