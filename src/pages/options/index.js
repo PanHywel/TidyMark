@@ -1503,6 +1503,7 @@ class OptionsManager {
   async organizeFromSettings() {
     const btn = document.getElementById('organizeFromSettings');
     const original = btn ? btn.innerHTML : '';
+    let stopBtn = null;
     const setStatus = (text, type = 'success') => {
       this.showMessage(text, type);
     };
@@ -2225,6 +2226,16 @@ class OptionsManager {
       }
     };
 
+    // 为文件夹过滤单选按钮添加事件监听
+    setTimeout(() => {
+      const filterRadios = document.querySelectorAll('input[name="folderFilter"]');
+      filterRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+          window.updateFolderList(this.value);
+        });
+      });
+    }, 100);
+
     const messageHtml = `
       <div style="width:100%;">
         <div style="display:block;margin-bottom:8px;">
@@ -2262,6 +2273,11 @@ class OptionsManager {
               <span style="vertical-align:middle;">仅英文</span>
             </label>
           </div>
+          <div style="margin-bottom:8px;">
+            <button type="button" id="selectNoneBtn" style="padding:4px 12px;border:1px solid #D1D5DB;border-radius:6px;background-color:#FFFFFF;color:#6B7280;font-size:12px;cursor:pointer;">
+              全不选
+            </button>
+          </div>
           <div id="dlgScopes" style="width:100%;max-height:320px;overflow:auto;border:1px solid #E5E7EB;border-radius:8px;padding:8px;box-sizing:border-box;">
             ${window._buildFolderOptions('all')}
           </div>
@@ -2274,13 +2290,17 @@ class OptionsManager {
     const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
     if (!confirmed) return null;
     
-    const dlgScopes = document.getElementById('dlgScopes');
+    // 从对话框中查找元素，而不是整个文档
+    const modal = document.getElementById('confirmModal');
+    const msgEl = modal ? modal.querySelector('#confirmMessage') : null;
+    
+    const dlgScopes = msgEl ? msgEl.querySelector('#dlgScopes') : document.getElementById('dlgScopes');
     const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
     
-    const filterRadio = document.querySelector('input[name="folderFilter"]:checked');
+    const filterRadio = msgEl ? msgEl.querySelector('input[name="folderFilter"]:checked') : document.querySelector('input[name="folderFilter"]:checked');
     const folderFilter = filterRadio ? filterRadio.value : 'all';
     
-    const targetRadio = document.querySelector('input[name="organizeTarget"]:checked');
+    const targetRadio = msgEl ? msgEl.querySelector('input[name="organizeTarget"]:checked') : document.querySelector('input[name="organizeTarget"]:checked');
     const organizeTarget = targetRadio ? targetRadio.value : 'toolbar';
     
     this.settings.organizeScopeFolderIds = scopeFolderIds;
@@ -4623,6 +4643,24 @@ class OptionsManager {
           }
         });
       });
+
+      // 为全不选按钮添加事件监听
+      const selectNoneBtn = msgEl.querySelector('#selectNoneBtn');
+      if (selectNoneBtn) {
+        selectNoneBtn.addEventListener('click', () => {
+          // 取消所有文件夹复选框的选择
+          const checkboxes = msgEl.querySelectorAll('#dlgScopes input[type="checkbox"]');
+          checkboxes.forEach(cb => {
+            cb.checked = false;
+          });
+          
+          // 取消所有文件夹过滤选项的选择
+          const folderFilterRadios = msgEl.querySelectorAll('input[name="folderFilter"]');
+          folderFilterRadios.forEach(radio => {
+            radio.checked = false;
+          });
+        });
+      }
 
       // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
       let dlgScopesEl = msgEl.querySelector('#dlgScopes');
