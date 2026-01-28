@@ -1361,6 +1361,78 @@ class OptionsManager {
       });
     }
 
+    // 空文件夹检测事件绑定
+    const emptyScanBtn = document.getElementById('emptyScanBtn');
+    const emptyScanProgress = document.getElementById('emptyScanProgress');
+    const emptyResults = document.getElementById('emptyResults');
+    const emptyResultsList = document.getElementById('emptyResultsList');
+    const emptySelectAll = document.getElementById('emptySelectAll');
+    const emptyDeleteBtn = document.getElementById('emptyDeleteBtn');
+
+    if (emptyScanBtn) {
+      emptyScanBtn.addEventListener('click', async () => {
+        await this.scanEmptyFolders({
+          progressEl: emptyScanProgress,
+          listEl: emptyResultsList,
+          containerEl: emptyResults,
+          scanBtn: emptyScanBtn
+        });
+      });
+    }
+
+    if (emptySelectAll && emptyResultsList) {
+      emptySelectAll.addEventListener('change', () => {
+        emptyResultsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.checked = !!emptySelectAll.checked;
+        });
+      });
+    }
+
+    if (emptyDeleteBtn && emptyResultsList) {
+      emptyDeleteBtn.addEventListener('click', async () => {
+        const checkedCbs = Array.from(emptyResultsList.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+        const checked = checkedCbs.map(cb => cb.dataset.id).filter(Boolean);
+        if (checked.length === 0) {
+          this.showMessage('请先选择要删除的文件夹', 'error');
+          return;
+        }
+        if (typeof chrome === 'undefined' || !chrome.bookmarks) {
+          this.showMessage('当前不在扩展环境，无法删除', 'error');
+          return;
+        }
+        if (!confirm(`确定要删除选中的 ${checked.length} 个空文件夹吗？`)) {
+          return;
+        }
+        emptyDeleteBtn.disabled = true;
+        const originalText = emptyDeleteBtn.textContent;
+        emptyDeleteBtn.textContent = '删除中...';
+        try {
+          for (const id of checked) {
+            try {
+              await chrome.bookmarks.removeTree(id);
+            } catch (e) {
+              console.error('删除文件夹失败', id, e);
+            }
+          }
+          checkedCbs.forEach(cb => {
+            const item = emptyResultsList.querySelector(`li[data-id="${cb.dataset.id}"]`);
+            if (item) item.remove();
+          });
+          this.showMessage(`成功删除 ${checked.length} 个空文件夹`, 'success');
+          if (emptyResultsList.children.length === 0) {
+            emptyResults.hidden = true;
+            emptySelectAll.checked = false;
+          }
+        } catch (e) {
+          console.error('删除空文件夹出错', e);
+          this.showMessage('删除失败，请重试', 'error');
+        } finally {
+          emptyDeleteBtn.disabled = false;
+          emptyDeleteBtn.textContent = originalText;
+        }
+      });
+    }
+
     // 列表项点击打开页面验证（仅点击标题/URL区域触发，避开复选框与删除按钮）
     if (deadResultsList) {
       deadResultsList.addEventListener('click', (e) => {
@@ -1469,15 +1541,15 @@ class OptionsManager {
       // 先弹出参数确认弹窗，仅选择整理范围
       const params = await this.showOrganizeParamsDialog();
       if (!params) return; // 用户取消
-      const { scopeFolderIds = [] } = params;
+      const { scopeFolderIds = [], folderFilter = 'all' } = params;
       if (typeof chrome === 'undefined' || !chrome?.runtime) {
         throw new Error('当前不在扩展环境，无法执行');
       }
-      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds });
+      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds, folderFilter });
       if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
       // 记录当前选择至计划元信息，便于确认时传递
-      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds } };
-      this._lastOrganizeParams = { scopeFolderIds };
+      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds, folderFilter } };
+      this._lastOrganizeParams = { scopeFolderIds, folderFilter };
       // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
@@ -2008,19 +2080,38 @@ class OptionsManager {
     let folders = [];
     try { folders = await this.getAllFolderPaths(); } catch (e) { console.warn('加载文件夹列表失败', e); }
 
-    // 打开时不进行任何默认勾选
     const preselected = [];
-    const buildOptions = () => {
+    
+    window._organizeFolders = folders;
+    
+    window._buildFolderOptions = (filterType = 'all') => {
       const items = [];
-      for (const f of folders) {
+      for (const f of window._organizeFolders) {
+        const folderName = f.path.split('/').pop() || f.path;
+        let shouldCheck = true;
+        
+        if (filterType === 'chinese') {
+          shouldCheck = /[\u4e00-\u9fa5]/.test(folderName);
+        } else if (filterType === 'english') {
+          shouldCheck = !/[\u4e00-\u9fa5]/.test(folderName);
+        }
+        
         const inputId = `dlgScope_${this.escapeHtml(String(f.id))}`;
+        const checkedAttr = shouldCheck ? 'checked' : '';
         items.push(`
           <label for="${inputId}" style="display:block;margin:6px 0;cursor:pointer;color:#374151;">
-            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" style="margin-right:8px;vertical-align:middle;"/>
+            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" ${checkedAttr} style="margin-right:8px;vertical-align:middle;"/>
             <span style="vertical-align:middle;">${this.escapeHtml(f.path)}</span>
           </label>`);
       }
       return items.join('');
+    };
+
+    window.updateFolderList = (filterType) => {
+      const dlgScopes = document.getElementById('dlgScopes');
+      if (dlgScopes) {
+        dlgScopes.innerHTML = window._buildFolderOptions(filterType);
+      }
     };
 
     const messageHtml = `
@@ -2030,25 +2121,44 @@ class OptionsManager {
           <div style="margin:6px 0 10px;color:#6B7280;font-size:12px;">
             勾选需要整理的范围；不勾选表示整理全部书签。
           </div>
+          <div style="margin-bottom:10px;">
+            <span style="font-size:13px;color:#374151;font-weight:500;">文件夹过滤：</span>
+            <label style="margin-left:8px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="all" checked style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">全部</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="chinese" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅中文</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="english" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅英文</span>
+            </label>
+          </div>
           <div id="dlgScopes" style="width:100%;max-height:320px;overflow:auto;border:1px solid #E5E7EB;border-radius:8px;padding:8px;box-sizing:border-box;">
-            ${buildOptions()}
+            ${window._buildFolderOptions('all')}
           </div>
         </div>
       </div>`;
 
     const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
     const cancelText = window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消';
-    // 显示通用确认弹窗
+    
     const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
     if (!confirmed) return null;
+    
     const dlgScopes = document.getElementById('dlgScopes');
     const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
-    // 同步设置以便下次默认（保持旧字段兼容）
+    
+    const filterRadio = document.querySelector('input[name="folderFilter"]:checked');
+    const folderFilter = filterRadio ? filterRadio.value : 'all';
+    
     this.settings.organizeScopeFolderIds = scopeFolderIds;
     this.settings.organizeScopeFolderId = scopeFolderIds[0] || '';
     try { await this.saveSettings(); } catch (e) {}
-    this._lastOrganizeParams = { scopeFolderIds };
-    return { scopeFolderIds };
+    this._lastOrganizeParams = { scopeFolderIds, folderFilter };
+    return { scopeFolderIds, folderFilter };
   }
 
   // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
@@ -2727,6 +2837,105 @@ class OptionsManager {
       const folder = await chrome.bookmarks.create({ title: preferred });
       return folder;
     }
+  }
+
+  // 扫描空文件夹
+  async scanEmptyFolders({ progressEl, listEl, containerEl, scanBtn }) {
+    let originalText;
+    try {
+      if (!listEl || !containerEl || !scanBtn) return;
+      containerEl.hidden = true;
+      listEl.innerHTML = '';
+      scanBtn.disabled = true;
+      originalText = scanBtn.textContent;
+      scanBtn.innerHTML = `<span class="loading"></span> 检测中...`;
+
+      const tree = await chrome.bookmarks.getTree();
+      const emptyFolders = [];
+
+      const findEmptyFolders = (node) => {
+        if (!node.children) return;
+        
+        for (const child of node.children) {
+          if (child.children) {
+            const hasBookmarks = this._folderHasBookmarks(child);
+            if (!hasBookmarks) {
+              emptyFolders.push({
+                id: child.id,
+                title: child.title || '未命名文件夹',
+                path: this._getFolderPath(child.id, tree)
+              });
+            }
+            findEmptyFolders(child);
+          }
+        }
+      };
+
+      findEmptyFolders(tree[0]);
+
+      if (progressEl) progressEl.textContent = `找到 ${emptyFolders.length} 个空文件夹`;
+
+      if (emptyFolders.length === 0) {
+        containerEl.hidden = false;
+        listEl.innerHTML = `<li class="list-item"><span class="title">未找到空文件夹</span></li>`;
+      } else {
+        containerEl.hidden = false;
+        listEl.innerHTML = emptyFolders.map(f => `
+          <li class="list-item" data-id="${f.id}">
+            <input type="checkbox" data-id="${f.id}" aria-label="选择文件夹">
+            <div class="info">
+              <div class="title">${this.escapeHtml(f.title)}</div>
+              <div class="url">${this.escapeHtml(f.path)}</div>
+            </div>
+            <div class="status">空文件夹</div>
+          </li>
+        `).join('');
+      }
+    } catch (e) {
+      console.error('扫描空文件夹失败', e);
+      this.showMessage('扫描失败，请重试', 'error');
+    } finally {
+      if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.textContent = originalText;
+      }
+    }
+  }
+
+  _folderHasBookmarks(folder) {
+    if (!folder.children) return false;
+    
+    for (const child of folder.children) {
+      if (child.url) {
+        return true;
+      }
+      if (child.children) {
+        if (this._folderHasBookmarks(child)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  _getFolderPath(folderId, tree) {
+    const path = [];
+    const findPath = (node, currentPath = []) => {
+      if (node.id === folderId) {
+        path.push(...currentPath, node.title || '未命名文件夹');
+        return true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          if (findPath(child, [...currentPath, node.title || '未命名文件夹'])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    findPath(tree[0]);
+    return path.join(' > ');
   }
 
   // 提供跨语言的候选名称，避免语言切换后找不到原文件夹
@@ -4229,6 +4438,17 @@ class OptionsManager {
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
 
+      // 处理文件夹过滤 radio button 的事件监听
+      const folderFilterRadios = msgEl.querySelectorAll('input[name="folderFilter"]');
+      folderFilterRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const filterType = e.target.value;
+          if (typeof window.updateFolderList === 'function') {
+            window.updateFolderList(filterType);
+          }
+        });
+      });
+
       // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
       let dlgScopesEl = msgEl.querySelector('#dlgScopes');
       let dlgScopesMouseDownHandler = null;
@@ -4596,6 +4816,7 @@ Rules & Principles:
 - Keep category names short (1–3 words) and meaningful.
 - Prefer semantic grouping by title first, URL second.
 - Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+{{languageRestriction}}
 
 Output Format (strict JSON, no extra text):
 {

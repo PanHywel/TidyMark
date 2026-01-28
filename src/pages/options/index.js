@@ -932,6 +932,14 @@ class OptionsManager {
         await this.backupBookmarks();
       });
     }
+
+    const countBookmarksBtn = document.getElementById('countBookmarksBtn');
+    if (countBookmarksBtn) {
+      countBookmarksBtn.addEventListener('click', async () => {
+        await this.countBookmarks();
+      });
+    }
+
     const testAiConnection = document.getElementById('testAiConnection');
     if (testAiConnection) {
       testAiConnection.addEventListener('click', () => {
@@ -1396,6 +1404,78 @@ class OptionsManager {
       });
     }
 
+    // 空文件夹检测事件绑定
+    const emptyScanBtn = document.getElementById('emptyScanBtn');
+    const emptyScanProgress = document.getElementById('emptyScanProgress');
+    const emptyResults = document.getElementById('emptyResults');
+    const emptyResultsList = document.getElementById('emptyResultsList');
+    const emptySelectAll = document.getElementById('emptySelectAll');
+    const emptyDeleteBtn = document.getElementById('emptyDeleteBtn');
+
+    if (emptyScanBtn) {
+      emptyScanBtn.addEventListener('click', async () => {
+        await this.scanEmptyFolders({
+          progressEl: emptyScanProgress,
+          listEl: emptyResultsList,
+          containerEl: emptyResults,
+          scanBtn: emptyScanBtn
+        });
+      });
+    }
+
+    if (emptySelectAll && emptyResultsList) {
+      emptySelectAll.addEventListener('change', () => {
+        emptyResultsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.checked = !!emptySelectAll.checked;
+        });
+      });
+    }
+
+    if (emptyDeleteBtn && emptyResultsList) {
+      emptyDeleteBtn.addEventListener('click', async () => {
+        const checkedCbs = Array.from(emptyResultsList.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+        const checked = checkedCbs.map(cb => cb.dataset.id).filter(Boolean);
+        if (checked.length === 0) {
+          this.showMessage('请先选择要删除的文件夹', 'error');
+          return;
+        }
+        if (typeof chrome === 'undefined' || !chrome.bookmarks) {
+          this.showMessage('当前不在扩展环境，无法删除', 'error');
+          return;
+        }
+        if (!confirm(`确定要删除选中的 ${checked.length} 个空文件夹吗？`)) {
+          return;
+        }
+        emptyDeleteBtn.disabled = true;
+        const originalText = emptyDeleteBtn.textContent;
+        emptyDeleteBtn.textContent = '删除中...';
+        try {
+          for (const id of checked) {
+            try {
+              await chrome.bookmarks.removeTree(id);
+            } catch (e) {
+              console.error('删除文件夹失败', id, e);
+            }
+          }
+          checkedCbs.forEach(cb => {
+            const item = emptyResultsList.querySelector(`li[data-id="${cb.dataset.id}"]`);
+            if (item) item.remove();
+          });
+          this.showMessage(`成功删除 ${checked.length} 个空文件夹`, 'success');
+          if (emptyResultsList.children.length === 0) {
+            emptyResults.hidden = true;
+            emptySelectAll.checked = false;
+          }
+        } catch (e) {
+          console.error('删除空文件夹出错', e);
+          this.showMessage('删除失败，请重试', 'error');
+        } finally {
+          emptyDeleteBtn.disabled = false;
+          emptyDeleteBtn.textContent = originalText;
+        }
+      });
+    }
+
     // 列表项点击打开页面验证（仅点击标题/URL区域触发，避开复选框与删除按钮）
     if (deadResultsList) {
       deadResultsList.addEventListener('click', (e) => {
@@ -1475,6 +1555,11 @@ class OptionsManager {
       console.error('[Options] organizeFromSettings 失败:', e);
       setStatus(`失败：${e?.message || e}`, 'error');
     } finally {
+      // 移除停止按钮
+      if (stopBtn && stopBtn.parentElement) {
+        stopBtn.parentElement.removeChild(stopBtn);
+      }
+      
       if (btn) {
         // 恢复按钮状态与文本
         btn.classList.remove('is-loading');
@@ -1489,6 +1574,8 @@ class OptionsManager {
   async organizeByAiInference() {
     const btn = document.getElementById('aiInferOrganizeBtn');
     const original = btn ? btn.innerHTML : '';
+    let stopBtn = null;
+    let stopRequested = false;
     const setStatus = (text, type = 'info') => {
       this.showMessage(text, type);
     };
@@ -1499,20 +1586,73 @@ class OptionsManager {
         btn.style.pointerEvents = 'none';
         btn.setAttribute('aria-busy', 'true');
         btn.innerHTML = '🤖 <span class="loading" style="margin:0 6px 0 4px;vertical-align:middle"></span> AI 归类中...';
+        
+        // 创建停止按钮
+        stopBtn = document.createElement('button');
+        stopBtn.id = 'aiStopOrganizeBtn';
+        stopBtn.className = 'btn btn-danger';
+        stopBtn.style.marginLeft = '10px';
+        stopBtn.style.padding = '6px 12px';
+        stopBtn.style.border = 'none';
+        stopBtn.style.borderRadius = '4px';
+        stopBtn.style.backgroundColor = '#dc3545';
+        stopBtn.style.color = 'white';
+        stopBtn.style.cursor = 'pointer';
+        stopBtn.style.fontSize = '14px';
+        stopBtn.textContent = '停止归类';
+        
+        // 添加停止按钮到按钮父元素
+        if (btn.parentElement) {
+          btn.parentElement.appendChild(stopBtn);
+        }
+        
+        // 添加停止按钮点击事件
+        stopBtn.addEventListener('click', () => {
+          stopRequested = true;
+          stopBtn.textContent = '停止中...';
+          stopBtn.disabled = true;
+          
+          // 发送停止请求到后台（异步，不等待响应）
+          if (typeof chrome !== 'undefined' && chrome?.runtime) {
+            chrome.runtime.sendMessage({ action: 'stopOrganizeByAiInference' }).catch(e => {
+              console.error('发送停止请求失败:', e);
+            });
+          }
+        });
       }
       setStatus('准备 AI 归类预览...', 'info');
       // 先弹出参数确认弹窗，仅选择整理范围
       const params = await this.showOrganizeParamsDialog();
       if (!params) return; // 用户取消
-      const { scopeFolderIds = [] } = params;
+      
+      const { scopeFolderIds = [], folderFilter = 'all', organizeTarget = 'toolbar' } = params;
       if (typeof chrome === 'undefined' || !chrome?.runtime) {
         throw new Error('当前不在扩展环境，无法执行');
       }
-      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds });
+      
+      // 创建一个Promise来处理消息发送，同时设置一个超时检查
+      const resp = await new Promise((resolve, reject) => {
+        // 发送消息到后台
+        chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds, folderFilter, organizeTarget }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+        
+        // 定期检查是否请求停止
+        const checkInterval = setInterval(() => {
+          if (stopRequested) {
+            clearInterval(checkInterval);
+            reject(new Error('用户取消归类'));
+          }
+        }, 100);
+      });
       if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
       // 记录当前选择至计划元信息，便于确认时传递
-      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds } };
-      this._lastOrganizeParams = { scopeFolderIds };
+      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds, folderFilter, organizeTarget } };
+      this._lastOrganizeParams = { scopeFolderIds, folderFilter, organizeTarget };
       // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
@@ -1523,6 +1663,11 @@ class OptionsManager {
       this.showMessage(e?.message || 'AI 归类失败', 'error');
       // inline status banner removed; rely on global message only
     } finally {
+      // 移除停止按钮
+      if (stopBtn && stopBtn.parentElement) {
+        stopBtn.parentElement.removeChild(stopBtn);
+      }
+      
       if (btn) {
         // 恢复按钮状态与文本
         btn.classList.remove('is-loading');
@@ -2038,52 +2183,111 @@ class OptionsManager {
   async showOrganizeParamsDialog() {
     const title = window.I18n ? (window.I18n.t('organize.confirm.title') || '确认整理参数') : '确认整理参数';
     const scopeLabel = window.I18n ? (window.I18n.t('organize.scope.label') || '整理范围') : '整理范围';
+    const targetLabel = window.I18n ? (window.I18n.t('organize.target.label') || '归类目标') : '归类目标';
+    const targetToolbarText = window.I18n ? (window.I18n.t('organize.target.toolbar') || '收藏夹栏') : '收藏夹栏';
+    const targetCurrentText = window.I18n ? (window.I18n.t('organize.target.current') || '当前文件夹下') : '当前文件夹下';
     const allText = window.I18n ? (window.I18n.t('organize.scope.option.all') || '全部书签') : '全部书签';
 
     let folders = [];
     try { folders = await this.getAllFolderPaths(); } catch (e) { console.warn('加载文件夹列表失败', e); }
 
-    // 打开时不进行任何默认勾选
     const preselected = [];
-    const buildOptions = () => {
+    
+    window._organizeFolders = folders;
+    
+    window._buildFolderOptions = (filterType = 'all') => {
       const items = [];
-      for (const f of folders) {
+      for (const f of window._organizeFolders) {
+        const folderName = f.path.split('/').pop() || f.path;
+        let shouldCheck = true;
+        
+        if (filterType === 'chinese') {
+          shouldCheck = /[\u4e00-\u9fa5]/.test(folderName);
+        } else if (filterType === 'english') {
+          shouldCheck = !/[\u4e00-\u9fa5]/.test(folderName);
+        }
+        
         const inputId = `dlgScope_${this.escapeHtml(String(f.id))}`;
+        const checkedAttr = shouldCheck ? 'checked' : '';
         items.push(`
           <label for="${inputId}" style="display:block;margin:6px 0;cursor:pointer;color:#374151;">
-            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" style="margin-right:8px;vertical-align:middle;"/>
+            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" ${checkedAttr} style="margin-right:8px;vertical-align:middle;"/>
             <span style="vertical-align:middle;">${this.escapeHtml(f.path)}</span>
           </label>`);
       }
       return items.join('');
     };
 
+    window.updateFolderList = (filterType) => {
+      const dlgScopes = document.getElementById('dlgScopes');
+      if (dlgScopes) {
+        dlgScopes.innerHTML = window._buildFolderOptions(filterType);
+      }
+    };
+
     const messageHtml = `
       <div style="width:100%;">
         <div style="display:block;margin-bottom:8px;">
+          <span style="font-weight:600;color:#111827;">${this.escapeHtml(targetLabel)}</span>
+          <div style="margin:6px 0 10px;color:#6B7280;font-size:12px;">
+            选择将归类后的书签存入收藏夹栏还是当前文件夹下。
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="margin-right:16px;cursor:pointer;">
+              <input type="radio" name="organizeTarget" value="toolbar" checked style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">${this.escapeHtml(targetToolbarText)}</span>
+            </label>
+            <label style="cursor:pointer;">
+              <input type="radio" name="organizeTarget" value="current" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">${this.escapeHtml(targetCurrentText)}</span>
+            </label>
+          </div>
+          
           <span style="font-weight:600;color:#111827;">${this.escapeHtml(scopeLabel)}（可多选，留空表示全部）</span>
           <div style="margin:6px 0 10px;color:#6B7280;font-size:12px;">
             勾选需要整理的范围；不勾选表示整理全部书签。
           </div>
+          <div style="margin-bottom:10px;">
+            <span style="font-size:13px;color:#374151;font-weight:500;">文件夹过滤：</span>
+            <label style="margin-left:8px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="all" checked style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">全部</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="chinese" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅中文</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="english" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅英文</span>
+            </label>
+          </div>
           <div id="dlgScopes" style="width:100%;max-height:320px;overflow:auto;border:1px solid #E5E7EB;border-radius:8px;padding:8px;box-sizing:border-box;">
-            ${buildOptions()}
+            ${window._buildFolderOptions('all')}
           </div>
         </div>
       </div>`;
 
     const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
     const cancelText = window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消';
-    // 显示通用确认弹窗
+    
     const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
     if (!confirmed) return null;
+    
     const dlgScopes = document.getElementById('dlgScopes');
     const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
-    // 同步设置以便下次默认（保持旧字段兼容）
+    
+    const filterRadio = document.querySelector('input[name="folderFilter"]:checked');
+    const folderFilter = filterRadio ? filterRadio.value : 'all';
+    
+    const targetRadio = document.querySelector('input[name="organizeTarget"]:checked');
+    const organizeTarget = targetRadio ? targetRadio.value : 'toolbar';
+    
     this.settings.organizeScopeFolderIds = scopeFolderIds;
     this.settings.organizeScopeFolderId = scopeFolderIds[0] || '';
     try { await this.saveSettings(); } catch (e) {}
-    this._lastOrganizeParams = { scopeFolderIds };
-    return { scopeFolderIds };
+    this._lastOrganizeParams = { scopeFolderIds, folderFilter, organizeTarget };
+    return { scopeFolderIds, folderFilter, organizeTarget };
   }
 
   // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
@@ -2120,6 +2324,57 @@ class OptionsManager {
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = '💾 备份书签';
+      }
+    }
+  }
+
+  async countBookmarks() {
+    try {
+      const btn = document.getElementById('countBookmarksBtn');
+      const original = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading" style="margin:0;vertical-align:middle"></span> 查询中...';
+      }
+
+      let totalCount = 0;
+      let folderCount = 0;
+
+      if (typeof chrome !== 'undefined' && chrome.bookmarks) {
+        const bookmarkTree = await chrome.bookmarks.getTree();
+        
+        function countNodes(nodes) {
+          for (const node of nodes) {
+            if (node.children) {
+              folderCount++;
+              countNodes(node.children);
+            } else if (node.url) {
+              totalCount++;
+            }
+          }
+        }
+        
+        countNodes(bookmarkTree);
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 800));
+        totalCount = 0;
+        folderCount = 0;
+      }
+
+      const message = `书签总数：${totalCount}\n文件夹总数：${folderCount}`;
+      this.showMessage(message, 'success');
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    } catch (error) {
+      console.error('查询书签总数失败:', error);
+      this.showMessage('查询失败，请重试', 'error');
+      const btn = document.getElementById('countBookmarksBtn');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '📊 书签总数';
       }
     }
   }
@@ -2764,6 +3019,105 @@ class OptionsManager {
       const folder = await chrome.bookmarks.create({ title: preferred });
       return folder;
     }
+  }
+
+  // 扫描空文件夹
+  async scanEmptyFolders({ progressEl, listEl, containerEl, scanBtn }) {
+    let originalText;
+    try {
+      if (!listEl || !containerEl || !scanBtn) return;
+      containerEl.hidden = true;
+      listEl.innerHTML = '';
+      scanBtn.disabled = true;
+      originalText = scanBtn.textContent;
+      scanBtn.innerHTML = `<span class="loading"></span> 检测中...`;
+
+      const tree = await chrome.bookmarks.getTree();
+      const emptyFolders = [];
+
+      const findEmptyFolders = (node) => {
+        if (!node.children) return;
+        
+        for (const child of node.children) {
+          if (child.children) {
+            const hasBookmarks = this._folderHasBookmarks(child);
+            if (!hasBookmarks) {
+              emptyFolders.push({
+                id: child.id,
+                title: child.title || '未命名文件夹',
+                path: this._getFolderPath(child.id, tree)
+              });
+            }
+            findEmptyFolders(child);
+          }
+        }
+      };
+
+      findEmptyFolders(tree[0]);
+
+      if (progressEl) progressEl.textContent = `找到 ${emptyFolders.length} 个空文件夹`;
+
+      if (emptyFolders.length === 0) {
+        containerEl.hidden = false;
+        listEl.innerHTML = `<li class="list-item"><span class="title">未找到空文件夹</span></li>`;
+      } else {
+        containerEl.hidden = false;
+        listEl.innerHTML = emptyFolders.map(f => `
+          <li class="list-item" data-id="${f.id}">
+            <input type="checkbox" data-id="${f.id}" aria-label="选择文件夹">
+            <div class="info">
+              <div class="title">${this.escapeHtml(f.title)}</div>
+              <div class="url">${this.escapeHtml(f.path)}</div>
+            </div>
+            <div class="status">空文件夹</div>
+          </li>
+        `).join('');
+      }
+    } catch (e) {
+      console.error('扫描空文件夹失败', e);
+      this.showMessage('扫描失败，请重试', 'error');
+    } finally {
+      if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.textContent = originalText;
+      }
+    }
+  }
+
+  _folderHasBookmarks(folder) {
+    if (!folder.children) return false;
+    
+    for (const child of folder.children) {
+      if (child.url) {
+        return true;
+      }
+      if (child.children) {
+        if (this._folderHasBookmarks(child)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  _getFolderPath(folderId, tree) {
+    const path = [];
+    const findPath = (node, currentPath = []) => {
+      if (node.id === folderId) {
+        path.push(...currentPath, node.title || '未命名文件夹');
+        return true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          if (findPath(child, [...currentPath, node.title || '未命名文件夹'])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    findPath(tree[0]);
+    return path.join(' > ');
   }
 
   // 提供跨语言的候选名称，避免语言切换后找不到原文件夹
@@ -4258,6 +4612,17 @@ class OptionsManager {
       msgEl.innerHTML = message;
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
+
+      // 处理文件夹过滤 radio button 的事件监听
+      const folderFilterRadios = msgEl.querySelectorAll('input[name="folderFilter"]');
+      folderFilterRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const filterType = e.target.value;
+          if (typeof window.updateFolderList === 'function') {
+            window.updateFolderList(filterType);
+          }
+        });
+      });
 
       // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
       let dlgScopesEl = msgEl.querySelector('#dlgScopes');

@@ -412,7 +412,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleOrganizeByPlan(request.plan, sendResponse);
       break;
     case 'organizeByAiInference':
-      handleOrganizeByAiInference(sendResponse, request);
+      (async () => {
+        try {
+          await handleOrganizeByAiInference(sendResponse, request);
+        } catch (error) {
+          console.error('处理organizeByAiInference时发生错误:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      break;
+    case 'stopOrganizeByAiInference':
+      handleStopOrganizeByAiInference(sendResponse);
       break;
     case 'syncGithubBackup':
       handleSyncGithubBackup(request.payload, sendResponse);
@@ -532,7 +542,9 @@ async function handleOrganizeByAiInference(sendResponse, request = {}) {
     const scopeFolderIds = Array.isArray(request?.scopeFolderIds)
       ? request.scopeFolderIds.map(id => String(id)).filter(Boolean)
       : (request?.scopeFolderId ? [String(request.scopeFolderId)] : []);
-    const plan = await organizePlanByAiInference(scopeFolderIds);
+    const folderFilter = request?.folderFilter || 'all';
+    const organizeTarget = request?.organizeTarget || 'toolbar';
+    const plan = await organizePlanByAiInference(scopeFolderIds, folderFilter, organizeTarget);
     sendResponse({ success: true, data: plan });
   } catch (error) {
     console.error('AI 推理归类失败:', error);
@@ -1470,7 +1482,22 @@ async function findOrCreateFolder(name) {
     }
 
     // 未找到则在目标父目录下创建（未指定时默认书签栏 '1'）
-    const parentId = specifiedParentId || '1';
+    let parentId = specifiedParentId || '1';
+    
+    // 验证 parentId 是否是一个有效的文件夹
+    try {
+      const parentNode = await chrome.bookmarks.get(String(parentId));
+      if (!parentNode || parentNode.length === 0 || parentNode[0].url) {
+        // 如果 parentId 不存在或者不是一个文件夹，使用默认值 '1'
+        console.warn(`父目录 ID "${parentId}" 不是一个有效的文件夹，使用默认值 "1"`);
+        parentId = '1';
+      }
+    } catch (e) {
+      // 如果获取父目录失败，使用默认值 '1'
+      console.warn(`获取父目录失败: ${e.message}，使用默认值 "1"`);
+      parentId = '1';
+    }
+    
     const newFolder = await chrome.bookmarks.create({
       title: name,
       parentId
@@ -1479,6 +1506,42 @@ async function findOrCreateFolder(name) {
   } catch (error) {
     console.error(`创建文件夹 "${name}" 失败:`, error);
     throw error;
+  }
+}
+
+// 缓存收藏夹栏ID
+let toolbarFolderId = null;
+
+// 获取收藏夹栏的实际ID
+async function getToolbarFolderId() {
+  if (toolbarFolderId) {
+    return toolbarFolderId;
+  }
+  
+  try {
+    const bookmarkTree = await chrome.bookmarks.getTree();
+    
+    function findToolbarFolder(nodes) {
+      for (const node of nodes) {
+        // 收藏夹栏通常标题为"书签栏"或"Favorites Bar"
+        if (!node.url && node.children) {
+          if (node.title === '书签栏' || node.title === 'Favorites Bar' || node.id === '2') {
+            return node.id;
+          }
+          const found = findToolbarFolder(node.children);
+          if (found) {
+            return found;
+          }
+        }
+      }
+      return null;
+    }
+    
+    toolbarFolderId = findToolbarFolder(bookmarkTree) || '1';
+    return toolbarFolderId;
+  } catch (e) {
+    console.warn('获取收藏夹栏ID失败:', e);
+    return '1';
   }
 }
 
@@ -1648,32 +1711,75 @@ function parseAiJsonContent(result) {
     candidate = candidate.slice(0, lastBrace + 1);
   }
 
+  // 预处理：尝试修复常见的JSON格式问题
+  function preprocessJson(text) {
+    // 修复单引号问题：将字符串中的单引号转换为双引号
+    // 但要小心不要破坏转义字符
+    let result = '';
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      
+      if (escapeNext) {
+        result += ch;
+        escapeNext = false;
+      } else if (ch === '\\') {
+        result += ch;
+        escapeNext = true;
+      } else if (ch === '"') {
+        result += ch;
+        inString = !inString;
+      } else if (ch === "'" && inString) {
+        // 在字符串内部，将单引号转换为双引号
+        result += '"';
+      } else {
+        result += ch;
+      }
+    }
+    
+    return result;
+  }
+
   try {
     return JSON.parse(candidate);
   } catch (_) {
-    const balanced = extractBalancedJson(candidate);
-    if (balanced) {
-      try {
-        return JSON.parse(balanced);
-      } catch (e2) {
-        console.warn('[AI] JSON 解析失败（平衡块尝试）:', e2);
-        // 尝试对象级别的挽救：从文本中提取条目对象
-        const salvaged = salvageReassignedItemsFromText(candidate);
-        if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
-          console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-          return salvaged;
+    // 尝试预处理后再解析
+    const preprocessed = preprocessJson(candidate);
+    try {
+      return JSON.parse(preprocessed);
+    } catch (_) {
+      const balanced = extractBalancedJson(candidate);
+      if (balanced) {
+        try {
+          return JSON.parse(balanced);
+        } catch (e2) {
+          // 尝试预处理平衡块后再解析
+          const balancedPreprocessed = preprocessJson(balanced);
+          try {
+            return JSON.parse(balancedPreprocessed);
+          } catch (e3) {
+            console.warn('[AI] JSON 解析失败（平衡块尝试）:', e3);
+            // 尝试对象级别的挽救：从文本中提取条目对象
+            const salvaged = salvageReassignedItemsFromText(candidate);
+            if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
+              console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
+              return salvaged;
+            }
+            return null;
+          }
         }
-        return null;
       }
+      // 尝试对象级别的挽救：从文本中提取条目对象
+      const salvaged = salvageReassignedItemsFromText(candidate);
+      if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
+        console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
+        return salvaged;
+      }
+      console.warn('[AI] JSON 解析失败，原始内容片段:', candidate.slice(0, 200));
+      return null;
     }
-    // 尝试对象级别的挽救：从文本中提取条目对象
-    const salvaged = salvageReassignedItemsFromText(candidate);
-    if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
-      console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-      return salvaged;
-    }
-    console.warn('[AI] JSON 解析失败，原始内容片段:', candidate.slice(0, 200));
-    return null;
   }
 }
 
@@ -1910,14 +2016,40 @@ async function runPromisesWithConcurrency(tasks, limit = 2) {
   const results = new Array(tasks.length);
   let idx = 0;
   let running = 0;
+  let stopRequested = false;
+  
+  // 定期检查是否请求停止
+  const checkInterval = setInterval(() => {
+    if (stopAiOrganizeRequested) {
+      stopRequested = true;
+      clearInterval(checkInterval);
+    }
+  }, 100);
+  
   return new Promise((resolve, reject) => {
     const next = () => {
-      if (idx >= tasks.length && running === 0) return resolve(results);
-      while (running < limit && idx < tasks.length) {
+      // 检查是否请求停止
+      if (stopRequested) {
+        clearInterval(checkInterval);
+        return resolve(results);
+      }
+      
+      if (idx >= tasks.length && running === 0) {
+        clearInterval(checkInterval);
+        return resolve(results);
+      }
+      
+      while (running < limit && idx < tasks.length && !stopRequested) {
         const cur = idx++;
         running++;
         Promise.resolve()
-          .then(() => tasks[cur]())
+          .then(() => {
+            // 检查是否请求停止
+            if (stopRequested) {
+              return null;
+            }
+            return tasks[cur]();
+          })
           .then(res => { results[cur] = res; })
           .catch(err => { results[cur] = null; console.warn('[AI] 分批任务失败:', err?.message || err); })
           .finally(() => { running--; next(); });
@@ -1931,9 +2063,21 @@ async function runPromisesWithConcurrency(tasks, limit = 2) {
 async function requestAIWithRetry(params, { retries = 2, baseDelayMs = 1000, label = '' } = {}) {
   let attempt = 0;
   while (true) {
+    // 检查是否请求停止
+    if (stopAiOrganizeRequested) {
+      console.log('[AI Debug] 收到停止请求，中断执行');
+      throw new Error('用户取消归类');
+    }
+    
     try {
       return await requestAI(params);
     } catch (e) {
+      // 检查是否请求停止
+      if (stopAiOrganizeRequested) {
+        console.log('[AI Debug] 收到停止请求，中断执行');
+        throw new Error('用户取消归类');
+      }
+      
       const msg = String(e?.message || e || '');
       const isRateLimit = msg.includes('429');
       if (attempt >= retries) throw e;
@@ -2018,19 +2162,24 @@ Return only a valid JSON object strictly following the above format — no markd
 }
 
 // 构建 AI 推理提示词（支持用户配置模板，不预设分类）
-async function buildInferencePrompt({ language, items }) {
+async function buildInferencePrompt({ language, items, folderFilter = 'all' }) {
   const its = Array.isArray(items) ? items : [];
   const itemsJson = JSON.stringify(its, null, 2);
 
-  // 尝试读取用户自定义模板
+  let languageRestriction = '';
+  if (folderFilter === 'chinese') {
+    languageRestriction = '\n- Category names MUST be in Chinese (中文). Do not use English or other languages.';
+  } else if (folderFilter === 'english') {
+    languageRestriction = '\n- Category names MUST be in English. Do not use Chinese or other languages.';
+  }
+
   try {
     const { aiPromptInfer } = await chrome.storage.sync.get(['aiPromptInfer']);
     if (aiPromptInfer && String(aiPromptInfer).trim().length > 0) {
-      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson });
+      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson, languageRestriction });
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
   return (
     `
 You are a world-class Information Architecture and Taxonomy Expert.
@@ -2049,7 +2198,7 @@ Rules & Principles:
 - Do not return any commentary outside JSON.
 - Keep category names short (1–3 words) and meaningful.
 - Prefer semantic grouping by title first, URL second.
-- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.${languageRestriction}
 
 Output Format (strict JSON, no extra text):
 {
@@ -2369,8 +2518,20 @@ async function organizeByPlan(plan) {
     if (!categoriesPerScope[sid]) categoriesPerScope[sid] = new Set();
     categoriesPerScope[sid].add(category);
   }
+  // 提前获取收藏夹栏ID
+  const actualToolbarId = await getToolbarFolderId();
+  
   for (const [sid, set] of Object.entries(categoriesPerScope)) {
-    const parentId = sid ? String(sid) : '1';
+    // 根据organizeTarget决定父文件夹ID
+    const organizeTarget = plan?.meta?.organizeTarget || 'toolbar';
+    let parentId;
+    if (organizeTarget === 'toolbar') {
+      // 使用实际的收藏夹栏ID
+      parentId = actualToolbarId;
+    } else {
+      // 当前文件夹，使用原始逻辑
+      parentId = sid ? String(sid) : '1';
+    }
     if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
     for (const category of set) {
       const folder = await findOrCreateFolder(category, { parentId });
@@ -2387,7 +2548,16 @@ async function organizeByPlan(plan) {
     if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
     let targetFolder = categoryFoldersByScope[sid][category];
     if (!targetFolder && otherCandidates.includes(category)) {
-      const parentId = sid ? String(sid) : '1';
+      // 根据organizeTarget决定父文件夹ID
+      const organizeTarget = plan?.meta?.organizeTarget || 'toolbar';
+      let parentId;
+      if (organizeTarget === 'toolbar') {
+        // 使用实际的收藏夹栏ID
+        parentId = actualToolbarId;
+      } else {
+        // 当前文件夹，使用原始逻辑
+        parentId = sid ? String(sid) : '1';
+      }
       const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
       categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
       targetFolder = categoryFoldersByScope[sid][otherName];
@@ -2454,7 +2624,10 @@ async function organizeByPlan(plan) {
 }
 
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
-async function organizePlanByAiInference(scopeFolderIds = []) {
+async function organizePlanByAiInference(scopeFolderIds = [], folderFilter = 'all', organizeTarget = 'toolbar') {
+  // 重置停止标志
+  stopAiOrganizeRequested = false;
+  
   // 读取设置以获取 AI 参数和语言
   const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
 
@@ -2468,7 +2641,8 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     apiKey: settings.aiApiKey ? `sk-****${settings.aiApiKey.slice(-6)}` : '未设置',
     maxTokens: settings.maxTokens,
     classificationLanguage: settings.classificationLanguage,
-    scopeFolderIds: scopeFolderIds
+    scopeFolderIds: scopeFolderIds,
+    folderFilter: folderFilter
   });
   if (!settings.enableAI) {
     console.error('[AI Debug] AI 未启用');
@@ -2495,19 +2669,31 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   } catch (e) {
     throw new Error('无法读取书签');
   }
-  const flatRaw = [];
+  // 使用Map去重，确保每个书签只被计数一次
+  const bookmarkMap = new Map();
   for (const { scopeId, tree } of bookmarksTrees) {
     const flat = flattenBookmarks(tree).filter(b => b.url);
-    flat.forEach(b => flatRaw.push({ ...b, _originScopeId: scopeId }));
+    flat.forEach(b => {
+      if (!bookmarkMap.has(b.id)) {
+        bookmarkMap.set(b.id, { ...b, _originScopeId: scopeId });
+      }
+    });
   }
+  const flatRaw = Array.from(bookmarkMap.values());
 
   // 调试日志：书签处理
-  console.log('[AI Debug] 原始书签总数:', flattenBookmarks(bookmarksTrees).length);
+  console.log('[AI Debug] 原始书签总数:', flatRaw.length);
   console.log('[AI Debug] 过滤后有URL的书签数量:', flatRaw.length);
   console.log('[AI Debug] 书签样例:', flatRaw.slice(0, 3).map(b => ({ id: b.id, title: b.title || '无标题', url: b.url || '无URL' })));
 
   const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
   const language = settings.classificationLanguage || 'auto';
+  
+  // 检查是否请求停止
+  if (stopAiOrganizeRequested) {
+    console.log('[AI Debug] 收到停止请求，中断执行');
+    throw new Error('用户取消归类');
+  }
 
   // 分批与并发（避免一次请求过大）
   const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 120;
@@ -2517,11 +2703,23 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length });
 
   const tasks = chunks.map((chunk, idx) => async () => {
+    // 检查是否请求停止
+    if (stopAiOrganizeRequested) {
+      console.log(`[AI Debug] 收到停止请求，跳过批次 ${idx + 1}`);
+      return null;
+    }
+    
     console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
 
-    const prompt = await buildInferencePrompt({ language, items: chunk });
+    const prompt = await buildInferencePrompt({ language, items: chunk, folderFilter });
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词长度:`, prompt.length);
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词预览:`, prompt.substring(0, 200) + '...');
+
+    // 检查是否请求停止
+    if (stopAiOrganizeRequested) {
+      console.log(`[AI Debug] 收到停止请求，跳过批次 ${idx + 1}`);
+      return null;
+    }
 
     const aiResult = await requestAIWithRetry({
       provider: settings.aiProvider || 'openai',
@@ -2540,6 +2738,12 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   });
 
   const results = await runPromisesWithConcurrency(tasks, concurrency);
+
+  // 检查是否请求停止
+  if (stopAiOrganizeRequested) {
+    console.log('[AI Debug] 收到停止请求，中断执行');
+    throw new Error('用户取消归类');
+  }
 
   console.log('[AI Debug] 所有批次处理完成，结果数量:', results.length);
   console.log('[AI Debug] 所有批次结果:', results);
@@ -2624,7 +2828,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   });
 
   // 附带元信息，便于前端确认时传递范围
-  return { ...plan, meta: { scopeFolderIds: Array.isArray(scopeFolderIds) ? scopeFolderIds : [] } };
+  return { ...plan, meta: { scopeFolderIds: Array.isArray(scopeFolderIds) ? scopeFolderIds : [], organizeTarget } };
 }
 
 // 删除指定ID集合中已变为空的书签目录（避开系统目录）
@@ -2634,17 +2838,59 @@ async function cleanupEmptyFolders(folderIds) {
   for (const id of (folderIds || [])) {
     try {
       if (!id || protectedIds.has(String(id))) continue;
+      
+      // 先检查文件夹是否存在且是可修改的
+      const folderNode = await chrome.bookmarks.get(String(id));
+      if (!folderNode || folderNode.length === 0 || folderNode[0].url) {
+        // 不是有效文件夹，跳过
+        continue;
+      }
+      
       const children = await chrome.bookmarks.getChildren(String(id));
       if (Array.isArray(children) && children.length === 0) {
-        await chrome.bookmarks.removeTree(String(id));
-        deleted.push(String(id));
+        try {
+          await chrome.bookmarks.removeTree(String(id));
+          deleted.push(String(id));
+        } catch (removeError) {
+          // 处理删除失败的情况
+          if (removeError.message && removeError.message.includes('Can\'t find bookmark for id')) {
+            // 文件夹不存在，跳过
+            console.debug('[cleanup] 文件夹不存在，跳过删除:', id);
+          } else if (removeError.message && removeError.message.includes('Can\'t modify the root bookmark folders')) {
+            // 不可修改的根文件夹，跳过
+            console.debug('[cleanup] 跳过不可修改的根文件夹:', id);
+          } else {
+            // 其他删除失败的情况
+            console.warn('[cleanup] 删除空目录失败:', id, removeError);
+          }
+        }
       }
     } catch (e) {
       // 忽略单个失败，继续其他
-      console.warn('[cleanup] 删除空目录失败:', id, e);
+      // 特别处理"Can't modify the root bookmark folders"错误
+      if (e.message && e.message.includes('Can\'t modify the root bookmark folders')) {
+        console.debug('[cleanup] 跳过不可修改的根文件夹:', id);
+      } else {
+        console.warn('[cleanup] 删除空目录失败:', id, e);
+      }
     }
   }
   return deleted;
+}
+
+// 全局变量，用于跟踪是否请求停止AI归类
+let stopAiOrganizeRequested = false;
+
+// 处理停止AI归类请求
+function handleStopOrganizeByAiInference(sendResponse) {
+  try {
+    stopAiOrganizeRequested = true;
+    console.log('已请求停止AI归类');
+    sendResponse({ success: true, message: '已请求停止AI归类' });
+  } catch (error) {
+    console.error('处理停止AI归类请求失败:', error);
+    sendResponse({ success: false, error: error.message });
+  }
 }
 
 // 定期检查备份（每小时检查一次）

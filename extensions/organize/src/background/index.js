@@ -412,7 +412,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleOrganizeByPlan(request.plan, sendResponse);
       break;
     case 'organizeByAiInference':
-      handleOrganizeByAiInference(sendResponse, request);
+      (async () => {
+        try {
+          await handleOrganizeByAiInference(sendResponse, request);
+        } catch (error) {
+          console.error('处理organizeByAiInference时发生错误:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       break;
     case 'syncGithubBackup':
       handleSyncGithubBackup(request.payload, sendResponse);
@@ -532,7 +539,8 @@ async function handleOrganizeByAiInference(sendResponse, request = {}) {
     const scopeFolderIds = Array.isArray(request?.scopeFolderIds)
       ? request.scopeFolderIds.map(id => String(id)).filter(Boolean)
       : (request?.scopeFolderId ? [String(request.scopeFolderId)] : []);
-    const plan = await organizePlanByAiInference(scopeFolderIds);
+    const folderFilter = request?.folderFilter || 'all';
+    const plan = await organizePlanByAiInference(scopeFolderIds, folderFilter);
     sendResponse({ success: true, data: plan });
   } catch (error) {
     console.error('AI 推理归类失败:', error);
@@ -2010,19 +2018,24 @@ Return only a valid JSON object strictly following the above format — no markd
 }
 
 // 构建 AI 推理提示词（支持用户配置模板，不预设分类）
-async function buildInferencePrompt({ language, items }) {
+async function buildInferencePrompt({ language, items, folderFilter = 'all' }) {
   const its = Array.isArray(items) ? items : [];
   const itemsJson = JSON.stringify(its, null, 2);
 
-  // 尝试读取用户自定义模板
+  let languageRestriction = '';
+  if (folderFilter === 'chinese') {
+    languageRestriction = '\n- Category names MUST be in Chinese (中文). Do not use English or other languages.';
+  } else if (folderFilter === 'english') {
+    languageRestriction = '\n- Category names MUST be in English. Do not use Chinese or other languages.';
+  }
+
   try {
     const { aiPromptInfer } = await chrome.storage.sync.get(['aiPromptInfer']);
     if (aiPromptInfer && String(aiPromptInfer).trim().length > 0) {
-      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson });
+      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson, languageRestriction });
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
   return (
     `
 You are a world-class Information Architecture and Taxonomy Expert.
@@ -2041,7 +2054,7 @@ Rules & Principles:
 - Do not return any commentary outside JSON.
 - Keep category names short (1–3 words) and meaningful.
 - Prefer semantic grouping by title first, URL second.
-- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.${languageRestriction}
 
 Output Format (strict JSON, no extra text):
 {
@@ -2436,7 +2449,7 @@ async function organizeByPlan(plan) {
 }
 
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
-async function organizePlanByAiInference(scopeFolderIds = []) {
+async function organizePlanByAiInference(scopeFolderIds = [], folderFilter = 'all') {
   // 读取设置以获取 AI 参数和语言
   const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
 
@@ -2450,7 +2463,8 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     apiKey: settings.aiApiKey ? `sk-****${settings.aiApiKey.slice(-6)}` : '未设置',
     maxTokens: settings.maxTokens,
     classificationLanguage: settings.classificationLanguage,
-    scopeFolderIds: scopeFolderIds
+    scopeFolderIds: scopeFolderIds,
+    folderFilter: folderFilter
   });
   if (!settings.enableAI) {
     console.error('[AI Debug] AI 未启用');
@@ -2501,7 +2515,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   const tasks = chunks.map((chunk, idx) => async () => {
     console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
 
-    const prompt = await buildInferencePrompt({ language, items: chunk });
+    const prompt = await buildInferencePrompt({ language, items: chunk, folderFilter });
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词长度:`, prompt.length);
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词预览:`, prompt.substring(0, 200) + '...');
 
