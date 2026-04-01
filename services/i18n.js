@@ -525,6 +525,8 @@
     'newtab.wallpaper.notJson': { 'zh-CN': '壁纸响应非JSON', 'zh-TW': '壁紙響應非 JSON', 'en': 'Wallpaper response is not JSON', 'ru': 'Ответ сервиса обоев не JSON' },
     'newtab.wallpaper.errorCode': { 'zh-CN': '壁纸服务错误码 {code}', 'zh-TW': '壁紙服務錯誤碼 {code}', 'en': 'Wallpaper service error code {code}', 'ru': 'Код ошибки сервиса обоев {code}' },
     'newtab.wallpaper.noUrl': { 'zh-CN': '未提供壁纸链接', 'zh-TW': '未提供壁紙連結', 'en': 'No wallpaper URL provided', 'ru': 'URL обоев не предоставлен' },
+    'newtab.wallpaper.refreshSuccess': { 'zh-CN': '壁纸已刷新', 'zh-TW': '壁紙已重新整理', 'en': 'Wallpaper refreshed', 'ru': 'Обои обновлены' },
+    'newtab.wallpaper.refreshFail': { 'zh-CN': '壁纸刷新失败', 'zh-TW': '壁紙重新整理失敗', 'en': 'Wallpaper refresh failed', 'ru': 'Не удалось обновить обои' },
     'newtab.bing.status': { 'zh-CN': 'Bing 接口返回状态 {status}', 'zh-TW': 'Bing 介面返回狀態 {status}', 'en': 'Bing API returned status {status}', 'ru': 'API Bing вернул статус {status}' },
     'newtab.bing.noUrl': { 'zh-CN': 'Bing 接口未提供图片URL', 'zh-TW': 'Bing 介面未提供圖片 URL', 'en': 'Bing API did not provide image URL', 'ru': 'API Bing не предоставил URL изображения' },
     // New Tab: Weather & Top Visited

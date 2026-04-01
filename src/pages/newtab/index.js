@@ -168,8 +168,8 @@
     } catch {}
   }
 
-  // 优先使用 Bing 官方壁纸（UHD/桌面壁纸用途），遵循“walls”用法
-  async function fetchBingOfficialWalls(signal) {
+  // 优先使用 Bing 官方壁纸（UHD/桌面壁纸用途），遵循"walls"用法
+  async function fetchBingOfficialWalls(signal, random = false) {
     try {
       const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
         ? window.I18n.getLanguageSync()
@@ -180,11 +180,21 @@
         .replace(/\s+/g, '')
         .trim();
 
-      const url = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&uhd=1&mkt=${encodeURIComponent(mkt)}`;
+      // 如果是随机模式，获取多张壁纸并随机选择一张
+      const n = random ? 8 : 1; // 随机模式下获取8张壁纸
+      const idx = random ? Math.floor(Math.random() * 8) : 0; // 随机模式下随机选择历史壁纸
+      
+      const url = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=${idx}&n=${n}&uhd=1&mkt=${encodeURIComponent(mkt)}`;
       const resp = await fetch(url, { method: 'GET', redirect: 'follow', signal });
       if (!resp.ok) throw new Error(window.I18n ? window.I18n.tf('newtab.bing.status', { status: resp.status }) : `Bing 接口返回状态 ${resp.status}`);
       const json = await resp.json();
-      const img = json && Array.isArray(json.images) ? json.images[0] : null;
+      const images = json && Array.isArray(json.images) ? json.images : [];
+      
+      // 随机模式下从返回的壁纸中随机选择一张
+      const img = random && images.length > 0 
+        ? images[Math.floor(Math.random() * images.length)] 
+        : (images[0] || null);
+        
       const rel = img && (img.url || '');
       if (!rel) throw new Error(window.I18n ? window.I18n.t('newtab.bing.noUrl') : 'Bing 接口未提供图片URL');
       const cover = `https://www.bing.com${rel}`;
@@ -288,6 +298,56 @@
   }
 
   let wallpaperEnabled = true;
+
+  // 随机壁纸加载函数
+  async function loadRandomWallpaper() {
+    try {
+      if (!wallpaperEnabled) {
+        // 关闭时清除背景
+        if (document && document.body) {
+          document.body.style.backgroundImage = 'none';
+          document.body.classList.remove('has-wallpaper');
+        }
+        return;
+      }
+      
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 15000); // 最多等待15秒
+      
+      try {
+        // 优先尝试 Bing 官方随机壁纸接口；失败再回退到 60s 多实例
+        let wp;
+        try {
+          wp = await fetchBingOfficialWalls(ac.signal, true); // 启用随机模式
+        } catch (e1) {
+          wp = await fetchBingWallpaper60s(ac.signal);
+        }
+        
+        if (wp && document && document.body) {
+          document.body.style.backgroundImage = `url('${wp.cover}')`;
+          document.body.classList.add('has-wallpaper');
+          
+          // 不缓存随机壁纸，每次刷新都获取新的
+          console.log('随机壁纸已加载:', wp.title);
+        } else {
+          // 获取失败，清空背景
+          document.body.style.backgroundImage = 'none';
+          document.body.classList.remove('has-wallpaper');
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      console.warn(window.I18n ? window.I18n.t('newtab.wallpaper.loadFail') : '加载随机壁纸失败', err);
+      if (document && document.body) {
+        const hasBg = document.body.classList.contains('has-wallpaper');
+        if (!hasBg) {
+          document.body.style.backgroundImage = 'none';
+          document.body.classList.remove('has-wallpaper');
+        }
+      }
+    }
+  }
 
   async function loadWallpaper(force = false) {
     try {
@@ -2824,6 +2884,32 @@
   }
 
   initCalendar();
+
+  // 壁纸随机刷新按钮功能
+  const wallpaperRefreshBtn = document.getElementById('wallpaper-refresh-btn');
+  if (wallpaperRefreshBtn) {
+    wallpaperRefreshBtn.addEventListener('click', async () => {
+      // 添加旋转动画
+      wallpaperRefreshBtn.classList.add('refreshing');
+      
+      try {
+        // 强制刷新随机壁纸
+        await loadRandomWallpaper();
+        
+        // 显示成功提示
+        console.log('随机壁纸已刷新');
+      } catch (error) {
+        console.error('壁纸刷新失败:', error);
+        // 显示错误提示（使用简单的alert，因为导航页没有复杂的消息系统）
+        alert('壁纸刷新失败，请检查网络连接或稍后重试');
+      } finally {
+        // 移除旋转动画
+        setTimeout(() => {
+          wallpaperRefreshBtn.classList.remove('refreshing');
+        }, 500);
+      }
+    });
+  }
 
   window.setBookmarkColumns = async (columns) => {
     await saveBookmarkColumnsPreference(columns);

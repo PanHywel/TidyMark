@@ -140,7 +140,7 @@ body {
 }
 .dropdown-item:hover { background: rgba(255,255,255,0.06); }
 .theme-toggle { display: flex; gap: 8px; align-items: center; }
-.theme-btn, .columns-btn {
+.theme-btn, .columns-btn, .wallpaper-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -151,8 +151,17 @@ body {
   color: var(--fg);
   cursor: pointer;
 }
-.theme-btn:hover, .columns-btn:hover { filter: brightness(1.05); }
+.theme-btn:hover, .columns-btn:hover, .wallpaper-btn:hover { filter: brightness(1.05); }
 .theme-btn.active { outline: 2px solid var(--accent); }
+
+.wallpaper-btn.refreshing {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .header-controls { display: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 .theme-select {
