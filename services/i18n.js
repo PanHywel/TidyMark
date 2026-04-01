@@ -483,6 +483,27 @@
   };
   Object.assign(translations, translationsDead);
   
+  // Extend with Empty Folders page keys
+  const translationsEmpty = {
+    'tabs.empty': { 'zh-CN': '空文件夹', 'zh-TW': '空資料夾', 'en': 'Empty Folders', 'ru': 'Пустые папки' },
+    'empty.header': { 'zh-CN': '📂 空文件夹检测', 'zh-TW': '📂 空資料夾檢測', 'en': '📂 Empty Folder Detector', 'ru': '📂 Проверка пустых папок' },
+    'empty.desc': { 'zh-CN': '检测不包含书签的空文件夹，支持批量删除', 'zh-TW': '檢測不包含書籤的空資料夾，支援批次刪除', 'en': 'Detect folders with no bookmarks; supports bulk delete', 'ru': 'Определяет папки без закладок; поддерживается массовое удаление' },
+    'empty.tip': { 'zh-CN': '空文件夹指不包含任何书签的文件夹', 'zh-TW': '空資料夾指不包含任何書籤的資料夾', 'en': 'Empty folders are folders that don\'t contain any bookmarks', 'ru': 'Пустые папки - это папки, не содержащие закладок' },
+    'empty.scan.start': { 'zh-CN': '开始检测', 'zh-TW': '開始檢測', 'en': 'Start Scan', 'ru': 'Начать проверку' },
+    'empty.selectAll': { 'zh-CN': '全选', 'zh-TW': '全選', 'en': 'Select All', 'ru': 'Выбрать все' },
+    'empty.deleteSelected': { 'zh-CN': '删除选中', 'zh-TW': '刪除選中', 'en': 'Delete Selected', 'ru': 'Удалить выбранные' }
+  };
+  Object.assign(translations, translationsEmpty);
+  
+  // Extend with Organize Target keys
+  const translationsOrganize = {
+    'organize.target': { 'zh-CN': '归类目标', 'zh-TW': '歸類目標', 'en': 'Organize Target', 'ru': 'Цель организации' },
+    'organize.target.label': { 'zh-CN': '归类目标', 'zh-TW': '歸類目標', 'en': 'Organize Target', 'ru': 'Цель организации' },
+    'organize.target.toolbar': { 'zh-CN': '收藏夹栏', 'zh-TW': '收藏夾欄', 'en': 'Favorites Bar', 'ru': 'Панель закладок' },
+    'organize.target.current': { 'zh-CN': '当前文件夹下', 'zh-TW': '目前資料夾下', 'en': 'Current Folder', 'ru': 'Текущая папка' }
+  };
+  Object.assign(translations, translationsOrganize);
+  
   // Additional keys for New Tab, Options messages, and Background UI
   const translationsAdd = {
     // New Tab page
@@ -493,7 +514,8 @@
     'newtab.theme.light': { 'zh-CN': '明亮', 'zh-TW': '明亮', 'en': 'Light', 'ru': 'Светлая' },
     'newtab.theme.dark': { 'zh-CN': '暗色', 'zh-TW': '暗色', 'en': 'Dark', 'ru': 'Тёмная' },
     'newtab.search.title': { 'zh-CN': '搜索', 'zh-TW': '搜尋', 'en': 'Search', 'ru': 'Поиск' },
-    'newtab.search.placeholder': { 'zh-CN': '搜索或输入网址（“#”开头进行书签搜索）', 'zh-TW': '搜尋或輸入網址（「#」開頭進行書籤搜尋）', 'en': 'Search or enter URL (“#” for bookmark search)', 'ru': 'Искать или ввести URL («#» — поиск закладок)' },
+    'newtab.search.placeholder': { 'zh-CN': '搜索或输入网址（"#"开头进行书签搜索）', 'zh-TW': '搜尋或輸入網址（「#」開頭進行書籤搜尋）', 'en': 'Search or enter URL ("#" for bookmark search)', 'ru': 'Искать или ввести URL («#» — поиск закладок)' },
+    'newtab.calendar.title': { 'zh-CN': '日历', 'zh-TW': '日曆', 'en': 'Calendar', 'ru': 'Календарь' },
     'newtab.readworld.title': { 'zh-CN': '60s 读懂世界', 'zh-TW': '60s 讀懂世界', 'en': '60s Read the World', 'ru': '60 секунд — новости мира' },
     'newtab.bookmarks.hidden.tip': { 'zh-CN': '书签列表已隐藏。可在“设置 → 导航页”中打开显示。', 'zh-TW': '書籤列表已隱藏。可在「設定 → 導覽頁」中開啟顯示。', 'en': 'Bookmarks list hidden. Enable it in Settings → New Tab.', 'ru': 'Список закладок скрыт. Включите в Настройках → Новая вкладка.' },
     'newtab.wallpaper.on': { 'zh-CN': '壁纸：已开启', 'zh-TW': '壁紙：已開啟', 'en': 'Wallpaper: On', 'ru': 'Обои: Вкл.' },
@@ -503,6 +525,8 @@
     'newtab.wallpaper.notJson': { 'zh-CN': '壁纸响应非JSON', 'zh-TW': '壁紙響應非 JSON', 'en': 'Wallpaper response is not JSON', 'ru': 'Ответ сервиса обоев не JSON' },
     'newtab.wallpaper.errorCode': { 'zh-CN': '壁纸服务错误码 {code}', 'zh-TW': '壁紙服務錯誤碼 {code}', 'en': 'Wallpaper service error code {code}', 'ru': 'Код ошибки сервиса обоев {code}' },
     'newtab.wallpaper.noUrl': { 'zh-CN': '未提供壁纸链接', 'zh-TW': '未提供壁紙連結', 'en': 'No wallpaper URL provided', 'ru': 'URL обоев не предоставлен' },
+    'newtab.wallpaper.refreshSuccess': { 'zh-CN': '壁纸已刷新', 'zh-TW': '壁紙已重新整理', 'en': 'Wallpaper refreshed', 'ru': 'Обои обновлены' },
+    'newtab.wallpaper.refreshFail': { 'zh-CN': '壁纸刷新失败', 'zh-TW': '壁紙重新整理失敗', 'en': 'Wallpaper refresh failed', 'ru': 'Не удалось обновить обои' },
     'newtab.bing.status': { 'zh-CN': 'Bing 接口返回状态 {status}', 'zh-TW': 'Bing 介面返回狀態 {status}', 'en': 'Bing API returned status {status}', 'ru': 'API Bing вернул статус {status}' },
     'newtab.bing.noUrl': { 'zh-CN': 'Bing 接口未提供图片URL', 'zh-TW': 'Bing 介面未提供圖片 URL', 'en': 'Bing API did not provide image URL', 'ru': 'API Bing не предоставил URL изображения' },
     // New Tab: Weather & Top Visited
@@ -569,7 +593,9 @@
     'options.nav.wallpaper.toggle': { 'zh-CN': '显示 Bing 壁纸背景', 'zh-TW': '顯示 Bing 壁紙背景', 'en': 'Show Bing wallpaper', 'ru': 'Показывать обои Bing' },
     'options.nav.wallpaper.tip': { 'zh-CN': '开启后，新标签页将使用 Bing 每日壁纸作为背景', 'zh-TW': '開啟後，新分頁將使用 Bing 每日壁紙作為背景', 'en': 'Use Bing daily wallpaper as background', 'ru': 'Использовать ежедневные обои Bing как фон' },
     'options.nav.sixty.toggle': { 'zh-CN': '显示 60s 读懂世界', 'zh-TW': '顯示 60s 讀懂世界', 'en': 'Show 60s Read the World', 'ru': 'Показывать «60 секунд: новости мира»' },
-    'options.nav.sixty.tip': { 'zh-CN': '开启后，在新标签页显示每日「60s读懂世界」新闻摘要', 'zh-TW': '開啟後，在新分頁顯示每日「60s讀懂世界」新聞摘要', 'en': 'Show daily “60s Read the World” news summary', 'ru': 'Показывать ежедневное краткое резюме новостей «60 секунд»' },
+    'options.nav.sixty.tip': { 'zh-CN': '开启后，在新标签页显示每日「60s读懂世界」新闻摘要', 'zh-TW': '開啟後，在新分頁顯示每日「60s讀懂世界」新聞摘要', 'en': 'Show daily "60s Read the World" news summary', 'ru': 'Показывать ежедневное краткое резюме новостей «60 секунд»' },
+    'options.nav.calendar.toggle': { 'zh-CN': '显示日历', 'zh-TW': '顯示日曆', 'en': 'Show calendar', 'ru': 'Показывать календарь' },
+    'options.nav.calendar.tip': { 'zh-CN': '开启后，在新标签页显示日历模块，包含农历和节假日信息', 'zh-TW': '開啟後，在新分頁顯示日曆模組，包含農曆和節假日資訊', 'en': 'Show calendar module with lunar calendar and holidays', 'ru': 'Показывать календарь с лунным календарём и праздниками' },
     'options.nav.cnDefault.hint': { 'zh-CN': '非中文环境默认隐藏，可在此开启', 'zh-TW': '非中文環境預設隱藏，可在此開啟', 'en': 'Hidden by default in non-Chinese locales; enable here', 'ru': 'В не китайских языках скрыто по умолчанию; включите здесь' },
     'options.nav.opacity.header': { 'zh-CN': '非聚焦透明度（导航页框）', 'zh-TW': '非聚焦透明度（導覽頁框）', 'en': 'Unfocused opacity (New Tab blocks)', 'ru': 'Прозрачность без наведения (блоки новой вкладки)' },
     'options.nav.opacity.search.label': { 'zh-CN': '搜索框透明度', 'zh-TW': '搜尋框透明度', 'en': 'Search opacity', 'ru': 'Прозрачность поиска' },
@@ -587,6 +613,8 @@
     'options.nav.topVisited.count.label': { 'zh-CN': '热门栏目数量（Top N）', 'zh-TW': '熱門欄目數量（Top N）', 'en': 'Top visited count (Top N)', 'ru': 'Количество в «Популярных» (Top N)' },
     'options.nav.topVisited.count.placeholder': { 'zh-CN': '10', 'zh-TW': '10', 'en': '10', 'ru': '10' },
     'options.nav.topVisited.count.desc': { 'zh-CN': '控制显示的热门栏目数量，建议 5-20', 'zh-TW': '控制顯示的熱門欄目數量，建議 5-20', 'en': 'Number of items to show; recommended 5–20', 'ru': 'Количество элементов; рекомендовано 5–20' },
+    'options.nav.bookmarkColumns.label': { 'zh-CN': '书签分类列数', 'zh-TW': '書籤分類列數', 'en': 'Bookmark columns', 'ru': 'Количество столбцов закладок' },
+    'options.nav.bookmarkColumns.desc': { 'zh-CN': '控制书签分类的显示列数，建议 2-3 列（1-5 列可选）', 'zh-TW': '控制書籤分類的顯示列數，建議 2-3 列（1-5 列可選）', 'en': 'Control number of columns for bookmark categories; recommended 2–3 (1–5 available)', 'ru': 'Количество столбцов для категорий закладок; рекомендовано 2–3 (доступно 1–5)' },
     'options.archive.header': { 'zh-CN': '🗂️ 自动归档旧书签', 'zh-TW': '🗂️ 自動歸檔舊書籤', 'en': '🗂️ Auto-archive old bookmarks', 'ru': '🗂️ Автоархив старых закладок' },
     'options.archive.desc': { 'zh-CN': '根据最近访问时间自动将不常访问的书签移动到“归档”文件夹（默认关闭）', 'zh-TW': '依最近造訪時間自動將不常造訪的書籤移至「歸檔」資料夾（預設關閉）', 'en': 'Move infrequently visited bookmarks to “Archive” based on last visit (off by default)', 'ru': 'Перемещать редко посещаемые закладки в «Архив» по дате последнего визита (по умолчанию выкл.)' },
     'options.archive.toggle': { 'zh-CN': '启用自动归档', 'zh-TW': '啟用自動歸檔', 'en': 'Enable auto-archive', 'ru': 'Включить автоархив' },

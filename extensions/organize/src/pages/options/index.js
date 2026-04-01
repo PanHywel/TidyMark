@@ -164,7 +164,7 @@ class OptionsManager {
         this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','claude','gemini','qwen','doubao','kimi','zhipu','baichuan','minimax','spark','ernie','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -369,6 +369,36 @@ class OptionsManager {
         break;
       case 'deepseek':
         validModels = ['deepseek-chat'];
+        break;
+      case 'claude':
+        validModels = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
+        break;
+      case 'gemini':
+        validModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'];
+        break;
+      case 'qwen':
+        validModels = ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'];
+        break;
+      case 'doubao':
+        validModels = ['doubao-pro-256k', 'doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k'];
+        break;
+      case 'kimi':
+        validModels = ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'];
+        break;
+      case 'zhipu':
+        validModels = ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo'];
+        break;
+      case 'baichuan':
+        validModels = ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k', 'Baichuan2-Turbo'];
+        break;
+      case 'minimax':
+        validModels = ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'];
+        break;
+      case 'spark':
+        validModels = ['spark-max', 'spark-pro', 'spark-lite'];
+        break;
+      case 'ernie':
+        validModels = ['ernie-4.0-8k', 'ernie-4.0-turbo-8k', 'ernie-3.5-8k', 'ernie-speed-8k'];
         break;
       case 'iflow':
         validModels = ['deepseek-chat', 'deepseek-coder'];
@@ -1331,6 +1361,78 @@ class OptionsManager {
       });
     }
 
+    // 空文件夹检测事件绑定
+    const emptyScanBtn = document.getElementById('emptyScanBtn');
+    const emptyScanProgress = document.getElementById('emptyScanProgress');
+    const emptyResults = document.getElementById('emptyResults');
+    const emptyResultsList = document.getElementById('emptyResultsList');
+    const emptySelectAll = document.getElementById('emptySelectAll');
+    const emptyDeleteBtn = document.getElementById('emptyDeleteBtn');
+
+    if (emptyScanBtn) {
+      emptyScanBtn.addEventListener('click', async () => {
+        await this.scanEmptyFolders({
+          progressEl: emptyScanProgress,
+          listEl: emptyResultsList,
+          containerEl: emptyResults,
+          scanBtn: emptyScanBtn
+        });
+      });
+    }
+
+    if (emptySelectAll && emptyResultsList) {
+      emptySelectAll.addEventListener('change', () => {
+        emptyResultsList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.checked = !!emptySelectAll.checked;
+        });
+      });
+    }
+
+    if (emptyDeleteBtn && emptyResultsList) {
+      emptyDeleteBtn.addEventListener('click', async () => {
+        const checkedCbs = Array.from(emptyResultsList.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked);
+        const checked = checkedCbs.map(cb => cb.dataset.id).filter(Boolean);
+        if (checked.length === 0) {
+          this.showMessage('请先选择要删除的文件夹', 'error');
+          return;
+        }
+        if (typeof chrome === 'undefined' || !chrome.bookmarks) {
+          this.showMessage('当前不在扩展环境，无法删除', 'error');
+          return;
+        }
+        if (!confirm(`确定要删除选中的 ${checked.length} 个空文件夹吗？`)) {
+          return;
+        }
+        emptyDeleteBtn.disabled = true;
+        const originalText = emptyDeleteBtn.textContent;
+        emptyDeleteBtn.textContent = '删除中...';
+        try {
+          for (const id of checked) {
+            try {
+              await chrome.bookmarks.removeTree(id);
+            } catch (e) {
+              console.error('删除文件夹失败', id, e);
+            }
+          }
+          checkedCbs.forEach(cb => {
+            const item = emptyResultsList.querySelector(`li[data-id="${cb.dataset.id}"]`);
+            if (item) item.remove();
+          });
+          this.showMessage(`成功删除 ${checked.length} 个空文件夹`, 'success');
+          if (emptyResultsList.children.length === 0) {
+            emptyResults.hidden = true;
+            emptySelectAll.checked = false;
+          }
+        } catch (e) {
+          console.error('删除空文件夹出错', e);
+          this.showMessage('删除失败，请重试', 'error');
+        } finally {
+          emptyDeleteBtn.disabled = false;
+          emptyDeleteBtn.textContent = originalText;
+        }
+      });
+    }
+
     // 列表项点击打开页面验证（仅点击标题/URL区域触发，避开复选框与删除按钮）
     if (deadResultsList) {
       deadResultsList.addEventListener('click', (e) => {
@@ -1439,15 +1541,15 @@ class OptionsManager {
       // 先弹出参数确认弹窗，仅选择整理范围
       const params = await this.showOrganizeParamsDialog();
       if (!params) return; // 用户取消
-      const { scopeFolderIds = [] } = params;
+      const { scopeFolderIds = [], folderFilter = 'all' } = params;
       if (typeof chrome === 'undefined' || !chrome?.runtime) {
         throw new Error('当前不在扩展环境，无法执行');
       }
-      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds });
+      const resp = await chrome.runtime.sendMessage({ action: 'organizeByAiInference', scopeFolderIds, folderFilter });
       if (!resp?.success) throw new Error(resp?.error || 'AI 归类预览失败');
       // 记录当前选择至计划元信息，便于确认时传递
-      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds } };
-      this._lastOrganizeParams = { scopeFolderIds };
+      const plan = { ...resp.data, meta: { ...(resp.data?.meta || {}), scopeFolderIds, folderFilter } };
+      this._lastOrganizeParams = { scopeFolderIds, folderFilter };
       // 渲染到“整理”标签的内嵌预览，支持用户调整与确认
       this.organizePreviewPlan = plan;
       this.renderOrganizePreview(plan);
@@ -1978,19 +2080,38 @@ class OptionsManager {
     let folders = [];
     try { folders = await this.getAllFolderPaths(); } catch (e) { console.warn('加载文件夹列表失败', e); }
 
-    // 打开时不进行任何默认勾选
     const preselected = [];
-    const buildOptions = () => {
+    
+    window._organizeFolders = folders;
+    
+    window._buildFolderOptions = (filterType = 'all') => {
       const items = [];
-      for (const f of folders) {
+      for (const f of window._organizeFolders) {
+        const folderName = f.path.split('/').pop() || f.path;
+        let shouldCheck = true;
+        
+        if (filterType === 'chinese') {
+          shouldCheck = /[\u4e00-\u9fa5]/.test(folderName);
+        } else if (filterType === 'english') {
+          shouldCheck = !/[\u4e00-\u9fa5]/.test(folderName);
+        }
+        
         const inputId = `dlgScope_${this.escapeHtml(String(f.id))}`;
+        const checkedAttr = shouldCheck ? 'checked' : '';
         items.push(`
           <label for="${inputId}" style="display:block;margin:6px 0;cursor:pointer;color:#374151;">
-            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" style="margin-right:8px;vertical-align:middle;"/>
+            <input id="${inputId}" type="checkbox" value="${this.escapeHtml(String(f.id))}" ${checkedAttr} style="margin-right:8px;vertical-align:middle;"/>
             <span style="vertical-align:middle;">${this.escapeHtml(f.path)}</span>
           </label>`);
       }
       return items.join('');
+    };
+
+    window.updateFolderList = (filterType) => {
+      const dlgScopes = document.getElementById('dlgScopes');
+      if (dlgScopes) {
+        dlgScopes.innerHTML = window._buildFolderOptions(filterType);
+      }
     };
 
     const messageHtml = `
@@ -2000,25 +2121,44 @@ class OptionsManager {
           <div style="margin:6px 0 10px;color:#6B7280;font-size:12px;">
             勾选需要整理的范围；不勾选表示整理全部书签。
           </div>
+          <div style="margin-bottom:10px;">
+            <span style="font-size:13px;color:#374151;font-weight:500;">文件夹过滤：</span>
+            <label style="margin-left:8px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="all" checked style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">全部</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="chinese" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅中文</span>
+            </label>
+            <label style="margin-left:12px;cursor:pointer;">
+              <input type="radio" name="folderFilter" value="english" style="margin-right:4px;vertical-align:middle;"/>
+              <span style="vertical-align:middle;">仅英文</span>
+            </label>
+          </div>
           <div id="dlgScopes" style="width:100%;max-height:320px;overflow:auto;border:1px solid #E5E7EB;border-radius:8px;padding:8px;box-sizing:border-box;">
-            ${buildOptions()}
+            ${window._buildFolderOptions('all')}
           </div>
         </div>
       </div>`;
 
     const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
     const cancelText = window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消';
-    // 显示通用确认弹窗
+    
     const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
     if (!confirmed) return null;
+    
     const dlgScopes = document.getElementById('dlgScopes');
     const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
-    // 同步设置以便下次默认（保持旧字段兼容）
+    
+    const filterRadio = document.querySelector('input[name="folderFilter"]:checked');
+    const folderFilter = filterRadio ? filterRadio.value : 'all';
+    
     this.settings.organizeScopeFolderIds = scopeFolderIds;
     this.settings.organizeScopeFolderId = scopeFolderIds[0] || '';
     try { await this.saveSettings(); } catch (e) {}
-    this._lastOrganizeParams = { scopeFolderIds };
-    return { scopeFolderIds };
+    this._lastOrganizeParams = { scopeFolderIds, folderFilter };
+    return { scopeFolderIds, folderFilter };
   }
 
   // 备份书签（生成 Chrome 兼容书签 HTML 并触发下载）
@@ -2699,6 +2839,105 @@ class OptionsManager {
     }
   }
 
+  // 扫描空文件夹
+  async scanEmptyFolders({ progressEl, listEl, containerEl, scanBtn }) {
+    let originalText;
+    try {
+      if (!listEl || !containerEl || !scanBtn) return;
+      containerEl.hidden = true;
+      listEl.innerHTML = '';
+      scanBtn.disabled = true;
+      originalText = scanBtn.textContent;
+      scanBtn.innerHTML = `<span class="loading"></span> 检测中...`;
+
+      const tree = await chrome.bookmarks.getTree();
+      const emptyFolders = [];
+
+      const findEmptyFolders = (node) => {
+        if (!node.children) return;
+        
+        for (const child of node.children) {
+          if (child.children) {
+            const hasBookmarks = this._folderHasBookmarks(child);
+            if (!hasBookmarks) {
+              emptyFolders.push({
+                id: child.id,
+                title: child.title || '未命名文件夹',
+                path: this._getFolderPath(child.id, tree)
+              });
+            }
+            findEmptyFolders(child);
+          }
+        }
+      };
+
+      findEmptyFolders(tree[0]);
+
+      if (progressEl) progressEl.textContent = `找到 ${emptyFolders.length} 个空文件夹`;
+
+      if (emptyFolders.length === 0) {
+        containerEl.hidden = false;
+        listEl.innerHTML = `<li class="list-item"><span class="title">未找到空文件夹</span></li>`;
+      } else {
+        containerEl.hidden = false;
+        listEl.innerHTML = emptyFolders.map(f => `
+          <li class="list-item" data-id="${f.id}">
+            <input type="checkbox" data-id="${f.id}" aria-label="选择文件夹">
+            <div class="info">
+              <div class="title">${this.escapeHtml(f.title)}</div>
+              <div class="url">${this.escapeHtml(f.path)}</div>
+            </div>
+            <div class="status">空文件夹</div>
+          </li>
+        `).join('');
+      }
+    } catch (e) {
+      console.error('扫描空文件夹失败', e);
+      this.showMessage('扫描失败，请重试', 'error');
+    } finally {
+      if (scanBtn) {
+        scanBtn.disabled = false;
+        scanBtn.textContent = originalText;
+      }
+    }
+  }
+
+  _folderHasBookmarks(folder) {
+    if (!folder.children) return false;
+    
+    for (const child of folder.children) {
+      if (child.url) {
+        return true;
+      }
+      if (child.children) {
+        if (this._folderHasBookmarks(child)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  _getFolderPath(folderId, tree) {
+    const path = [];
+    const findPath = (node, currentPath = []) => {
+      if (node.id === folderId) {
+        path.push(...currentPath, node.title || '未命名文件夹');
+        return true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          if (findPath(child, [...currentPath, node.title || '未命名文件夹'])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    findPath(tree[0]);
+    return path.join(' > ');
+  }
+
   // 提供跨语言的候选名称，避免语言切换后找不到原文件夹
   getDeadFolderNames() {
     return ['失效书签', '失效書籤', 'Dead Links', 'Недействительные ссылки'];
@@ -3377,9 +3616,14 @@ class OptionsManager {
     try {
       const { aiProvider, aiApiKey, aiApiUrl, aiModel } = this.settings;
       const p = String(aiProvider || '').toLowerCase();
+      
       if (p === 'ollama') {
         if (!aiApiUrl || !aiModel) {
           throw new Error('请填写 API 端点，并选择模型');
+        }
+      } else if (p === 'gemini') {
+        if (!aiApiKey || !aiModel) {
+          throw new Error('请填写 API Key 并选择模型');
         }
       } else {
         if (!aiApiKey || !aiApiUrl || !aiModel) {
@@ -3387,7 +3631,6 @@ class OptionsManager {
         }
       }
 
-      // 优先调用 /v1/models 进行低成本验证
       const testUrl = this.getTestUrl(aiApiUrl, aiProvider);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
@@ -3395,29 +3638,30 @@ class OptionsManager {
       const headers = {
         'Content-Type': 'application/json'
       };
-      if (p !== 'ollama' && aiApiKey) {
+      
+      if (p === 'claude') {
+        headers['x-api-key'] = aiApiKey;
+        headers['anthropic-version'] = '2023-06-01';
+      } else if (p !== 'ollama' && p !== 'gemini' && p !== 'ernie' && aiApiKey) {
         headers['Authorization'] = `Bearer ${aiApiKey}`;
       }
 
       let res;
       try {
-        // 如果是 /models 测试端点，使用 GET；否则使用 POST 进行最小开销的 Ping
         if (p === 'ollama') {
-          // Ollama：优先 GET /api/tags；否则 POST /api/chat
           if (testUrl.endsWith('/api/tags')) {
             res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
           } else {
             const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
             res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
           }
+        } else if (p === 'gemini') {
+          res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
+        } else if (testUrl.endsWith('/models')) {
+          res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
         } else {
-          // OpenAI/DeepSeek：/v1/models 用 GET；否则 POST /chat/completions
-          if (testUrl.endsWith('/models')) {
-            res = await fetch(testUrl, { method: 'GET', headers, signal: controller.signal });
-          } else {
-            const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
-            res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
-          }
+          const body = JSON.stringify(this.buildTestPayload(aiProvider, aiModel));
+          res = await fetch(aiApiUrl, { method: 'POST', headers, body, signal: controller.signal });
         }
       } finally {
         clearTimeout(timeout);
@@ -3433,15 +3677,13 @@ class OptionsManager {
         throw new Error(msg);
       }
 
-      // 简单检查响应结构
       try {
         const data = await res.json();
-        const looksOk = Array.isArray(data?.data) || Array.isArray(data?.choices);
+        const looksOk = Array.isArray(data?.data) || Array.isArray(data?.choices) || Array.isArray(data?.models) || Array.isArray(data?.candidates);
         if (!looksOk) {
           throw new Error('响应格式不符合预期');
         }
       } catch (e) {
-        // 有的返回没有 body（如 204），也视作成功
       }
 
       resultSpan.textContent = '连接成功';
@@ -4196,6 +4438,17 @@ class OptionsManager {
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
 
+      // 处理文件夹过滤 radio button 的事件监听
+      const folderFilterRadios = msgEl.querySelectorAll('input[name="folderFilter"]');
+      folderFilterRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          const filterType = e.target.value;
+          if (typeof window.updateFolderList === 'function') {
+            window.updateFolderList(filterType);
+          }
+        });
+      });
+
       // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
       let dlgScopesEl = msgEl.querySelector('#dlgScopes');
       let dlgScopesMouseDownHandler = null;
@@ -4269,9 +4522,107 @@ class OptionsManager {
       models = [
         { value: 'deepseek-chat', label: 'DeepSeek-Chat' }
       ];
-      // 屏蔽 reasoner 类思考模型：不展示且强制回退
       if (!['deepseek-chat'].includes(this.settings.aiModel)) {
         this.settings.aiModel = 'deepseek-chat';
+      }
+    } else if (provider === 'claude') {
+      models = [
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (推荐)' },
+        { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+        { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
+      ];
+      if (!['claude-3-5-sonnet-20241022','claude-3-5-haiku-20241022','claude-3-opus-20240229','claude-3-sonnet-20240229','claude-3-haiku-20240307'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'claude-3-5-sonnet-20241022';
+      }
+    } else if (provider === 'gemini') {
+      models = [
+        { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp (推荐)' },
+        { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+        { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+        { value: 'gemini-1.0-pro', label: 'Gemini 1.0 Pro' }
+      ];
+      if (!['gemini-2.0-flash-exp','gemini-1.5-pro','gemini-1.5-flash','gemini-1.0-pro'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'gemini-2.0-flash-exp';
+      }
+    } else if (provider === 'qwen') {
+      models = [
+        { value: 'qwen-max', label: 'Qwen-Max (推荐)' },
+        { value: 'qwen-plus', label: 'Qwen-Plus' },
+        { value: 'qwen-turbo', label: 'Qwen-Turbo' },
+        { value: 'qwen-long', label: 'Qwen-Long' }
+      ];
+      if (!['qwen-max','qwen-plus','qwen-turbo','qwen-long'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'qwen-max';
+      }
+    } else if (provider === 'doubao') {
+      models = [
+        { value: 'doubao-pro-256k', label: 'Doubao-Pro-256k (推荐)' },
+        { value: 'doubao-pro-32k', label: 'Doubao-Pro-32k' },
+        { value: 'doubao-pro-4k', label: 'Doubao-Pro-4k' },
+        { value: 'doubao-lite-32k', label: 'Doubao-Lite-32k' }
+      ];
+      if (!['doubao-pro-256k','doubao-pro-32k','doubao-pro-4k','doubao-lite-32k'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'doubao-pro-256k';
+      }
+    } else if (provider === 'kimi') {
+      models = [
+        { value: 'moonshot-v1-128k', label: 'Moonshot-v1-128k (推荐)' },
+        { value: 'moonshot-v1-32k', label: 'Moonshot-v1-32k' },
+        { value: 'moonshot-v1-8k', label: 'Moonshot-v1-8k' }
+      ];
+      if (!['moonshot-v1-128k','moonshot-v1-32k','moonshot-v1-8k'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'moonshot-v1-128k';
+      }
+    } else if (provider === 'zhipu') {
+      models = [
+        { value: 'glm-4-plus', label: 'GLM-4-Plus (推荐)' },
+        { value: 'glm-4', label: 'GLM-4' },
+        { value: 'glm-4-air', label: 'GLM-4-Air' },
+        { value: 'glm-4-flash', label: 'GLM-4-Flash' },
+        { value: 'glm-3-turbo', label: 'GLM-3-Turbo' }
+      ];
+      if (!['glm-4-plus','glm-4','glm-4-air','glm-4-flash','glm-3-turbo'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'glm-4-plus';
+      }
+    } else if (provider === 'baichuan') {
+      models = [
+        { value: 'Baichuan4', label: 'Baichuan4 (推荐)' },
+        { value: 'Baichuan3-Turbo', label: 'Baichuan3-Turbo' },
+        { value: 'Baichuan3-Turbo-128k', label: 'Baichuan3-Turbo-128k' },
+        { value: 'Baichuan2-Turbo', label: 'Baichuan2-Turbo' }
+      ];
+      if (!['Baichuan4','Baichuan3-Turbo','Baichuan3-Turbo-128k','Baichuan2-Turbo'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'Baichuan4';
+      }
+    } else if (provider === 'minimax') {
+      models = [
+        { value: 'abab6.5s-chat', label: 'abab6.5s-chat (推荐)' },
+        { value: 'abab6.5-chat', label: 'abab6.5-chat' },
+        { value: 'abab5.5-chat', label: 'abab5.5-chat' }
+      ];
+      if (!['abab6.5s-chat','abab6.5-chat','abab5.5-chat'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'abab6.5s-chat';
+      }
+    } else if (provider === 'spark') {
+      models = [
+        { value: 'spark-max', label: 'Spark-Max (推荐)' },
+        { value: 'spark-pro', label: 'Spark-Pro' },
+        { value: 'spark-lite', label: 'Spark-Lite' }
+      ];
+      if (!['spark-max','spark-pro','spark-lite'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'spark-max';
+      }
+    } else if (provider === 'ernie') {
+      models = [
+        { value: 'ernie-4.0-8k', label: 'ERNIE-4.0-8K (推荐)' },
+        { value: 'ernie-4.0-turbo-8k', label: 'ERNIE-4.0-Turbo-8K' },
+        { value: 'ernie-3.5-8k', label: 'ERNIE-3.5-8K' },
+        { value: 'ernie-speed-8k', label: 'ERNIE-Speed-8K' }
+      ];
+      if (!['ernie-4.0-8k','ernie-4.0-turbo-8k','ernie-3.5-8k','ernie-speed-8k'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'ernie-4.0-8k';
       }
     } else if (provider === 'ollama') {
       // 优先尝试从远端 /api/tags 获取模型列表
@@ -4465,6 +4816,7 @@ Rules & Principles:
 - Keep category names short (1–3 words) and meaningful.
 - Prefer semantic grouping by title first, URL second.
 - Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
+{{languageRestriction}}
 
 Output Format (strict JSON, no extra text):
 {
@@ -4492,6 +4844,36 @@ Return only a valid JSON object strictly following the above format — no markd
     if (p === 'deepseek') {
       return 'https://api.deepseek.com/v1/chat/completions';
     }
+    if (p === 'claude') {
+      return 'https://api.anthropic.com/v1/messages';
+    }
+    if (p === 'gemini') {
+      return 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent';
+    }
+    if (p === 'qwen') {
+      return 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+    }
+    if (p === 'doubao') {
+      return 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+    }
+    if (p === 'kimi') {
+      return 'https://api.moonshot.cn/v1/chat/completions';
+    }
+    if (p === 'zhipu') {
+      return 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    }
+    if (p === 'baichuan') {
+      return 'https://api.baichuan-ai.com/v1/chat/completions';
+    }
+    if (p === 'minimax') {
+      return 'https://api.minimax.chat/v1/text/chatcompletion_v2';
+    }
+    if (p === 'spark') {
+      return 'https://spark-api.xf-yun.com/v1/chat/completions';
+    }
+    if (p === 'ernie') {
+      return 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-4.0-8k';
+    }
     if (p === 'ollama') {
       return 'http://localhost:11434/api/chat';
     }
@@ -4500,16 +4882,28 @@ Return only a valid JSON object strictly following the above format — no markd
 
   // 获取测试端点（优先 /v1/models）
   getTestUrl(apiUrl, provider) {
+    const p = (provider || '').toLowerCase();
     // Ollama 使用 /api/tags 获取本地模型列表
-    if ((provider || '').toLowerCase() === 'ollama') {
+    if (p === 'ollama') {
       try {
         const u = new URL(apiUrl);
         return `${u.origin}/api/tags`;
       } catch {
-        // 常见默认端口
         if (String(apiUrl).includes('11434')) return 'http://localhost:11434/api/tags';
         return apiUrl;
       }
+    }
+    // Claude 使用 /v1/messages
+    if (p === 'claude') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.anthropic.com/v1/messages';
+    }
+    // Gemini 使用模型端点
+    if (p === 'gemini') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://generativelanguage.googleapis.com/v1beta/models';
+    }
+    // ERNIE 使用特定端点
+    if (p === 'ernie') {
+      return apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-4.0-8k';
     }
     try {
       const u = new URL(apiUrl);
@@ -4518,7 +4912,6 @@ Return only a valid JSON object strictly following the above format — no markd
       if (v1Index >= 0) {
         return `${u.origin}/v1/models`;
       }
-      // Fallback：无法推断，直接使用当前 apiUrl
       return apiUrl;
     } catch {
       return apiUrl;
@@ -4536,7 +4929,29 @@ Return only a valid JSON object strictly following the above format — no markd
         options: { num_predict: 1, temperature: 0 }
       };
     }
-    // OpenAI/DeepSeek 通用兼容体
+    if (p === 'claude') {
+      return {
+        model,
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }]
+      };
+    }
+    if (p === 'gemini') {
+      return {
+        contents: [
+          { parts: [{ text: 'ping' }] }
+        ],
+        generationConfig: { maxOutputTokens: 1, temperature: 0 }
+      };
+    }
+    if (p === 'ernie') {
+      return {
+        messages: [{ role: 'user', content: 'ping' }],
+        temperature: 0,
+        max_output_tokens: 1
+      };
+    }
+    // OpenAI/DeepSeek/Qwen/Doubao/Kimi/Zhipu/Baichuan/MiniMax/Spark 通用兼容体
     return {
       model,
       messages: [{ role: 'user', content: 'ping' }],
