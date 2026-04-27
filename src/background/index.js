@@ -1342,23 +1342,42 @@ async function autoClassifyBookmarks(options = {}) {
       const parentId = sid ? String(sid) : '1';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
       for (const category of set) {
-        const folder = await findOrCreateFolder(category, { parentId });
-        categoryFoldersByScope[sid][category] = folder;
+        try {
+          const folder = await findOrCreateFolder(category, { parentId });
+          categoryFoldersByScope[sid][category] = folder;
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建分类文件夹失败 “${category}”:`, err.message);
+        }
       }
     }
 
+    // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+    const isSkippableMoveError = (err) => {
+      const msg = (err && err.message) ? String(err.message) : '';
+      return msg.includes('Can\'t find bookmark for id')
+          || msg.includes('No bookmark with id')
+          || msg.includes('Bookmark id is invalid')
+          || msg.includes('Can\'t find parent bookmark for id');
+    };
+
     // 移动书签到对应文件夹
     let moved = 0;
+    let skipped = 0;
     const oldParentCandidates = new Set();
     for (const { bookmark, category, scopeFolderId } of preview.details) {
       const sid = scopeFolderId || '';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
-      // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
+      // 懒创建”其他/Others”文件夹（仅当需要移动到该分类时）
       let targetFolder = categoryFoldersByScope[sid][category];
       if (!targetFolder && category === otherName) {
         const otherNm = translateCategoryName('其他', clsLang);
         const parentId = sid ? String(sid) : '1';
-        categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        try {
+          categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建”其他”文件夹失败:`, err.message);
+          categoryFoldersByScope[sid][otherNm] = null;
+        }
         targetFolder = categoryFoldersByScope[sid][otherNm];
       }
       if (!targetFolder) continue; // 未创建文件夹则不移动
@@ -1368,8 +1387,9 @@ async function autoClassifyBookmarks(options = {}) {
           await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
           moved++;
         } catch (err) {
-          if (err.message && err.message.includes('Can\'t find bookmark for id')) {
-            console.warn(`[autoClassifyBookmarks] 书签 ${bookmark.id} 已被删除，跳过移动`);
+          if (isSkippableMoveError(err)) {
+            console.warn(`[autoClassifyBookmarks] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
+            skipped++;
           } else {
             throw err;
           }
@@ -1379,7 +1399,8 @@ async function autoClassifyBookmarks(options = {}) {
 
     const results = {
       ...preview,
-      moved
+      moved,
+      skipped
     };
     // 整理完成后，写入存储：organizedBookmarks 与 categories
     try {
@@ -2241,10 +2262,24 @@ async function organizeByPlan(plan) {
     const parentId = sid ? String(sid) : '1';
     if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
     for (const category of set) {
-      const folder = await findOrCreateFolder(category, { parentId });
-      categoryFoldersByScope[sid][category] = folder;
+      try {
+        const folder = await findOrCreateFolder(category, { parentId });
+        categoryFoldersByScope[sid][category] = folder;
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建分类文件夹失败 "${category}":`, err.message);
+        // 继续处理其他分类，该分类对应的书签将在移动阶段被跳过
+      }
     }
   }
+
+  // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+  const isSkippableMoveError = (err) => {
+    const msg = (err && err.message) ? String(err.message) : '';
+    return msg.includes('Can\'t find bookmark for id')
+        || msg.includes('No bookmark with id')
+        || msg.includes('Bookmark id is invalid')
+        || msg.includes('Can\'t find parent bookmark for id');
+  };
 
   // 执行移动，遇到"其他"时懒创建
   let moved = 0;
@@ -2257,7 +2292,12 @@ async function organizeByPlan(plan) {
     if (!targetFolder && otherCandidates.includes(category)) {
       const parentId = sid ? String(sid) : '1';
       const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
-      categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      try {
+        categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建"其他"文件夹失败:`, err.message);
+        categoryFoldersByScope[sid][otherName] = null;
+      }
       targetFolder = categoryFoldersByScope[sid][otherName];
     }
     if (!targetFolder) continue;
@@ -2267,8 +2307,8 @@ async function organizeByPlan(plan) {
         await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
         moved++;
       } catch (err) {
-        if (err.message && err.message.includes('Can\'t find bookmark for id')) {
-          console.warn(`[organizeByPlan] 书签 ${bookmark.id} 已被删除，跳过移动`);
+        if (isSkippableMoveError(err)) {
+          console.warn(`[organizeByPlan] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
           skipped++;
         } else {
           throw err;
