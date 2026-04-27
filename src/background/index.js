@@ -2100,22 +2100,25 @@ function validateModelForProvider(model, provider) {
 
   // 检查 reasoner 类思考模型（返回格式不符合扩展期望）
   if (modelName.includes('reasoner')) {
-    return { valid: false, error: '当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。' };
+    return { valid: false, error: '当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-v4-pro、deepseek-v4-flash、gpt-4o 等）。' };
   }
 
   // 根据提供商验证模型
   switch (providerName) {
     case 'deepseek':
-      // DeepSeek 官方 API 只支持特定模型
-      if (!['deepseek-chat'].includes(modelName)) {
-        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-chat"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
+      // DeepSeek 官方 API；deepseek-chat 将于 2026-07-24 停用
+      if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(modelName)) {
+        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-v4-pro" 或 "deepseek-v4-flash"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
       }
       break;
     case 'openai':
-      const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+      const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
       if (!openaiModels.includes(modelName)) {
         return { valid: false, error: `OpenAI API 不支持模型 "${model}"。支持的模型: ${openaiModels.join(', ')}` };
       }
+      break;
+    case 'siliconflow':
+      // SiliconFlow 托管多种模型，不在此验证
       break;
     case 'ollama':
       // Ollama 支持任意模型，跳过验证
@@ -2137,7 +2140,7 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
   try {
     const m = String(model || '').toLowerCase();
     if (m.includes('reasoner')) {
-      throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。');
+      throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-v4-pro、deepseek-v4-flash、gpt-4o 等）。');
     }
   } catch (_) { }
   const p = String(provider || '').toLowerCase();

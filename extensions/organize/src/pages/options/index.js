@@ -164,7 +164,7 @@ class OptionsManager {
         this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','siliconflow','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -365,11 +365,14 @@ class OptionsManager {
 
     switch (provider) {
       case 'openai':
-        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
         break;
       case 'deepseek':
-        validModels = ['deepseek-chat'];
+        validModels = ['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'];
         break;
+      case 'siliconflow':
+        // SiliconFlow 支持任意模型，不在此验证
+        return;
       case 'iflow':
         validModels = ['deepseek-chat', 'deepseek-coder'];
         break;
@@ -4267,11 +4270,13 @@ class OptionsManager {
       }
     } else if (provider === 'deepseek') {
       models = [
-        { value: 'deepseek-chat', label: 'DeepSeek-Chat' }
+        { value: 'deepseek-v4-pro', label: 'DeepSeek-V4 Pro' },
+        { value: 'deepseek-v4-flash', label: 'DeepSeek-V4 Flash' },
+        { value: 'deepseek-chat', label: 'DeepSeek-Chat (即将停用)' }
       ];
       // 屏蔽 reasoner 类思考模型：不展示且强制回退
-      if (!['deepseek-chat'].includes(this.settings.aiModel)) {
-        this.settings.aiModel = 'deepseek-chat';
+      if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'deepseek-v4-pro';
       }
     } else if (provider === 'ollama') {
       // 优先尝试从远端 /api/tags 获取模型列表
@@ -4490,10 +4495,13 @@ Return only a valid JSON object strictly following the above format — no markd
       return 'https://api.openai.com/v1/chat/completions';
     }
     if (p === 'deepseek') {
-      return 'https://api.deepseek.com/v1/chat/completions';
+      return 'https://api.deepseek.com/chat/completions';
     }
     if (p === 'ollama') {
       return 'http://localhost:11434/api/chat';
+    }
+    if (p === 'siliconflow') {
+      return 'https://api.siliconflow.cn/v1/chat/completions';
     }
     return '';
   }
@@ -4518,8 +4526,8 @@ Return only a valid JSON object strictly following the above format — no markd
       if (v1Index >= 0) {
         return `${u.origin}/v1/models`;
       }
-      // Fallback：无法推断，直接使用当前 apiUrl
-      return apiUrl;
+      // 路径不含 /v1/（如 DeepSeek 新端点），尝试标准 /v1/models
+      return `${u.origin}/v1/models`;
     } catch {
       return apiUrl;
     }

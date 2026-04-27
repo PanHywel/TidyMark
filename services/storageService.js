@@ -224,7 +224,7 @@ class StorageService {
     }
 
     // 验证AI提供商
-    const validProviders = ['openai', 'deepseek', 'custom'];
+    const validProviders = ['openai', 'deepseek', 'ollama', 'siliconflow', 'custom', 'iflow'];
     if (!validProviders.includes(settings.aiProvider)) {
       throw new Error('无效的AI提供商');
     }
