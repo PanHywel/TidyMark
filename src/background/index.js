@@ -1451,14 +1451,46 @@ async function autoClassifyBookmarks(options = {}) {
   }
 }
 
+// 常见文件扩展名，用于排除短关键词在 URL 中的误匹配
+const COMMON_FILE_EXTENSIONS = new Set([
+  'html', 'htm', 'xml', 'js', 'css', 'json', 'txt', 'csv', 'md',
+  'pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'zip', 'tar', 'gz',
+  'php', 'asp', 'jsp', 'mp4', 'mp3', 'avi', 'wmv', 'flv', 'webm', 'webp'
+]);
+
+// 判断关键词在文本中是否匹配（短 ASCII 词用分词+边界，避免 ml→.html 类误匹配）
+function keywordMatches(text, keyword, isUrl) {
+  const lower = text.toLowerCase();
+  const kw = keyword.toLowerCase();
+  // 短纯 ASCII 关键词（≤3 字符）用更严格的匹配，避免命中 URL 碎片/文件扩展名
+  if (kw.length <= 3 && /^[a-z0-9]+$/.test(kw)) {
+    if (isUrl) {
+      // URL：切分为 token，要求匹配整个 token 或其有效前缀/后缀
+      const tokens = lower.split(/[./_\-]/);
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // 全 token 匹配
+      if (tokens.some(t => t === kw)) return true;
+      // 前缀匹配（keyword 在 token 开头且 token 更长）
+      if (tokens.some(t => t.startsWith(kw) && t !== kw)) return true;
+      // 后缀匹配（keyword 在 token 结尾且 token 不是文件扩展名）
+      if (tokens.some(t => t.endsWith(kw) && t !== kw && !COMMON_FILE_EXTENSIONS.has(t))) return true;
+      return false;
+    }
+    // 标题：单词边界匹配
+    const boundaryRe = new RegExp('(?<![a-z0-9])' + escaped + '(?![a-z0-9])', 'i');
+    return boundaryRe.test(text);
+  }
+  return lower.includes(kw);
+}
+
 // 分类单个书签
 function classifyBookmark(bookmark, rules) {
-  const title = bookmark.title.toLowerCase();
-  const url = bookmark.url.toLowerCase();
+  const title = bookmark.title || '';
+  const url = bookmark.url || '';
 
   for (const rule of rules) {
     for (const keyword of rule.keywords) {
-      if (title.includes(keyword.toLowerCase()) || url.includes(keyword.toLowerCase())) {
+      if (keywordMatches(title, keyword, false) || keywordMatches(url, keyword, true)) {
         return rule.category;
       }
     }
@@ -1782,7 +1814,7 @@ function salvageReassignedItemsFromText(text) {
   };
 }
 async function refinePreviewWithAI(preview) {
-  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'maxCategories', 'aiBatchSize', 'aiConcurrency']);
+  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'maxCategories', 'aiBatchSize', 'aiConcurrency', 'classificationRules']);
   if (!settings.enableAI) {
     return preview;
   }
@@ -1802,8 +1834,20 @@ async function refinePreviewWithAI(preview) {
     console.warn('[后台AI优化] 输入预览摘要打印失败:', e);
   }
 
-  // 构建输入：分类与条目
-  const categories = Object.keys(preview.categories).map(name => ({ name, keywords: [] }));
+  // 构建分类关键词映射（从当前规则中提取，供 AI 参考）
+  const rules = Array.isArray(settings.classificationRules) ? settings.classificationRules : [];
+  const categoryKeywords = {};
+  for (const rule of rules) {
+    if (rule.category && Array.isArray(rule.keywords)) {
+      categoryKeywords[rule.category] = (categoryKeywords[rule.category] || []).concat(rule.keywords);
+    }
+  }
+
+  // 构建输入：分类与条目（带实际关键词提示 AI）
+  const categories = Object.keys(preview.categories).map(name => ({
+    name,
+    keywords: categoryKeywords[name] || []
+  }));
   const items = preview.details.map(d => ({ id: d.bookmark.id, title: d.bookmark.title || '', url: d.bookmark.url || '', from_key: d.category }));
   const language = settings.classificationLanguage || 'auto';
 
@@ -1987,54 +2031,37 @@ async function buildOptimizationPrompt({ language, categories, items }) {
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
+  // 默认模板
   return (
     `
 You are a meticulous Information Architecture and Intelligent Classification Expert.
-Your task is not to modify or create categories.
-Instead, you must intelligently reassign and organize bookmarks within the existing category structure.
+Your task is to reassign bookmarks within the existing category structure — do NOT create new categories.
 
-Input Description:
+Input:
+- Language: ${language}
+- Categories with keywords: ${categoriesJson}
+- Bookmarks: ${itemsJson}
 
-- Current language: ${language}
-- Existing categories and keywords (array): ${categoriesJson}
-- Bookmarks to be reorganized (optional array): ${itemsJson}
+Rules (Strictly Follow):
+1. Only assign to existing categories — never invent new ones.
+2. Each category's "keywords" field indicates what belongs there. A bookmark whose title/URL contains a category's keywords should strongly favor that category.
+3. When a bookmark matches NO category keywords, use semantic understanding of the title and URL.
+4. For Chinese content: 电影/视频/音乐/影视/下载 → entertainment/media categories; AI/ML/深度学习/模型 → tech categories. A movie download site is NEVER an AI/ML category.
+5. If a bookmark's title clearly indicates content type (e.g., "动作片" = action movie, "下载" = download, "电影" = movie), prioritize the content type category over vague URL-based guesses.
+6. Confidence below 0.5 → list the id in notes.low_confidence_items.
+7. Return ONLY valid JSON — no markdown, no explanations.
 
-Objective:
-
-Based on the names and keywords of the existing categories, intelligently determine the most appropriate category for each bookmark.
-You must not add, delete, or modify categories.
-If multiple categories are possible, return the one with the highest confidence score and explain your reasoning.
-
-Rules & Principles (Strictly Follow):
-
-- Only classify items into existing categories — no new ones may be created.
-- Use the given ${language} for semantic and keyword-based matching.
-- Prioritize bookmark titles for matching, then URLs, and then descriptions (if available).
-- If the confidence score is below 0.5, mark the item as "low confidence".
-- Output must strictly conform to the JSON structure below.
-- No extra commentary or text is allowed outside the JSON.
-
-Output Format (strict JSON, no extra text):
+Output Format:
 {
   "reassigned_items": [
-    {
-      "id": "string",
-      "from_key": "string | null",
-      "to_key": "string",
-      "confidence": 0.0,
-      "reason": "string"
-    }
+    { "id": "string", "from_key": "string|null", "to_key": "string", "confidence": 0.0, "reason": "string" }
   ],
   "notes": {
     "global_rules": ["string"],
     "low_confidence_items": ["id"],
     "followups": ["string"]
   }
-}
-
-Output Requirement:
-Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+}`
   );
 }
 
@@ -2051,28 +2078,26 @@ async function buildInferencePrompt({ language, items }) {
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
+  // 默认模板
   return (
     `
 You are a world-class Information Architecture and Taxonomy Expert.
-Your task is to infer a clean, human-understandable category taxonomy from bookmarks, without any preset categories.
+Infer a clean category taxonomy from the given bookmarks — no preset categories.
 
-Input Description:
-- Current language: ${language}
-- Bookmarks (array): ${itemsJson}
+Input:
+- Language: ${language}
+- Bookmarks: ${itemsJson}
 
-Objective:
-- Infer appropriate, concise category names that best group the bookmarks.
-- Assign every bookmark to exactly one inferred category.
-- Use the given language (${language}) for category naming when applicable.
+Rules:
+1. Create short (1–3 words), meaningful, mutually exclusive category names in ${language}.
+2. Every bookmark MUST be assigned to exactly one category.
+3. Group by semantic content type first (e.g., "视频与音乐", "开发工具", "新闻资讯"), NOT by website or domain.
+4. For Chinese titles: pay attention to 电影/视频/音乐/下载/影视/游戏 → media/entertainment; AI/ML/深度学习/模型/GitHub/开源 → tech; 新闻/资讯/博客 → news/blogs; 购物/商城/淘宝/JD → shopping.
+5. Aim for 5-10 categories. If bookmarks span many topics, merge related ones.
+6. Low confidence (< 0.5) → list ids in notes.low_confidence_items.
+7. Return ONLY valid JSON — no markdown, no explanations.
 
-Rules & Principles:
-- Do not return any commentary outside JSON.
-- Keep category names short (1–3 words) and meaningful.
-- Prefer semantic grouping by title first, URL second.
-- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.
-
-Output Format (strict JSON, no extra text):
+Output Format:
 {
   "categories": ["string"],
   "assignments": [
@@ -2082,10 +2107,7 @@ Output Format (strict JSON, no extra text):
     "low_confidence_items": ["id"],
     "followups": ["string"]
   }
-}
-
-Output Requirement:
-Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+}`
   );
 }
 
