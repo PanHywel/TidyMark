@@ -1342,36 +1342,65 @@ async function autoClassifyBookmarks(options = {}) {
       const parentId = sid ? String(sid) : '1';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
       for (const category of set) {
-        const folder = await findOrCreateFolder(category, { parentId });
-        categoryFoldersByScope[sid][category] = folder;
+        try {
+          const folder = await findOrCreateFolder(category, { parentId });
+          categoryFoldersByScope[sid][category] = folder;
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建分类文件夹失败 “${category}”:`, err.message);
+        }
       }
     }
 
+    // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+    const isSkippableMoveError = (err) => {
+      const msg = (err && err.message) ? String(err.message) : '';
+      return msg.includes('Can\'t find bookmark for id')
+          || msg.includes('No bookmark with id')
+          || msg.includes('Bookmark id is invalid')
+          || msg.includes('Can\'t find parent bookmark for id');
+    };
+
     // 移动书签到对应文件夹
     let moved = 0;
+    let skipped = 0;
     const oldParentCandidates = new Set();
     for (const { bookmark, category, scopeFolderId } of preview.details) {
       const sid = scopeFolderId || '';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
-      // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
+      // 懒创建”其他/Others”文件夹（仅当需要移动到该分类时）
       let targetFolder = categoryFoldersByScope[sid][category];
       if (!targetFolder && category === otherName) {
         const otherNm = translateCategoryName('其他', clsLang);
         const parentId = sid ? String(sid) : '1';
-        categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        try {
+          categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建”其他”文件夹失败:`, err.message);
+          categoryFoldersByScope[sid][otherNm] = null;
+        }
         targetFolder = categoryFoldersByScope[sid][otherNm];
       }
       if (!targetFolder) continue; // 未创建文件夹则不移动
       if (bookmark.parentId !== targetFolder.id) {
         if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-        moved++;
+        try {
+          await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+          moved++;
+        } catch (err) {
+          if (isSkippableMoveError(err)) {
+            console.warn(`[autoClassifyBookmarks] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
+            skipped++;
+          } else {
+            throw err;
+          }
+        }
       }
     }
 
     const results = {
       ...preview,
-      moved
+      moved,
+      skipped
     };
     // 整理完成后，写入存储：organizedBookmarks 与 categories
     try {
@@ -1825,6 +1854,7 @@ async function refinePreviewWithAI(preview) {
   // 根据模型上下文窗口估算最优批次大小
   const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
   const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
   const concurrency = batchSize >= items.length ? 1
     : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2);
   console.log(`[后台AI优化] 批次大小=${batchSize} 并发=${concurrency} 总条目=${items.length}`);
@@ -1954,18 +1984,20 @@ const MODEL_CONTEXT_WINDOWS = {
 
 // 根据模型上下文窗口和目标条目数估算最优批次大小
 function estimateOptimalBatchSize(model, maxTokens, itemCount, userBatchSize) {
+  // 若用户显式设置了批次大小（非默认值），优先使用用户配置
   if (typeof userBatchSize === 'number' && userBatchSize > 0) return userBatchSize;
 
-  const TOKENS_PER_ITEM = 45;
-  const PROMPT_OVERHEAD = 2000;
+  const TOKENS_PER_ITEM = 45;       // 每条书签 JSON 约 {"id":"..","title":"..","url":".."} ≈ 30-50 token
+  const PROMPT_OVERHEAD = 2000;     // system prompt + categories + output format 指引
   const RESPONSE_HEADROOM = Math.max(maxTokens || 8192, 4096);
-  const SAFETY_FACTOR = 0.55;
+  const SAFETY_FACTOR = 0.55;       // 保留 45% 给 prompt 开销和 AI 响应
 
   const modelKey = String(model || '').toLowerCase();
-  const contextWindow = MODEL_CONTEXT_WINDOWS[modelKey] || 64000;
+  const contextWindow = MODEL_CONTEXT_WINDOWS[modelKey] || 64000; // 未知模型假设 64K
   const availableInput = Math.floor((contextWindow - PROMPT_OVERHEAD - RESPONSE_HEADROOM) * SAFETY_FACTOR);
   const optimalSize = Math.floor(availableInput / TOKENS_PER_ITEM);
 
+  // 下限 20（避免请求过碎），上限不超过总条目数
   return Math.max(20, Math.min(itemCount, optimalSize));
 }
 
@@ -2039,7 +2071,7 @@ async function buildOptimizationPrompt({ language, categories, items }) {
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
+  // 默认模板
   return (
     `
 You are a meticulous Information Architecture and Intelligent Classification Expert.
@@ -2086,7 +2118,7 @@ async function buildInferencePrompt({ language, items }) {
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
+  // 默认模板
   return (
     `
 You are a world-class Information Architecture and Taxonomy Expert.
@@ -2230,6 +2262,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    // DeepSeek V4 模型强制关闭 thinking，确保直接输出 JSON 到 content
+    if (String(model || '').toLowerCase().includes('deepseek-v4')) {
+      body.thinking = { type: 'disabled' };
+    }
     console.log('[AI Debug] 使用 OpenAI 兼容协议');
   }
 
@@ -2295,13 +2331,28 @@ async function organizeByPlan(plan) {
     const parentId = sid ? String(sid) : '1';
     if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
     for (const category of set) {
-      const folder = await findOrCreateFolder(category, { parentId });
-      categoryFoldersByScope[sid][category] = folder;
+      try {
+        const folder = await findOrCreateFolder(category, { parentId });
+        categoryFoldersByScope[sid][category] = folder;
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建分类文件夹失败 "${category}":`, err.message);
+        // 继续处理其他分类，该分类对应的书签将在移动阶段被跳过
+      }
     }
   }
 
-  // 执行移动，遇到“其他”时懒创建
+  // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+  const isSkippableMoveError = (err) => {
+    const msg = (err && err.message) ? String(err.message) : '';
+    return msg.includes('Can\'t find bookmark for id')
+        || msg.includes('No bookmark with id')
+        || msg.includes('Bookmark id is invalid')
+        || msg.includes('Can\'t find parent bookmark for id');
+  };
+
+  // 执行移动，遇到"其他"时懒创建
   let moved = 0;
+  let skipped = 0;
   const oldParentCandidates = new Set();
   for (const { bookmark, category, scopeFolderId } of plan.details || []) {
     const sid = scopeFolderId || '';
@@ -2310,18 +2361,32 @@ async function organizeByPlan(plan) {
     if (!targetFolder && otherCandidates.includes(category)) {
       const parentId = sid ? String(sid) : '1';
       const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
-      categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      try {
+        categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建"其他"文件夹失败:`, err.message);
+        categoryFoldersByScope[sid][otherName] = null;
+      }
       targetFolder = categoryFoldersByScope[sid][otherName];
     }
     if (!targetFolder) continue;
     if (bookmark.parentId !== targetFolder.id) {
       if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-      await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-      moved++;
+      try {
+        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+        moved++;
+      } catch (err) {
+        if (isSkippableMoveError(err)) {
+          console.warn(`[organizeByPlan] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
+          skipped++;
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
-  const results = { ...plan, moved };
+  const results = { ...plan, moved, skipped };
   // 同步存储
   try {
     const organizedBookmarkIds = (plan.details || [])
@@ -2424,6 +2489,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   // 根据模型上下文窗口估算最优批次大小
   const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
   const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
   const concurrency = batchSize >= items.length ? 1
     : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3);
   const chunks = chunkArray(items, batchSize);
