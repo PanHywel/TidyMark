@@ -1714,7 +1714,7 @@ function parseAiJsonContent(result) {
         const salvaged = salvageReassignedItemsFromText(candidate);
         if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
           console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-          return salvaged;
+          return { assignments: salvaged.reassigned_items, reassigned_items: salvaged.reassigned_items, notes: salvaged.notes };
         }
         return null;
       }
@@ -1723,7 +1723,7 @@ function parseAiJsonContent(result) {
     const salvaged = salvageReassignedItemsFromText(candidate);
     if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
       console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-      return salvaged;
+      return { assignments: salvaged.reassigned_items, reassigned_items: salvaged.reassigned_items, notes: salvaged.notes };
     }
     console.warn('[AI] JSON 解析失败，原始内容片段:', candidate.slice(0, 200));
     return null;
@@ -1851,9 +1851,13 @@ async function refinePreviewWithAI(preview) {
   const items = preview.details.map(d => ({ id: d.bookmark.id, title: d.bookmark.title || '', url: d.bookmark.url || '', from_key: d.category }));
   const language = settings.classificationLanguage || 'auto';
 
-  // 分批与并发参数（带默认值）
-  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 50;
-  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2;
+  // 根据模型上下文窗口估算最优批次大小
+  const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
+  const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
+  const concurrency = batchSize >= items.length ? 1
+    : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2);
+  console.log(`[后台AI优化] 批次大小=${batchSize} 并发=${concurrency} 总条目=${items.length}`);
 
   // 将 items 分批构造任务
   const chunks = chunkArray(items, batchSize);
@@ -1959,6 +1963,42 @@ async function refinePreviewWithAI(preview) {
   }
 
   return newPreview;
+}
+
+// 已知模型的上下文窗口大小（token 数），用于自动推算最优批次
+const MODEL_CONTEXT_WINDOWS = {
+  'deepseek-v4-pro': 1000000,
+  'deepseek-v4-flash': 128000,
+  'deepseek-chat': 64000,
+  'gpt-4.1': 1000000,
+  'gpt-4.1-mini': 1000000,
+  'gpt-4.1-nano': 1000000,
+  'gpt-4o': 128000,
+  'gpt-4o-mini': 128000,
+  'gpt-4-turbo': 128000,
+  'gpt-4': 8192,
+  'gpt-3.5-turbo': 16384,
+  'o3': 200000,
+  'o4-mini': 200000,
+};
+
+// 根据模型上下文窗口和目标条目数估算最优批次大小
+function estimateOptimalBatchSize(model, maxTokens, itemCount, userBatchSize) {
+  // 若用户显式设置了批次大小（非默认值），优先使用用户配置
+  if (typeof userBatchSize === 'number' && userBatchSize > 0) return userBatchSize;
+
+  const TOKENS_PER_ITEM = 45;       // 每条书签 JSON 约 {"id":"..","title":"..","url":".."} ≈ 30-50 token
+  const PROMPT_OVERHEAD = 2000;     // system prompt + categories + output format 指引
+  const RESPONSE_HEADROOM = Math.max(maxTokens || 8192, 4096);
+  const SAFETY_FACTOR = 0.55;       // 保留 45% 给 prompt 开销和 AI 响应
+
+  const modelKey = String(model || '').toLowerCase();
+  const contextWindow = MODEL_CONTEXT_WINDOWS[modelKey] || 64000; // 未知模型假设 64K
+  const availableInput = Math.floor((contextWindow - PROMPT_OVERHEAD - RESPONSE_HEADROOM) * SAFETY_FACTOR);
+  const optimalSize = Math.floor(availableInput / TOKENS_PER_ITEM);
+
+  // 下限 20（避免请求过碎），上限不超过总条目数
+  return Math.max(20, Math.min(itemCount, optimalSize));
 }
 
 // 将数组按固定大小切片
@@ -2222,6 +2262,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    // DeepSeek V4 模型强制关闭 thinking，确保直接输出 JSON 到 content
+    if (String(model || '').toLowerCase().includes('deepseek-v4')) {
+      body.thinking = { type: 'disabled' };
+    }
     console.log('[AI Debug] 使用 OpenAI 兼容协议');
   }
 
@@ -2442,12 +2486,15 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
   const language = settings.classificationLanguage || 'auto';
 
-  // 分批与并发（避免一次请求过大）
-  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 120;
-  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3;
+  // 根据模型上下文窗口估算最优批次大小
+  const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
+  const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
+  const concurrency = batchSize >= items.length ? 1
+    : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3);
   const chunks = chunkArray(items, batchSize);
 
-  console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length });
+  console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length, model: settings.aiModel });
 
   const tasks = chunks.map((chunk, idx) => async () => {
     console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
