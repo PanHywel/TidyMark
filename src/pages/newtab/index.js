@@ -37,6 +37,8 @@
   // 壁纸：60s Bing 壁纸
   const WALLPAPER_TTL = 6 * 60 * 60 * 1000; // 6小时缓存
   const WALLPAPER_CACHE_KEY = 'bing_wallpaper_cache_v2';
+  let wallpaperType = 'bing'; // 'bing' | 'video' | 'none'
+  let wallpaperVideoUrl = '';
   // 60s 项目的多实例备用路由（用于 60s 与 Bing 壁纸）
   const SIXTY_INSTANCES = [
     'https://60api.09cdn.xyz',
@@ -270,17 +272,102 @@
 
   let wallpaperEnabled = true;
 
+  let videoEl = null;
+  let videoBlobUrl = null;
+
+  function removeVideoWallpaper() {
+    if (videoEl) {
+      videoEl.pause();
+      videoEl.removeAttribute('src');
+      videoEl.load();
+      videoEl.remove();
+      videoEl = null;
+    }
+    if (videoBlobUrl) {
+      URL.revokeObjectURL(videoBlobUrl);
+      videoBlobUrl = null;
+    }
+  }
+
+  function clearWallpaper() {
+    if (document && document.body) {
+      document.body.style.backgroundImage = 'none';
+      document.body.classList.remove('has-wallpaper');
+    }
+    removeVideoWallpaper();
+  }
+
+  async function getVideoSource() {
+    if (wallpaperVideoUrl) {
+      try {
+        const resp = await fetch(wallpaperVideoUrl, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        videoBlobUrl = URL.createObjectURL(blob);
+        return videoBlobUrl;
+      } catch (e) {
+        console.warn('Failed to load custom video, falling back to built-in', e);
+      }
+    }
+    if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+      return chrome.runtime.getURL('assets/wallpaper/default.webm');
+    }
+    return 'assets/wallpaper/default.webm';
+  }
+
+  async function manageVideoWallpaper() {
+    try {
+      if (document && document.body) {
+        document.body.style.backgroundImage = 'none';
+      }
+
+      const src = await getVideoSource();
+
+      if (!videoEl) {
+        videoEl = document.createElement('video');
+        videoEl.className = 'wallpaper-video';
+        videoEl.muted = true;
+        videoEl.loop = true;
+        videoEl.playsInline = true;
+        videoEl.autoplay = true;
+        videoEl.setAttribute('playsinline', '');
+        videoEl.setAttribute('preload', 'auto');
+        videoEl.onerror = () => {
+          console.warn('Video wallpaper failed to load');
+          clearWallpaper();
+        };
+        document.body.prepend(videoEl);
+      }
+
+      if (videoEl.src !== src) {
+        videoEl.src = src;
+        videoEl.load();
+      }
+
+      videoEl.play().catch(() => {});
+      if (document && document.body) {
+        document.body.classList.add('has-wallpaper');
+      }
+    } catch (err) {
+      console.warn('Failed to manage video wallpaper', err);
+      clearWallpaper();
+    }
+  }
+
   async function loadWallpaper(force = false) {
     try {
-      if (!wallpaperEnabled) {
-        // 关闭时清除背景
-        if (document && document.body) {
-          document.body.style.backgroundImage = 'none';
-          document.body.classList.remove('has-wallpaper');
-        }
+      if (wallpaperType === 'none') {
+        clearWallpaper();
         return;
       }
-      // 先应用缓存（即便不是“新鲜”的），避免空白背景
+      if (wallpaperType === 'video') {
+        await manageVideoWallpaper();
+        return;
+      }
+      // Clean up video element if switching from video mode
+      removeVideoWallpaper();
+      // ---- existing Bing logic below (unchanged) ----
+      // 先应用缓存（即便不是”新鲜”的），避免空白背景
       const cachedPayload = await getWallpaperCachePayload();
       const cachedData = cachedPayload && cachedPayload.data ? cachedPayload.data : null;
       const todayKey = _getTodayKey();
@@ -296,7 +383,7 @@
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), 15000); // 最多等待15秒
         try {
-          // 优先尝试 Bing 官方“桌面壁纸”接口；失败再回退到 60s 多实例
+          // 优先尝试 Bing 官方”桌面壁纸”接口；失败再回退到 60s 多实例
           try {
             wp = await fetchBingOfficialWalls(ac.signal);
           } catch (e1) {
@@ -330,11 +417,28 @@
   async function loadWallpaperPreference() {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage?.sync) {
-        const { wallpaperEnabled: stored } = await chrome.storage.sync.get(['wallpaperEnabled']);
-        wallpaperEnabled = stored !== undefined ? !!stored : true; // 默认开启
+        const { wallpaperType: storedType, wallpaperVideoUrl: storedUrl, wallpaperEnabled: storedEnabled } = await chrome.storage.sync.get(['wallpaperType', 'wallpaperVideoUrl', 'wallpaperEnabled']);
+        wallpaperVideoUrl = (storedUrl || '').trim();
+        if (storedType && ['bing','video','none'].includes(storedType)) {
+          wallpaperType = storedType;
+        } else if (storedType === undefined && storedEnabled === false) {
+          wallpaperType = 'none';
+        } else {
+          wallpaperType = 'bing';
+        }
+        wallpaperEnabled = wallpaperType !== 'none';
       } else if (typeof localStorage !== 'undefined') {
-        const val = localStorage.getItem('wallpaperEnabled');
-        wallpaperEnabled = val === null ? true : val === 'true';
+        const type = localStorage.getItem('wallpaperType');
+        const url = localStorage.getItem('wallpaperVideoUrl');
+        wallpaperVideoUrl = (url || '').replace(/^"|"$/g, '').trim();
+        if (type && ['bing','video','none'].includes(type.replace(/^"|"$/g, ''))) {
+          wallpaperType = type.replace(/^"|"$/g, '');
+        } else {
+          const enabled = localStorage.getItem('wallpaperEnabled');
+          if (enabled === 'false') wallpaperType = 'none';
+          else wallpaperType = 'bing';
+        }
+        wallpaperEnabled = wallpaperType !== 'none';
       }
     } catch {}
     renderWallpaperToggle();
@@ -421,6 +525,9 @@
       if (area === 'sync' && changes.showBookmarks) {
         applyShowBookmarks(!!changes.showBookmarks.newValue);
       }
+      if (area === 'sync' && (changes.wallpaperType || changes.wallpaperVideoUrl)) {
+        loadWallpaperPreference().then(() => loadWallpaper(true));
+      }
       if (area === 'sync' && changes.sixtySecondsEnabled) {
         applySixtyEnabled(!!changes.sixtySecondsEnabled.newValue);
       }
@@ -461,6 +568,9 @@
     }
     if (e.key === 'tidymark_language' || e.key === 'language') {
       updateLocaleVisibility();
+    }
+    if (e.key === 'wallpaperType' || e.key === 'wallpaperVideoUrl') {
+      loadWallpaperPreference().then(() => loadWallpaper(true));
     }
   });
 
@@ -2069,4 +2179,14 @@
   if (elSixty) enableDragOnSection(elSixty);
   // 初次加载尝试应用持久化顺序（可能仅有 60s 或热门栏目）
   applyMainModuleOrder();
+
+  // Page Visibility: pause/resume video wallpaper to save resources
+  document.addEventListener('visibilitychange', () => {
+    if (!videoEl || wallpaperType !== 'video') return;
+    if (document.hidden) {
+      videoEl.pause();
+    } else {
+      videoEl.play().catch(() => {});
+    }
+  });
 })();

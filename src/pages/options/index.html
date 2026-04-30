@@ -88,14 +88,27 @@
           <p class="setting-desc" data-i18n="options.nav.weather.city.desc">支持中文或英文城市名；留空将使用默认查询</p>
         </div>
         <div class="setting-item">
-          <div class="toggle-row">
-            <label class="setting-label">
-              <input type="checkbox" id="wallpaperEnabled">
-              <span class="checkmark"></span>
-              <span data-i18n="options.nav.wallpaper.toggle">显示 Bing 壁纸背景</span>
+          <label class="setting-label" data-i18n="options.nav.wallpaper.type">壁纸类型</label>
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="wallpaperType" value="bing">
+              <span data-i18n="options.nav.wallpaper.type.bing">Bing 每日壁纸</span>
             </label>
-            <p class="setting-desc inline-hint" data-i18n="options.nav.wallpaper.tip">开启后，新标签页将使用 Bing 每日壁纸作为背景</p>
+            <label class="radio-label">
+              <input type="radio" name="wallpaperType" value="video">
+              <span data-i18n="options.nav.wallpaper.type.video">动态视频壁纸</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="wallpaperType" value="none">
+              <span data-i18n="options.nav.wallpaper.type.none">关闭壁纸</span>
+            </label>
           </div>
+          <p class="setting-desc inline-hint" data-i18n="options.nav.wallpaper.tip">选择新标签页的背景壁纸类型</p>
+        </div>
+        <div class="setting-item" id="videoUrlGroup" hidden>
+          <label class="setting-label" for="wallpaperVideoUrl" data-i18n="options.nav.wallpaper.videoUrl">自定义视频 URL（可选）</label>
+          <input type="text" id="wallpaperVideoUrl" class="setting-input" data-i18n-placeholder="options.nav.wallpaper.videoUrl" placeholder="https://example.com/wallpaper.webm">
+          <p class="setting-desc" data-i18n="options.nav.wallpaper.videoUrl.desc">留空则使用内置风景视频。支持 WebM/MP4 格式</p>
         </div>
 
         <div class="setting-item">

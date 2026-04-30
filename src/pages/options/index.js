@@ -52,6 +52,8 @@ class OptionsManager {
           'weatherEnabled',
           'weatherCity',
           'wallpaperEnabled',
+          'wallpaperType',
+          'wallpaperVideoUrl',
           'sixtySecondsEnabled',
           // 新增：分离透明度与书签栏默认收起
           'searchUnfocusedOpacity',
@@ -107,6 +109,8 @@ class OptionsManager {
           'weatherEnabled',
           'weatherCity',
           'wallpaperEnabled',
+          'wallpaperType',
+          'wallpaperVideoUrl',
           'sixtySecondsEnabled',
           'searchUnfocusedOpacity',
           'bookmarksUnfocusedOpacity',
@@ -181,6 +185,13 @@ class OptionsManager {
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
         wallpaperEnabled: result.wallpaperEnabled !== undefined ? !!result.wallpaperEnabled : true,
+        wallpaperType: (() => {
+          if (result.wallpaperType && ['bing','video','none'].includes(result.wallpaperType)) return result.wallpaperType;
+          // Migrate: if old wallpaperEnabled is explicitly false, default to 'none'
+          if (result.wallpaperType === undefined && result.wallpaperEnabled === false) return 'none';
+          return 'bing';
+        })(),
+        wallpaperVideoUrl: (result.wallpaperVideoUrl || '').trim(),
         // 在非中文环境默认关闭 60s：依据已初始化的 I18n 语言
         sixtySecondsEnabled: (() => {
           const lang = (window.I18n && typeof window.I18n.getLanguageSync === 'function')
@@ -645,11 +656,24 @@ class OptionsManager {
       });
     }
 
-    // 壁纸开关
-    const wallpaperEnabled = document.getElementById('wallpaperEnabled');
-    if (wallpaperEnabled) {
-      wallpaperEnabled.addEventListener('change', (e) => {
-        this.settings.wallpaperEnabled = !!e.target.checked;
+    // 壁纸类型选择
+    const wallpaperTypeRadios = document.querySelectorAll('input[name="wallpaperType"]');
+    wallpaperTypeRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          this.settings.wallpaperType = e.target.value;
+          this.settings.wallpaperEnabled = e.target.value !== 'none';
+          this.saveSettings();
+          this.updateVideoUrlVisibility();
+        }
+      });
+    });
+
+    // 自定义视频 URL
+    const wallpaperVideoUrl = document.getElementById('wallpaperVideoUrl');
+    if (wallpaperVideoUrl) {
+      wallpaperVideoUrl.addEventListener('input', (e) => {
+        this.settings.wallpaperVideoUrl = (e.target.value || '').trim();
         this.saveSettings();
       });
     }
@@ -2292,12 +2316,12 @@ class OptionsManager {
     const weatherCity = document.getElementById('weatherCity');
     if (weatherEnabled) weatherEnabled.checked = !!this.settings.weatherEnabled;
     if (weatherCity) weatherCity.value = this.settings.weatherCity || '';
-    const wallpaperEnabled = document.getElementById('wallpaperEnabled');
-    if (wallpaperEnabled) {
-      wallpaperEnabled.checked = this.settings.wallpaperEnabled !== undefined
-        ? !!this.settings.wallpaperEnabled
-        : true; // 默认开启
-    }
+    const wallpaperType = this.settings.wallpaperType || 'bing';
+    const checkedRadio = document.querySelector(`input[name="wallpaperType"][value="${wallpaperType}"]`);
+    if (checkedRadio) checkedRadio.checked = true;
+    const wallpaperVideoUrl = document.getElementById('wallpaperVideoUrl');
+    if (wallpaperVideoUrl) wallpaperVideoUrl.value = this.settings.wallpaperVideoUrl || '';
+    this.updateVideoUrlVisibility();
     const sixtySecondsEnabled = document.getElementById('sixtySecondsEnabled');
     if (sixtySecondsEnabled) sixtySecondsEnabled.checked = !!this.settings.sixtySecondsEnabled;
 
@@ -2337,6 +2361,12 @@ class OptionsManager {
     const archiveDays = document.getElementById('archiveOlderThanDays');
     if (autoArchive) autoArchive.checked = !!this.settings.autoArchiveOldBookmarks;
     if (archiveDays) archiveDays.value = String(this.settings.archiveOlderThanDays ?? 180);
+  }
+
+  updateVideoUrlVisibility() {
+    const group = document.getElementById('videoUrlGroup');
+    if (!group) return;
+    group.hidden = this.settings.wallpaperType !== 'video';
   }
 
   // 更新同步与导出配置
