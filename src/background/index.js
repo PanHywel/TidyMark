@@ -2312,12 +2312,6 @@ function validateModelForProvider(model, provider) {
 
   // 根据提供商验证模型
   switch (providerName) {
-    case 'openai':
-      const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
-      if (!openaiModels.includes(modelName)) {
-        return { valid: false, error: `OpenAI API 不支持模型 "${model}"。支持的模型: ${openaiModels.join(', ')}` };
-      }
-      break;
     case 'deepseek':
       // DeepSeek 官方 API；deepseek-chat 将于 2026-07-24 停用
       if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(modelName)) {
