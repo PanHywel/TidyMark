@@ -2445,11 +2445,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
-    // DeepSeek V4 模型强制关闭 thinking，确保直接输出 JSON 到 content
-    if (String(model || '').toLowerCase().includes('deepseek-v4')) {
-      body.thinking = { type: 'disabled' };
-    }
-    console.log('[AI Debug] 使用 OpenAI 兼容协议');
+    console.log('[AI Debug] 使用 Spark 协议');
+  } else {
+    // OpenAI 兼容协议：deepseek、openai、siliconflow、custom 等
+    headers['Authorization'] = `Bearer ${apiKey}`;
     body = {
       model,
       max_tokens: maxTokens || 8192,
@@ -2459,6 +2458,11 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
+    // DeepSeek V4 模型强制关闭 thinking，确保直接输出 JSON 到 content
+    if (String(model || '').toLowerCase().includes('deepseek-v4')) {
+      body.thinking = { type: 'disabled' };
+    }
+    console.log('[AI Debug] 使用 OpenAI 兼容协议');
   }
 
   console.log('[AI Debug] 最终请求URL:', url);
