@@ -168,7 +168,7 @@ class OptionsManager {
         this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','claude','gemini','qwen','doubao','kimi','zhipu','baichuan','minimax','spark','ernie','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','siliconflow','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -377,41 +377,14 @@ class OptionsManager {
 
     switch (provider) {
       case 'openai':
-        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
         break;
       case 'deepseek':
-        validModels = ['deepseek-chat'];
+        validModels = ['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'];
         break;
-      case 'claude':
-        validModels = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-        break;
-      case 'gemini':
-        validModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'];
-        break;
-      case 'qwen':
-        validModels = ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'];
-        break;
-      case 'doubao':
-        validModels = ['doubao-pro-256k', 'doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k'];
-        break;
-      case 'kimi':
-        validModels = ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'];
-        break;
-      case 'zhipu':
-        validModels = ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo'];
-        break;
-      case 'baichuan':
-        validModels = ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k', 'Baichuan2-Turbo'];
-        break;
-      case 'minimax':
-        validModels = ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'];
-        break;
-      case 'spark':
-        validModels = ['spark-max', 'spark-pro', 'spark-lite'];
-        break;
-      case 'ernie':
-        validModels = ['ernie-4.0-8k', 'ernie-4.0-turbo-8k', 'ernie-3.5-8k', 'ernie-speed-8k'];
-        break;
+      case 'siliconflow':
+        // SiliconFlow 支持任意模型，不在此验证
+        return;
       case 'iflow':
         validModels = ['deepseek-chat', 'deepseek-coder'];
         break;
@@ -4733,10 +4706,13 @@ class OptionsManager {
       }
     } else if (provider === 'deepseek') {
       models = [
-        { value: 'deepseek-chat', label: 'DeepSeek-Chat' }
+        { value: 'deepseek-v4-pro', label: 'DeepSeek-V4 Pro' },
+        { value: 'deepseek-v4-flash', label: 'DeepSeek-V4 Flash' },
+        { value: 'deepseek-chat', label: 'DeepSeek-Chat (即将停用)' }
       ];
-      if (!['deepseek-chat'].includes(this.settings.aiModel)) {
-        this.settings.aiModel = 'deepseek-chat';
+      // 屏蔽 reasoner 类思考模型：不展示且强制回退
+      if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'deepseek-v4-pro';
       }
     } else if (provider === 'claude') {
       models = [
@@ -5056,7 +5032,7 @@ Return only a valid JSON object strictly following the above format — no markd
       return 'https://api.openai.com/v1/chat/completions';
     }
     if (p === 'deepseek') {
-      return 'https://api.deepseek.com/v1/chat/completions';
+      return 'https://api.deepseek.com/chat/completions';
     }
     if (p === 'claude') {
       return 'https://api.anthropic.com/v1/messages';
@@ -5090,6 +5066,9 @@ Return only a valid JSON object strictly following the above format — no markd
     }
     if (p === 'ollama') {
       return 'http://localhost:11434/api/chat';
+    }
+    if (p === 'siliconflow') {
+      return 'https://api.siliconflow.cn/v1/chat/completions';
     }
     return '';
   }
@@ -5126,7 +5105,8 @@ Return only a valid JSON object strictly following the above format — no markd
       if (v1Index >= 0) {
         return `${u.origin}/v1/models`;
       }
-      return apiUrl;
+      // 路径不含 /v1/（如 DeepSeek 新端点），尝试标准 /v1/models
+      return `${u.origin}/v1/models`;
     } catch {
       return apiUrl;
     }

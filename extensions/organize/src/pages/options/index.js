@@ -164,7 +164,7 @@ class OptionsManager {
         this.settings = {
         classificationRules: result.classificationRules ?? this.getDefaultRules(),
         enableAI: result.enableAI ?? false,
-        aiProvider: ['openai','deepseek','claude','gemini','qwen','doubao','kimi','zhipu','baichuan','minimax','spark','ernie','ollama','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
+        aiProvider: ['openai','deepseek','ollama','siliconflow','custom','iflow'].includes(result.aiProvider) ? result.aiProvider : 'openai',
         aiApiKey: result.aiApiKey ?? '',
         aiApiUrl: result.aiApiUrl ?? '',
         aiModel: result.aiModel ?? 'gpt-3.5-turbo',
@@ -365,41 +365,14 @@ class OptionsManager {
 
     switch (provider) {
       case 'openai':
-        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini'];
+        validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
         break;
       case 'deepseek':
-        validModels = ['deepseek-chat'];
+        validModels = ['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'];
         break;
-      case 'claude':
-        validModels = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-        break;
-      case 'gemini':
-        validModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'];
-        break;
-      case 'qwen':
-        validModels = ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'];
-        break;
-      case 'doubao':
-        validModels = ['doubao-pro-256k', 'doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k'];
-        break;
-      case 'kimi':
-        validModels = ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'];
-        break;
-      case 'zhipu':
-        validModels = ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo'];
-        break;
-      case 'baichuan':
-        validModels = ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k', 'Baichuan2-Turbo'];
-        break;
-      case 'minimax':
-        validModels = ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'];
-        break;
-      case 'spark':
-        validModels = ['spark-max', 'spark-pro', 'spark-lite'];
-        break;
-      case 'ernie':
-        validModels = ['ernie-4.0-8k', 'ernie-4.0-turbo-8k', 'ernie-3.5-8k', 'ernie-speed-8k'];
-        break;
+      case 'siliconflow':
+        // SiliconFlow 支持任意模型，不在此验证
+        return;
       case 'iflow':
         validModels = ['deepseek-chat', 'deepseek-coder'];
         break;
@@ -3697,37 +3670,193 @@ class OptionsManager {
     }
   }
 
-  // 统计书签树中的书签数量
-  countBookmarksInTree(bookmarkTree) {
-    let count = 0;
+  // 导出备份
+  async exportBackup() {
+    try {
+      // 获取所有书签
+      const bookmarks = await chrome.bookmarks.getTree();
+      
+      // 获取设置
+      const settings = await chrome.storage.sync.get();
+      
+      const backupData = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        bookmarks: bookmarks,
+        settings: settings
+      };
+
+      // 创建下载链接
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+        type: 'application/json'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tidymark-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      
+      URL.revokeObjectURL(url);
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.success') : '备份导出成功'), 'success');
+    } catch (error) {
+    console.error((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败') + ':', error);
+    this.showMessage((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败'), 'error');
+    }
+  }
+
+  // 导入备份
+  importBackup() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
     
-    const countNode = (node) => {
-      if (node.url) {
-        count++;
-      }
-      if (node.children) {
-        node.children.forEach(countNode);
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const backupData = JSON.parse(text);
+        
+        if (!backupData.version || !backupData.bookmarks) {
+          throw new Error('无效的备份文件格式');
+        }
+        // 显示导入选项对话框（与整理版保持一致）
+        const dialogHtml = `
+          <div style="margin-bottom: 15px;">
+            <strong>导入选项：</strong>
+          </div>
+          <div style="margin: 10px 0;">
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="importBookmarks" checked style="margin-right: 8px;">
+              <span>导入书签（${this.countBookmarksInTree(backupData.bookmarks)} 个书签）</span>
+            </label>
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="importSettings" checked style="margin-right: 8px;">
+              <span>导入设置</span>
+            </label>
+          </div>
+          <div style="margin: 15px 0;">
+            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+              <input type="checkbox" id="clearExisting" style="margin-right: 8px;">
+              <span style="color: #d73a49;">清除现有书签（不勾选将合并导入）</span>
+            </label>
+          </div>
+          <div style="margin-top: 15px; padding: 10px; background: #f6f8fa; border-radius: 4px;">
+            <small>
+              备份时间：${new Date(backupData.timestamp).toLocaleString()}<br>
+              版本：${backupData.version}
+            </small>
+          </div>
+        `;
+
+        const ok = await this.showConfirmDialog({
+          title: '导入备份',
+          message: dialogHtml,
+          okText: window.I18n ? (window.I18n.t('modal.confirm') || '导入') : '导入',
+          cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
+        });
+
+        if (ok) {
+          const importBookmarks = document.getElementById('importBookmarks')?.checked;
+          const importSettings = document.getElementById('importSettings')?.checked;
+          const clearExisting = document.getElementById('clearExisting')?.checked;
+
+          if (!importBookmarks && !importSettings) {
+            this.showMessage('请至少选择一项导入内容', 'warning');
+            return;
+          }
+
+          // 显示进度
+          this.showMessage('正在导入备份...', 'info');
+          
+          let bookmarkCount = 0;
+          let errorCount = 0;
+
+          // 导入设置
+          if (importSettings && backupData.settings) {
+            try {
+              await chrome.storage.sync.clear();
+              await chrome.storage.sync.set(backupData.settings);
+              console.log('设置导入成功');
+            } catch (error) {
+              console.error('导入设置失败:', error);
+              errorCount++;
+            }
+          }
+
+          // 导入书签
+          if (importBookmarks && backupData.bookmarks) {
+            try {
+              // 如果选择清除现有书签
+              if (clearExisting) {
+                await this.clearAllBookmarks();
+              }
+
+              // 递归导入书签
+              const result = await this.importBookmarkTree(backupData.bookmarks);
+              bookmarkCount = result.created;
+              errorCount += result.failed;
+              
+              console.log(`书签导入完成：成功 ${bookmarkCount} 个，失败 ${errorCount} 个`);
+            } catch (error) {
+              console.error('导入书签失败:', error);
+              errorCount++;
+            }
+          }
+
+          // 显示结果
+          if (errorCount === 0) {
+            let message = '导入成功！';
+            if (importBookmarks) message += ` 导入了 ${bookmarkCount} 个书签。`;
+            if (importSettings) message += ' 设置已恢复。';
+            this.showMessage(message, 'success');
+            
+            // 如果导入了设置，刷新页面以应用新设置
+            if (importSettings) {
+              setTimeout(() => {
+                location.reload();
+              }, 2000);
+            }
+          } else {
+            this.showMessage(`导入完成，但有 ${errorCount} 个错误。请查看控制台了解详情。`, 'warning');
+          }
+        }
+      } catch (error) {
+    console.error((window.I18n ? window.I18n.t('backup.import.fail') : '导入备份失败') + ':', error);
+    this.showMessage((window.I18n ? window.I18n.tf('backup.import.fail', { error: error.message }) : ('导入备份失败: ' + error.message)), 'error');
       }
     };
     
-    if (Array.isArray(bookmarkTree)) {
-      bookmarkTree.forEach(countNode);
-    } else {
-      countNode(bookmarkTree);
-    }
-    
+    input.click();
+  }
+
+  // 统计书签树中的书签数量
+  countBookmarksInTree(bookmarkTree) {
+    let count = 0;
+    const traverse = (node) => {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        node.forEach(traverse);
+        return;
+      }
+      if (node.url) count++;
+      if (node.children && node.children.length) {
+        node.children.forEach(traverse);
+      }
+    };
+    traverse(bookmarkTree);
     return count;
   }
 
-  // 清除所有书签（保留根文件夹）
+  // 清除所有书签（保留Chrome特殊根目录）
   async clearAllBookmarks() {
     try {
       const bookmarkTree = await chrome.bookmarks.getTree();
-      
-      // 递归删除所有书签和文件夹（保留Chrome的根文件夹）
       const deleteNode = async (node) => {
-        if (node.children) {
-          // 从后往前删除子节点，避免索引问题
+        // 递归删除子节点
+        if (node.children && node.children.length) {
           for (let i = node.children.length - 1; i >= 0; i--) {
             await deleteNode(node.children[i]);
           }
@@ -3852,169 +3981,6 @@ class OptionsManager {
     }
     
     return { created, failed };
-  }
-
-  // 导出备份
-  async exportBackup() {
-    try {
-      // 获取所有书签
-      const bookmarks = await chrome.bookmarks.getTree();
-      
-      // 获取设置
-      const settings = await chrome.storage.sync.get();
-      
-      const backupData = {
-        version: '1.0',
-        timestamp: new Date().toISOString(),
-        bookmarks: bookmarks,
-        settings: settings
-      };
-
-      // 创建下载链接
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
-        type: 'application/json'
-      });
-      
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `tidymark-backup-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      
-      URL.revokeObjectURL(url);
-    this.showMessage((window.I18n ? window.I18n.t('backup.export.success') : '备份导出成功'), 'success');
-    } catch (error) {
-    console.error((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败') + ':', error);
-    this.showMessage((window.I18n ? window.I18n.t('backup.export.fail.short') : '导出备份失败'), 'error');
-    }
-  }
-
-  // 导入备份
-  importBackup() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    
-    input.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const backupData = JSON.parse(text);
-        
-        if (!backupData.version || !backupData.bookmarks) {
-          throw new Error('无效的备份文件格式');
-        }
-
-        // 显示导入选项对话框
-        const dialogHtml = `
-          <div style="margin-bottom: 15px;">
-            <strong>导入选项：</strong>
-          </div>
-          <div style="margin: 10px 0;">
-            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
-              <input type="checkbox" id="importBookmarks" checked style="margin-right: 8px;">
-              <span>导入书签（${this.countBookmarksInTree(backupData.bookmarks)} 个书签）</span>
-            </label>
-            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
-              <input type="checkbox" id="importSettings" checked style="margin-right: 8px;">
-              <span>导入设置</span>
-            </label>
-          </div>
-          <div style="margin: 15px 0;">
-            <label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
-              <input type="checkbox" id="clearExisting" style="margin-right: 8px;">
-              <span style="color: #d73a49;">清除现有书签（不勾选将合并导入）</span>
-            </label>
-          </div>
-          <div style="margin-top: 15px; padding: 10px; background: #f6f8fa; border-radius: 4px;">
-            <small>
-              备份时间：${new Date(backupData.timestamp).toLocaleString()}<br>
-              版本：${backupData.version}
-            </small>
-          </div>
-        `;
-
-        const ok = await this.showConfirmDialog({
-          title: '导入备份',
-          message: dialogHtml,
-          okText: window.I18n ? (window.I18n.t('modal.confirm') || '导入') : '导入',
-          cancelText: window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消'
-        });
-
-        if (ok) {
-          const importBookmarks = document.getElementById('importBookmarks')?.checked;
-          const importSettings = document.getElementById('importSettings')?.checked;
-          const clearExisting = document.getElementById('clearExisting')?.checked;
-
-          if (!importBookmarks && !importSettings) {
-            this.showMessage('请至少选择一项导入内容', 'warning');
-            return;
-          }
-
-          // 显示进度
-          this.showMessage('正在导入备份...', 'info');
-          
-          let bookmarkCount = 0;
-          let errorCount = 0;
-
-          // 导入设置
-          if (importSettings && backupData.settings) {
-            try {
-              await chrome.storage.sync.clear();
-              await chrome.storage.sync.set(backupData.settings);
-              console.log('设置导入成功');
-            } catch (error) {
-              console.error('导入设置失败:', error);
-              errorCount++;
-            }
-          }
-
-          // 导入书签
-          if (importBookmarks && backupData.bookmarks) {
-            try {
-              // 如果选择清除现有书签
-              if (clearExisting) {
-                await this.clearAllBookmarks();
-              }
-
-              // 递归导入书签
-              const result = await this.importBookmarkTree(backupData.bookmarks);
-              bookmarkCount = result.created;
-              errorCount += result.failed;
-              
-              console.log(`书签导入完成：成功 ${bookmarkCount} 个，失败 ${errorCount} 个`);
-            } catch (error) {
-              console.error('导入书签失败:', error);
-              errorCount++;
-            }
-          }
-
-          // 显示结果
-          if (errorCount === 0) {
-            let message = '导入成功！';
-            if (importBookmarks) message += ` 导入了 ${bookmarkCount} 个书签。`;
-            if (importSettings) message += ' 设置已恢复。';
-            this.showMessage(message, 'success');
-            
-            // 如果导入了设置，刷新页面以应用新设置
-            if (importSettings) {
-              setTimeout(() => {
-                location.reload();
-              }, 2000);
-            }
-          } else {
-            this.showMessage(`导入完成，但有 ${errorCount} 个错误。请查看控制台了解详情。`, 'warning');
-          }
-        }
-      } catch (error) {
-        console.error((window.I18n ? window.I18n.t('backup.import.fail') : '导入备份失败') + ':', error);
-        this.showMessage((window.I18n ? window.I18n.tf('backup.import.fail', { error: error.message }) : ('导入备份失败: ' + error.message)), 'error');
-      }
-    };
-    
-    input.click();
   }
 
   // 重置设置
@@ -4520,10 +4486,13 @@ class OptionsManager {
       }
     } else if (provider === 'deepseek') {
       models = [
-        { value: 'deepseek-chat', label: 'DeepSeek-Chat' }
+        { value: 'deepseek-v4-pro', label: 'DeepSeek-V4 Pro' },
+        { value: 'deepseek-v4-flash', label: 'DeepSeek-V4 Flash' },
+        { value: 'deepseek-chat', label: 'DeepSeek-Chat (即将停用)' }
       ];
-      if (!['deepseek-chat'].includes(this.settings.aiModel)) {
-        this.settings.aiModel = 'deepseek-chat';
+      // 屏蔽 reasoner 类思考模型：不展示且强制回退
+      if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(this.settings.aiModel)) {
+        this.settings.aiModel = 'deepseek-v4-pro';
       }
     } else if (provider === 'claude') {
       models = [
@@ -4842,7 +4811,7 @@ Return only a valid JSON object strictly following the above format — no markd
       return 'https://api.openai.com/v1/chat/completions';
     }
     if (p === 'deepseek') {
-      return 'https://api.deepseek.com/v1/chat/completions';
+      return 'https://api.deepseek.com/chat/completions';
     }
     if (p === 'claude') {
       return 'https://api.anthropic.com/v1/messages';
@@ -4876,6 +4845,9 @@ Return only a valid JSON object strictly following the above format — no markd
     }
     if (p === 'ollama') {
       return 'http://localhost:11434/api/chat';
+    }
+    if (p === 'siliconflow') {
+      return 'https://api.siliconflow.cn/v1/chat/completions';
     }
     return '';
   }
@@ -4912,7 +4884,8 @@ Return only a valid JSON object strictly following the above format — no markd
       if (v1Index >= 0) {
         return `${u.origin}/v1/models`;
       }
-      return apiUrl;
+      // 路径不含 /v1/（如 DeepSeek 新端点），尝试标准 /v1/models
+      return `${u.origin}/v1/models`;
     } catch {
       return apiUrl;
     }

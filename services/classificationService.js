@@ -198,6 +198,32 @@ class ClassificationService {
     };
   }
 
+  // 常见文件扩展名，排除短关键词在 URL 中的误匹配
+  _COMMON_EXTENSIONS = new Set([
+    'html', 'htm', 'xml', 'js', 'css', 'json', 'txt', 'csv', 'md',
+    'pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'zip', 'tar', 'gz',
+    'php', 'asp', 'jsp', 'mp4', 'mp3', 'avi', 'wmv', 'flv', 'webm', 'webp'
+  ]);
+
+  // 短 ASCII 关键词用分词+边界匹配，避免 ml→.html 类误匹配
+  _keywordMatches(text, keyword, isUrl) {
+    const lower = text.toLowerCase();
+    const kw = keyword.toLowerCase();
+    if (kw.length <= 3 && /^[a-z0-9]+$/.test(kw)) {
+      if (isUrl) {
+        const tokens = lower.split(/[./_\-]/);
+        const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (tokens.some(t => t === kw)) return true;
+        if (tokens.some(t => t.startsWith(kw) && t !== kw)) return true;
+        if (tokens.some(t => t.endsWith(kw) && t !== kw && !this._COMMON_EXTENSIONS.has(t))) return true;
+        return false;
+      }
+      const boundaryRe = new RegExp('(?<![a-z0-9])' + escaped + '(?![a-z0-9])', 'i');
+      return boundaryRe.test(text);
+    }
+    return lower.includes(kw);
+  }
+
   // 计算匹配分数
   calculateMatchScore(bookmark, rule) {
     const title = bookmark.title.toLowerCase();
@@ -206,15 +232,13 @@ class ClassificationService {
 
     // 检查关键词匹配
     for (const keyword of rule.keywords || []) {
-      const keywordLower = keyword.toLowerCase();
-      
       // 标题匹配
-      if (title.includes(keywordLower)) {
-        score += title === keywordLower ? 20 : 10; // 完全匹配得分更高
+      if (this._keywordMatches(title, keyword, false)) {
+        score += title === keyword.toLowerCase() ? 20 : 10;
       }
-      
+
       // URL匹配
-      if (url.includes(keywordLower)) {
+      if (this._keywordMatches(url, keyword, true)) {
         score += 5;
       }
     }

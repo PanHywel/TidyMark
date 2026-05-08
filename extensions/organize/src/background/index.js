@@ -1350,36 +1350,65 @@ async function autoClassifyBookmarks(options = {}) {
       const parentId = sid ? String(sid) : '1';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
       for (const category of set) {
-        const folder = await findOrCreateFolder(category, { parentId });
-        categoryFoldersByScope[sid][category] = folder;
+        try {
+          const folder = await findOrCreateFolder(category, { parentId });
+          categoryFoldersByScope[sid][category] = folder;
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建分类文件夹失败 “${category}”:`, err.message);
+        }
       }
     }
 
+    // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+    const isSkippableMoveError = (err) => {
+      const msg = (err && err.message) ? String(err.message) : '';
+      return msg.includes('Can\'t find bookmark for id')
+          || msg.includes('No bookmark with id')
+          || msg.includes('Bookmark id is invalid')
+          || msg.includes('Can\'t find parent bookmark for id');
+    };
+
     // 移动书签到对应文件夹
     let moved = 0;
+    let skipped = 0;
     const oldParentCandidates = new Set();
     for (const { bookmark, category, scopeFolderId } of preview.details) {
       const sid = scopeFolderId || '';
       if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
-      // 懒创建“其他/Others”文件夹（仅当需要移动到该分类时）
+      // 懒创建”其他/Others”文件夹（仅当需要移动到该分类时）
       let targetFolder = categoryFoldersByScope[sid][category];
       if (!targetFolder && category === otherName) {
         const otherNm = translateCategoryName('其他', clsLang);
         const parentId = sid ? String(sid) : '1';
-        categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        try {
+          categoryFoldersByScope[sid][otherNm] = await findOrCreateFolder(otherNm, { parentId });
+        } catch (err) {
+          console.warn(`[autoClassifyBookmarks] 创建”其他”文件夹失败:`, err.message);
+          categoryFoldersByScope[sid][otherNm] = null;
+        }
         targetFolder = categoryFoldersByScope[sid][otherNm];
       }
       if (!targetFolder) continue; // 未创建文件夹则不移动
       if (bookmark.parentId !== targetFolder.id) {
         if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-        moved++;
+        try {
+          await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+          moved++;
+        } catch (err) {
+          if (isSkippableMoveError(err)) {
+            console.warn(`[autoClassifyBookmarks] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
+            skipped++;
+          } else {
+            throw err;
+          }
+        }
       }
     }
 
     const results = {
       ...preview,
-      moved
+      moved,
+      skipped
     };
     // 整理完成后，写入存储：organizedBookmarks 与 categories
     try {
@@ -1430,14 +1459,46 @@ async function autoClassifyBookmarks(options = {}) {
   }
 }
 
+// 常见文件扩展名，用于排除短关键词在 URL 中的误匹配
+const COMMON_FILE_EXTENSIONS = new Set([
+  'html', 'htm', 'xml', 'js', 'css', 'json', 'txt', 'csv', 'md',
+  'pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'zip', 'tar', 'gz',
+  'php', 'asp', 'jsp', 'mp4', 'mp3', 'avi', 'wmv', 'flv', 'webm', 'webp'
+]);
+
+// 判断关键词在文本中是否匹配（短 ASCII 词用分词+边界，避免 ml→.html 类误匹配）
+function keywordMatches(text, keyword, isUrl) {
+  const lower = text.toLowerCase();
+  const kw = keyword.toLowerCase();
+  // 短纯 ASCII 关键词（≤3 字符）用更严格的匹配，避免命中 URL 碎片/文件扩展名
+  if (kw.length <= 3 && /^[a-z0-9]+$/.test(kw)) {
+    if (isUrl) {
+      // URL：切分为 token，要求匹配整个 token 或其有效前缀/后缀
+      const tokens = lower.split(/[./_\-]/);
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // 全 token 匹配
+      if (tokens.some(t => t === kw)) return true;
+      // 前缀匹配（keyword 在 token 开头且 token 更长）
+      if (tokens.some(t => t.startsWith(kw) && t !== kw)) return true;
+      // 后缀匹配（keyword 在 token 结尾且 token 不是文件扩展名）
+      if (tokens.some(t => t.endsWith(kw) && t !== kw && !COMMON_FILE_EXTENSIONS.has(t))) return true;
+      return false;
+    }
+    // 标题：单词边界匹配
+    const boundaryRe = new RegExp('(?<![a-z0-9])' + escaped + '(?![a-z0-9])', 'i');
+    return boundaryRe.test(text);
+  }
+  return lower.includes(kw);
+}
+
 // 分类单个书签
 function classifyBookmark(bookmark, rules) {
-  const title = bookmark.title.toLowerCase();
-  const url = bookmark.url.toLowerCase();
+  const title = bookmark.title || '';
+  const url = bookmark.url || '';
 
   for (const rule of rules) {
     for (const keyword of rule.keywords) {
-      if (title.includes(keyword.toLowerCase()) || url.includes(keyword.toLowerCase())) {
+      if (keywordMatches(title, keyword, false) || keywordMatches(url, keyword, true)) {
         return rule.category;
       }
     }
@@ -1661,7 +1722,7 @@ function parseAiJsonContent(result) {
         const salvaged = salvageReassignedItemsFromText(candidate);
         if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
           console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-          return salvaged;
+          return { assignments: salvaged.reassigned_items, reassigned_items: salvaged.reassigned_items, notes: salvaged.notes };
         }
         return null;
       }
@@ -1670,7 +1731,7 @@ function parseAiJsonContent(result) {
     const salvaged = salvageReassignedItemsFromText(candidate);
     if (salvaged && salvaged.reassigned_items && salvaged.reassigned_items.length > 0) {
       console.warn('[AI] 使用挽救的 reassigned_items，条目数:', salvaged.reassigned_items.length);
-      return salvaged;
+      return { assignments: salvaged.reassigned_items, reassigned_items: salvaged.reassigned_items, notes: salvaged.notes };
     }
     console.warn('[AI] JSON 解析失败，原始内容片段:', candidate.slice(0, 200));
     return null;
@@ -1761,7 +1822,7 @@ function salvageReassignedItemsFromText(text) {
   };
 }
 async function refinePreviewWithAI(preview) {
-  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'maxCategories', 'aiBatchSize', 'aiConcurrency']);
+  const settings = await chrome.storage.sync.get(['enableAI', 'aiProvider', 'aiApiKey', 'aiApiUrl', 'aiModel', 'maxTokens', 'classificationLanguage', 'maxCategories', 'aiBatchSize', 'aiConcurrency', 'classificationRules']);
   if (!settings.enableAI) {
     return preview;
   }
@@ -1781,14 +1842,30 @@ async function refinePreviewWithAI(preview) {
     console.warn('[后台AI优化] 输入预览摘要打印失败:', e);
   }
 
-  // 构建输入：分类与条目
-  const categories = Object.keys(preview.categories).map(name => ({ name, keywords: [] }));
+  // 构建分类关键词映射（从当前规则中提取，供 AI 参考）
+  const rules = Array.isArray(settings.classificationRules) ? settings.classificationRules : [];
+  const categoryKeywords = {};
+  for (const rule of rules) {
+    if (rule.category && Array.isArray(rule.keywords)) {
+      categoryKeywords[rule.category] = (categoryKeywords[rule.category] || []).concat(rule.keywords);
+    }
+  }
+
+  // 构建输入：分类与条目（带实际关键词提示 AI）
+  const categories = Object.keys(preview.categories).map(name => ({
+    name,
+    keywords: categoryKeywords[name] || []
+  }));
   const items = preview.details.map(d => ({ id: d.bookmark.id, title: d.bookmark.title || '', url: d.bookmark.url || '', from_key: d.category }));
   const language = settings.classificationLanguage || 'auto';
 
-  // 分批与并发参数（带默认值）
-  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 50;
-  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2;
+  // 根据模型上下文窗口估算最优批次大小
+  const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
+  const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
+  const concurrency = batchSize >= items.length ? 1
+    : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 2);
+  console.log(`[后台AI优化] 批次大小=${batchSize} 并发=${concurrency} 总条目=${items.length}`);
 
   // 将 items 分批构造任务
   const chunks = chunkArray(items, batchSize);
@@ -1896,6 +1973,42 @@ async function refinePreviewWithAI(preview) {
   return newPreview;
 }
 
+// 已知模型的上下文窗口大小（token 数），用于自动推算最优批次
+const MODEL_CONTEXT_WINDOWS = {
+  'deepseek-v4-pro': 1000000,
+  'deepseek-v4-flash': 128000,
+  'deepseek-chat': 64000,
+  'gpt-4.1': 1000000,
+  'gpt-4.1-mini': 1000000,
+  'gpt-4.1-nano': 1000000,
+  'gpt-4o': 128000,
+  'gpt-4o-mini': 128000,
+  'gpt-4-turbo': 128000,
+  'gpt-4': 8192,
+  'gpt-3.5-turbo': 16384,
+  'o3': 200000,
+  'o4-mini': 200000,
+};
+
+// 根据模型上下文窗口和目标条目数估算最优批次大小
+function estimateOptimalBatchSize(model, maxTokens, itemCount, userBatchSize) {
+  // 若用户显式设置了批次大小（非默认值），优先使用用户配置
+  if (typeof userBatchSize === 'number' && userBatchSize > 0) return userBatchSize;
+
+  const TOKENS_PER_ITEM = 45;       // 每条书签 JSON 约 {"id":"..","title":"..","url":".."} ≈ 30-50 token
+  const PROMPT_OVERHEAD = 2000;     // system prompt + categories + output format 指引
+  const RESPONSE_HEADROOM = Math.max(maxTokens || 8192, 4096);
+  const SAFETY_FACTOR = 0.55;       // 保留 45% 给 prompt 开销和 AI 响应
+
+  const modelKey = String(model || '').toLowerCase();
+  const contextWindow = MODEL_CONTEXT_WINDOWS[modelKey] || 64000; // 未知模型假设 64K
+  const availableInput = Math.floor((contextWindow - PROMPT_OVERHEAD - RESPONSE_HEADROOM) * SAFETY_FACTOR);
+  const optimalSize = Math.floor(availableInput / TOKENS_PER_ITEM);
+
+  // 下限 20（避免请求过碎），上限不超过总条目数
+  return Math.max(20, Math.min(itemCount, optimalSize));
+}
+
 // 将数组按固定大小切片
 function chunkArray(arr, size) {
   const out = [];
@@ -1966,54 +2079,37 @@ async function buildOptimizationPrompt({ language, categories, items }) {
     }
   } catch (_) { }
 
-  // 默认模板（与旧版一致）
+  // 默认模板
   return (
     `
 You are a meticulous Information Architecture and Intelligent Classification Expert.
-Your task is not to modify or create categories.
-Instead, you must intelligently reassign and organize bookmarks within the existing category structure.
+Your task is to reassign bookmarks within the existing category structure — do NOT create new categories.
 
-Input Description:
+Input:
+- Language: ${language}
+- Categories with keywords: ${categoriesJson}
+- Bookmarks: ${itemsJson}
 
-- Current language: ${language}
-- Existing categories and keywords (array): ${categoriesJson}
-- Bookmarks to be reorganized (optional array): ${itemsJson}
+Rules (Strictly Follow):
+1. Only assign to existing categories — never invent new ones.
+2. Each category's "keywords" field indicates what belongs there. A bookmark whose title/URL contains a category's keywords should strongly favor that category.
+3. When a bookmark matches NO category keywords, use semantic understanding of the title and URL.
+4. For Chinese content: 电影/视频/音乐/影视/下载 → entertainment/media categories; AI/ML/深度学习/模型 → tech categories. A movie download site is NEVER an AI/ML category.
+5. If a bookmark's title clearly indicates content type (e.g., "动作片" = action movie, "下载" = download, "电影" = movie), prioritize the content type category over vague URL-based guesses.
+6. Confidence below 0.5 → list the id in notes.low_confidence_items.
+7. Return ONLY valid JSON — no markdown, no explanations.
 
-Objective:
-
-Based on the names and keywords of the existing categories, intelligently determine the most appropriate category for each bookmark.
-You must not add, delete, or modify categories.
-If multiple categories are possible, return the one with the highest confidence score and explain your reasoning.
-
-Rules & Principles (Strictly Follow):
-
-- Only classify items into existing categories — no new ones may be created.
-- Use the given ${language} for semantic and keyword-based matching.
-- Prioritize bookmark titles for matching, then URLs, and then descriptions (if available).
-- If the confidence score is below 0.5, mark the item as "low confidence".
-- Output must strictly conform to the JSON structure below.
-- No extra commentary or text is allowed outside the JSON.
-
-Output Format (strict JSON, no extra text):
+Output Format:
 {
   "reassigned_items": [
-    {
-      "id": "string",
-      "from_key": "string | null",
-      "to_key": "string",
-      "confidence": 0.0,
-      "reason": "string"
-    }
+    { "id": "string", "from_key": "string|null", "to_key": "string", "confidence": 0.0, "reason": "string" }
   ],
   "notes": {
     "global_rules": ["string"],
     "low_confidence_items": ["id"],
     "followups": ["string"]
   }
-}
-
-Output Requirement:
-Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+}`
   );
 }
 
@@ -2036,27 +2132,26 @@ async function buildInferencePrompt({ language, items, folderFilter = 'all' }) {
     }
   } catch (_) { }
 
+  // 默认模板
   return (
     `
 You are a world-class Information Architecture and Taxonomy Expert.
-Your task is to infer a clean, human-understandable category taxonomy from bookmarks, without any preset categories.
+Infer a clean category taxonomy from the given bookmarks — no preset categories.
 
-Input Description:
-- Current language: ${language}
-- Bookmarks (array): ${itemsJson}
+Input:
+- Language: ${language}
+- Bookmarks: ${itemsJson}
 
-Objective:
-- Infer appropriate, concise category names that best group the bookmarks.
-- Assign every bookmark to exactly one inferred category.
-- Use the given language (${language}) for category naming when applicable.
+Rules:
+1. Create short (1–3 words), meaningful, mutually exclusive category names in ${language}.
+2. Every bookmark MUST be assigned to exactly one category.
+3. Group by semantic content type first (e.g., "视频与音乐", "开发工具", "新闻资讯"), NOT by website or domain.
+4. For Chinese titles: pay attention to 电影/视频/音乐/下载/影视/游戏 → media/entertainment; AI/ML/深度学习/模型/GitHub/开源 → tech; 新闻/资讯/博客 → news/blogs; 购物/商城/淘宝/JD → shopping.
+5. Aim for 5-10 categories. If bookmarks span many topics, merge related ones.
+6. Low confidence (< 0.5) → list ids in notes.low_confidence_items.
+7. Return ONLY valid JSON — no markdown, no explanations.
 
-Rules & Principles:
-- Do not return any commentary outside JSON.
-- Keep category names short (1–3 words) and meaningful.
-- Prefer semantic grouping by title first, URL second.
-- Mark low confidence assignments with confidence < 0.5; list their ids in notes.low_confidence_items.${languageRestriction}
-
-Output Format (strict JSON, no extra text):
+Output Format:
 {
   "categories": ["string"],
   "assignments": [
@@ -2066,10 +2161,7 @@ Output Format (strict JSON, no extra text):
     "low_confidence_items": ["id"],
     "followups": ["string"]
   }
-}
-
-Output Requirement:
-Return only a valid JSON object strictly following the above format — no markdown, no explanations, no text outside the JSON.`
+}`
   );
 }
 
@@ -2084,7 +2176,7 @@ function validateModelForProvider(model, provider) {
 
   // 检查 reasoner 类思考模型（返回格式不符合扩展期望）
   if (modelName.includes('reasoner')) {
-    return { valid: false, error: '当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。' };
+    return { valid: false, error: '当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-v4-pro、deepseek-v4-flash、gpt-4o 等）。' };
   }
 
   // 根据提供商验证模型
@@ -2096,69 +2188,19 @@ function validateModelForProvider(model, provider) {
       }
       break;
     case 'deepseek':
-      if (!['deepseek-chat'].includes(modelName)) {
-        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-chat"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
+      // DeepSeek 官方 API；deepseek-chat 将于 2026-07-24 停用
+      if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(modelName)) {
+        return { valid: false, error: `DeepSeek 官方 API 不支持模型 "${model}"。请使用 "deepseek-v4-pro" 或 "deepseek-v4-flash"，或选择"自定义提供商"并配置支持该模型的 API 端点。` };
       }
       break;
-    case 'claude':
-      const claudeModels = ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307'];
-      if (!claudeModels.includes(modelName)) {
-        return { valid: false, error: `Claude API 不支持模型 "${model}"。支持的模型: ${claudeModels.join(', ')}` };
+    case 'openai':
+      const openaiModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
+      if (!openaiModels.includes(modelName)) {
+        return { valid: false, error: `OpenAI API 不支持模型 "${model}"。支持的模型: ${openaiModels.join(', ')}` };
       }
       break;
-    case 'gemini':
-      const geminiModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'];
-      if (!geminiModels.includes(modelName)) {
-        return { valid: false, error: `Gemini API 不支持模型 "${model}"。支持的模型: ${geminiModels.join(', ')}` };
-      }
-      break;
-    case 'qwen':
-      const qwenModels = ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'];
-      if (!qwenModels.includes(modelName)) {
-        return { valid: false, error: `Qwen API 不支持模型 "${model}"。支持的模型: ${qwenModels.join(', ')}` };
-      }
-      break;
-    case 'doubao':
-      const doubaoModels = ['doubao-pro-256k', 'doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k'];
-      if (!doubaoModels.includes(modelName)) {
-        return { valid: false, error: `Doubao API 不支持模型 "${model}"。支持的模型: ${doubaoModels.join(', ')}` };
-      }
-      break;
-    case 'kimi':
-      const kimiModels = ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'];
-      if (!kimiModels.includes(modelName)) {
-        return { valid: false, error: `Kimi API 不支持模型 "${model}"。支持的模型: ${kimiModels.join(', ')}` };
-      }
-      break;
-    case 'zhipu':
-      const zhipuModels = ['glm-4-plus', 'glm-4', 'glm-4-air', 'glm-4-flash', 'glm-3-turbo'];
-      if (!zhipuModels.includes(modelName)) {
-        return { valid: false, error: `Zhipu API 不支持模型 "${model}"。支持的模型: ${zhipuModels.join(', ')}` };
-      }
-      break;
-    case 'baichuan':
-      const baichuanModels = ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k', 'Baichuan2-Turbo'];
-      if (!baichuanModels.includes(modelName)) {
-        return { valid: false, error: `Baichuan API 不支持模型 "${model}"。支持的模型: ${baichuanModels.join(', ')}` };
-      }
-      break;
-    case 'minimax':
-      const minimaxModels = ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'];
-      if (!minimaxModels.includes(modelName)) {
-        return { valid: false, error: `MiniMax API 不支持模型 "${model}"。支持的模型: ${minimaxModels.join(', ')}` };
-      }
-      break;
-    case 'spark':
-      const sparkModels = ['spark-max', 'spark-pro', 'spark-lite'];
-      if (!sparkModels.includes(modelName)) {
-        return { valid: false, error: `Spark API 不支持模型 "${model}"。支持的模型: ${sparkModels.join(', ')}` };
-      }
-      break;
-    case 'ernie':
-      const ernieModels = ['ernie-4.0-8k', 'ernie-4.0-turbo-8k', 'ernie-3.5-8k', 'ernie-speed-8k'];
-      if (!ernieModels.includes(modelName)) {
-        return { valid: false, error: `ERNIE API 不支持模型 "${model}"。支持的模型: ${ernieModels.join(', ')}` };
-      }
+    case 'siliconflow':
+      // SiliconFlow 托管多种模型，不在此验证
       break;
     case 'ollama':
       break;
@@ -2177,7 +2219,7 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
   try {
     const m = String(model || '').toLowerCase();
     if (m.includes('reasoner')) {
-      throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-chat、gpt-3.5-turbo、gpt-4 等）。');
+      throw new Error('当前选择的模型暂不支持该扩展的返回格式，请切换到标准对话模型（如 deepseek-v4-pro、deepseek-v4-flash、gpt-4o 等）。');
     }
   } catch (_) { }
   const p = String(provider || '').toLowerCase();
@@ -2278,20 +2320,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
         { role: 'user', content: prompt }
       ]
     };
-    console.log('[AI Debug] 使用 Spark 协议');
-  } else if (p === 'ernie') {
-    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/${model}?access_token=${apiKey}`;
-    headers = { 'Content-Type': 'application/json' };
-    body = {
-      messages: [
-        { role: 'user', content: `You are a rigorous assistant that only returns strict JSON.\n\n${prompt}` }
-      ],
-      temperature: 0.2,
-      max_output_tokens: maxTokens || 8192
-    };
-    console.log('[AI Debug] 使用 ERNIE 协议');
-  } else {
-    headers['Authorization'] = `Bearer ${apiKey}`;
+    // DeepSeek V4 模型强制关闭 thinking，确保直接输出 JSON 到 content
+    if (String(model || '').toLowerCase().includes('deepseek-v4')) {
+      body.thinking = { type: 'disabled' };
+    }
     console.log('[AI Debug] 使用 OpenAI 兼容协议');
     body = {
       model,
@@ -2378,13 +2410,28 @@ async function organizeByPlan(plan) {
     const parentId = sid ? String(sid) : '1';
     if (!categoryFoldersByScope[sid]) categoryFoldersByScope[sid] = {};
     for (const category of set) {
-      const folder = await findOrCreateFolder(category, { parentId });
-      categoryFoldersByScope[sid][category] = folder;
+      try {
+        const folder = await findOrCreateFolder(category, { parentId });
+        categoryFoldersByScope[sid][category] = folder;
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建分类文件夹失败 "${category}":`, err.message);
+        // 继续处理其他分类，该分类对应的书签将在移动阶段被跳过
+      }
     }
   }
 
-  // 执行移动，遇到“其他”时懒创建
+  // 辅助：判断是否为可跳过的书签移动错误（书签/目标文件夹已不存在）
+  const isSkippableMoveError = (err) => {
+    const msg = (err && err.message) ? String(err.message) : '';
+    return msg.includes('Can\'t find bookmark for id')
+        || msg.includes('No bookmark with id')
+        || msg.includes('Bookmark id is invalid')
+        || msg.includes('Can\'t find parent bookmark for id');
+  };
+
+  // 执行移动，遇到"其他"时懒创建
   let moved = 0;
+  let skipped = 0;
   const oldParentCandidates = new Set();
   for (const { bookmark, category, scopeFolderId } of plan.details || []) {
     const sid = scopeFolderId || '';
@@ -2393,18 +2440,32 @@ async function organizeByPlan(plan) {
     if (!targetFolder && otherCandidates.includes(category)) {
       const parentId = sid ? String(sid) : '1';
       const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
-      categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      try {
+        categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
+      } catch (err) {
+        console.warn(`[organizeByPlan] 创建"其他"文件夹失败:`, err.message);
+        categoryFoldersByScope[sid][otherName] = null;
+      }
       targetFolder = categoryFoldersByScope[sid][otherName];
     }
     if (!targetFolder) continue;
     if (bookmark.parentId !== targetFolder.id) {
       if (bookmark.parentId) oldParentCandidates.add(bookmark.parentId);
-      await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
-      moved++;
+      try {
+        await chrome.bookmarks.move(bookmark.id, { parentId: targetFolder.id });
+        moved++;
+      } catch (err) {
+        if (isSkippableMoveError(err)) {
+          console.warn(`[organizeByPlan] 书签 ${bookmark.id} 移动失败（可跳过）:`, err.message);
+          skipped++;
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
-  const results = { ...plan, moved };
+  const results = { ...plan, moved, skipped };
   // 同步存储
   try {
     const organizedBookmarkIds = (plan.details || [])
@@ -2505,12 +2566,15 @@ async function organizePlanByAiInference(scopeFolderIds = [], folderFilter = 'al
   const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
   const language = settings.classificationLanguage || 'auto';
 
-  // 分批与并发（避免一次请求过大）
-  const batchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 120;
-  const concurrency = Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3;
+  // 根据模型上下文窗口估算最优批次大小
+  const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
+  const batchSize = estimateOptimalBatchSize(settings.aiModel, settings.maxTokens, items.length, userBatchSize);
+  // 大上下文模型单批能装下时，并发降为 1；多批时保持原有并发
+  const concurrency = batchSize >= items.length ? 1
+    : (Number(settings.aiConcurrency) > 0 ? Math.min(Number(settings.aiConcurrency), 5) : 3);
   const chunks = chunkArray(items, batchSize);
 
-  console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length });
+  console.log('[AI Debug] 分批设置:', { batchSize, concurrency, chunksCount: chunks.length, model: settings.aiModel });
 
   const tasks = chunks.map((chunk, idx) => async () => {
     console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
