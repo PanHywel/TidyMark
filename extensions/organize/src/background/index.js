@@ -519,7 +519,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleOrganizeByPlan(request.plan, sendResponse);
       break;
     case 'organizeByAiInference':
-      handleOrganizeByAiInference(sendResponse, request);
+      (async () => {
+        try {
+          await handleOrganizeByAiInference(sendResponse, request);
+        } catch (error) {
+          console.error('处理organizeByAiInference时发生错误:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       break;
     case 'syncGithubBackup':
       handleSyncGithubBackup(request.payload, sendResponse);
@@ -639,7 +646,8 @@ async function handleOrganizeByAiInference(sendResponse, request = {}) {
     const scopeFolderIds = Array.isArray(request?.scopeFolderIds)
       ? request.scopeFolderIds.map(id => String(id)).filter(Boolean)
       : (request?.scopeFolderId ? [String(request.scopeFolderId)] : []);
-    const plan = await organizePlanByAiInference(scopeFolderIds);
+    const folderFilter = request?.folderFilter || 'all';
+    const plan = await organizePlanByAiInference(scopeFolderIds, folderFilter);
     sendResponse({ success: true, data: plan });
   } catch (error) {
     console.error('AI 推理归类失败:', error);
@@ -2214,15 +2222,21 @@ Output Format:
 }
 
 // 构建 AI 推理提示词（支持用户配置模板，不预设分类）
-async function buildInferencePrompt({ language, items }) {
+async function buildInferencePrompt({ language, items, folderFilter = 'all' }) {
   const its = Array.isArray(items) ? items : [];
   const itemsJson = JSON.stringify(its, null, 2);
 
-  // 尝试读取用户自定义模板
+  let languageRestriction = '';
+  if (folderFilter === 'chinese') {
+    languageRestriction = '\n- Category names MUST be in Chinese (中文). Do not use English or other languages.';
+  } else if (folderFilter === 'english') {
+    languageRestriction = '\n- Category names MUST be in English. Do not use Chinese or other languages.';
+  }
+
   try {
     const { aiPromptInfer } = await chrome.storage.sync.get(['aiPromptInfer']);
     if (aiPromptInfer && String(aiPromptInfer).trim().length > 0) {
-      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson });
+      return fillPromptTemplate(aiPromptInfer, { language, categoriesJson: '', itemsJson, languageRestriction });
     }
   } catch (_) { }
 
@@ -2291,11 +2305,8 @@ function validateModelForProvider(model, provider) {
       // SiliconFlow 托管多种模型，不在此验证
       break;
     case 'ollama':
-      // Ollama 支持任意模型，跳过验证
       break;
     case 'custom':
-      // 自定义提供商支持任意模型，包括所有 OpenAI 兼容格式
-      // 不进行模型验证，让用户自由配置 API 端点和模型
       break;
     default:
       return { valid: false, error: `未知的AI提供商: "${provider}"` };
@@ -2342,12 +2353,10 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
 
   if (p === 'ollama') {
     url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'http://localhost:11434/api/chat';
-    // Ollama 本地服务无需鉴权
     body = {
       model,
       stream: false,
       options: {
-        // 将 maxTokens 映射为生成长度上限，避免过大
         num_predict: Math.min(Number(maxTokens) > 0 ? Number(maxTokens) : 512, 1024),
         temperature: 0.2
       },
@@ -2357,10 +2366,66 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
       ]
     };
     console.log('[AI Debug] 使用 Ollama 协议');
-  } else {
-    // OpenAI/DeepSeek/自定义提供商 兼容接口
+  } else if (p === 'claude') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.anthropic.com/v1/messages';
+    headers['x-api-key'] = apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      system: 'You are a rigorous assistant that only returns strict JSON.',
+      messages: [
+        { role: 'user', content: prompt }
+      ]
+    };
+    console.log('[AI Debug] 使用 Claude 协议');
+  } else if (p === 'gemini') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl.replace('{model}', model) : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    headers = { 'Content-Type': 'application/json' };
+    body = {
+      contents: [
+        {
+          parts: [
+            { text: `You are a rigorous assistant that only returns strict JSON.\n\n${prompt}` }
+          ]
+        }
+      ],
+      generationConfig: {
+        maxOutputTokens: maxTokens || 8192,
+        temperature: 0.2
+      }
+    };
+    console.log('[AI Debug] 使用 Gemini 协议');
+  } else if (p === 'minimax') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://api.minimax.chat/v1/text/chatcompletion_v2';
     headers['Authorization'] = `Bearer ${apiKey}`;
-    console.log('[AI Debug] 使用认证头: Bearer [API_KEY_HIDDEN]');
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
+    console.log('[AI Debug] 使用 MiniMax 协议');
+  } else if (p === 'spark') {
+    url = apiUrl && apiUrl.trim().length > 0 ? apiUrl : 'https://spark-api.xf-yun.com/v1/chat/completions';
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    body = {
+      model,
+      max_tokens: maxTokens || 8192,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You are a rigorous assistant that only returns strict JSON.' },
+        { role: 'user', content: prompt }
+      ]
+    };
+    console.log('[AI Debug] 使用 Spark 协议');
+  } else {
+    // OpenAI 兼容协议：deepseek、openai、siliconflow、custom 等
+    headers['Authorization'] = `Bearer ${apiKey}`;
     body = {
       model,
       max_tokens: maxTokens || 8192,
@@ -2405,6 +2470,18 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
       if (p === 'ollama') {
         const content = (data && data.message && typeof data.message.content === 'string') ? data.message.content : '';
         console.log('[AI Debug] Ollama 解析内容:', content);
+        return content || '';
+      } else if (p === 'claude') {
+        const content = data && data.content && Array.isArray(data.content) && data.content[0]?.text ? data.content[0].text : '';
+        console.log('[AI Debug] Claude 解析内容:', content);
+        return content || '';
+      } else if (p === 'gemini') {
+        const content = data && data.candidates && Array.isArray(data.candidates) && data.candidates[0]?.content?.parts?.[0]?.text ? data.candidates[0].content.parts[0].text : '';
+        console.log('[AI Debug] Gemini 解析内容:', content);
+        return content || '';
+      } else if (p === 'ernie') {
+        const content = data && data.result ? data.result : '';
+        console.log('[AI Debug] ERNIE 解析内容:', content);
         return content || '';
       }
       const content = data.choices?.[0]?.message?.content;
@@ -2548,7 +2625,7 @@ async function organizeByPlan(plan) {
 }
 
 // 生成 AI 推理的整理计划（返回与预览一致的结构）
-async function organizePlanByAiInference(scopeFolderIds = []) {
+async function organizePlanByAiInference(scopeFolderIds = [], folderFilter = 'all') {
   // 读取设置以获取 AI 参数和语言
   const settings = await chrome.storage.sync.get(['enableAI','aiProvider','aiApiKey','aiApiUrl','aiModel','maxTokens','classificationLanguage','aiBatchSize','aiConcurrency']);
 
@@ -2562,7 +2639,8 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     apiKey: settings.aiApiKey ? `sk-****${settings.aiApiKey.slice(-6)}` : '未设置',
     maxTokens: settings.maxTokens,
     classificationLanguage: settings.classificationLanguage,
-    scopeFolderIds: scopeFolderIds
+    scopeFolderIds: scopeFolderIds,
+    folderFilter: folderFilter
   });
   if (!settings.enableAI) {
     console.error('[AI Debug] AI 未启用');
@@ -2616,7 +2694,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   const tasks = chunks.map((chunk, idx) => async () => {
     console.log(`[AI Debug] 处理批次 ${idx + 1}/${chunks.length}, 书签数量:`, chunk.length);
 
-    const prompt = await buildInferencePrompt({ language, items: chunk });
+    const prompt = await buildInferencePrompt({ language, items: chunk, folderFilter });
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词长度:`, prompt.length);
     console.log(`[AI Debug] 批次 ${idx + 1} 提示词预览:`, prompt.substring(0, 200) + '...');
 

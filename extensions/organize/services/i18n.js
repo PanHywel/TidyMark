@@ -483,6 +483,18 @@
   };
   Object.assign(translations, translationsDead);
   
+  // Extend with Empty Folders page keys
+  const translationsEmpty = {
+    'tabs.empty': { 'zh-CN': '空文件夹', 'zh-TW': '空資料夾', 'en': 'Empty Folders', 'ru': 'Пустые папки' },
+    'empty.header': { 'zh-CN': '📂 空文件夹检测', 'zh-TW': '📂 空資料夾檢測', 'en': '📂 Empty Folder Detector', 'ru': '📂 Проверка пустых папок' },
+    'empty.desc': { 'zh-CN': '检测不包含书签的空文件夹，支持批量删除', 'zh-TW': '檢測不包含書籤的空資料夾，支援批次刪除', 'en': 'Detect folders with no bookmarks; supports bulk delete', 'ru': 'Определяет папки без закладок; поддерживается массовое удаление' },
+    'empty.tip': { 'zh-CN': '空文件夹指不包含任何书签的文件夹', 'zh-TW': '空資料夾指不包含任何書籤的資料夾', 'en': 'Empty folders are folders that don\'t contain any bookmarks', 'ru': 'Пустые папки - это папки, не содержащие закладок' },
+    'empty.scan.start': { 'zh-CN': '开始检测', 'zh-TW': '開始檢測', 'en': 'Start Scan', 'ru': 'Начать проверку' },
+    'empty.selectAll': { 'zh-CN': '全选', 'zh-TW': '全選', 'en': 'Select All', 'ru': 'Выбрать все' },
+    'empty.deleteSelected': { 'zh-CN': '删除选中', 'zh-TW': '刪除選中', 'en': 'Delete Selected', 'ru': 'Удалить выбранные' }
+  };
+  Object.assign(translations, translationsEmpty);
+  
   // Additional keys for New Tab, Options messages, and Background UI
   const translationsAdd = {
     // New Tab page
