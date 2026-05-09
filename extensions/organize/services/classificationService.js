@@ -210,9 +210,9 @@ class ClassificationService {
     const lower = text.toLowerCase();
     const kw = keyword.toLowerCase();
     if (kw.length <= 3 && /^[a-z0-9]+$/.test(kw)) {
+      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       if (isUrl) {
         const tokens = lower.split(/[./_\-]/);
-        const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         if (tokens.some(t => t === kw)) return true;
         if (tokens.some(t => t.startsWith(kw) && t !== kw)) return true;
         if (tokens.some(t => t.endsWith(kw) && t !== kw && !this._COMMON_EXTENSIONS.has(t))) return true;
