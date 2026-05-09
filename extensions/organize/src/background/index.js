@@ -244,66 +244,173 @@ async function initializeExtension() {
 }
 
 // 分类名称中英文映射与语言解析
-const CATEGORY_EN_MAP = {
-  '开源与代码托管': 'Open Source & Repos',
-  '开发文档与API': 'Docs & API',
-  '前端框架': 'Frontend Frameworks',
-  '后端框架': 'Backend Frameworks',
-  '云服务与DevOps': 'Cloud & DevOps',
-  '数据库与数据': 'Databases & Data',
-  'AI与机器学习': 'AI & Machine Learning',
-  '产品设计': 'Product Design',
-  '设计资源与素材': 'Design Assets',
-  '学习教程与课程': 'Courses & Tutorials',
-  '技术博客与社区': 'Tech Blogs & Communities',
-  '新闻资讯与媒体': 'News & Media',
-  '在线工具与服务': 'Online Tools & Services',
-  '下载与资源': 'Downloads & Resources',
-  '视频与音乐': 'Videos & Music',
-  '游戏与娱乐': 'Games & Entertainment',
-  '购物电商': 'Shopping',
-  '社交媒体': 'Social Media',
-  '办公与协作': 'Work & Collaboration',
-  '笔记与知识库': 'Notes & Knowledge Base',
-  '项目与任务管理': 'Projects & Tasks',
-  '地图与导航': 'Maps & Navigation',
-  '博客平台与CMS': 'Blogs & CMS',
-  '数据科学与分析': 'Data Science & Analytics',
-  'API测试与开发': 'API Testing & Dev',
-  '邮件与通讯': 'Mail & Communication',
-  '求职与招聘': 'Jobs & Recruiting',
-  '金融与理财': 'Finance',
-  '生活服务': 'Lifestyle Services',
-  '阅读与电子书': 'Reading & eBooks',
-  '科研与论文': 'Research & Papers',
-  '浏览器与扩展': 'Browsers & Extensions',
-  '摄影与照片': 'Photography',
-  '图片处理与修图': 'Photo Editing',
-  '器材与评测': 'Gear & Reviews',
-  '图片托管与分享': 'Image Hosting & Sharing',
-  '摄影品牌与官网': 'Photo Brands',
-  '器材评测与资讯': 'Gear News & Reviews',
-  '版权素材与购买': 'Stock & Licensing',
-  '摄影教程与灵感': 'Photo Tutorials & Inspiration',
-  '其他': 'Others'
+// 分类名翻译表：zh-CN → { zh-CN, zh-TW, en, ru }
+// 用于 translateCategoryName 和 AI 后处理反向映射
+const CATEGORY_TRANSLATIONS = {
+  '开源与代码托管':       { 'zh-CN': '开源与代码托管', 'zh-TW': '開源與程式碼託管', 'en': 'Open Source & Code Hosting', 'ru': 'Открытый исходный код' },
+  '开发文档与API':        { 'zh-CN': '开发文档与API', 'zh-TW': '開發文件與 API', 'en': 'Docs & API', 'ru': 'Документация и API' },
+  '前端框架':             { 'zh-CN': '前端框架', 'zh-TW': '前端框架', 'en': 'Frontend Frameworks', 'ru': 'Фронтенд-фреймворки' },
+  '后端框架':             { 'zh-CN': '后端框架', 'zh-TW': '後端框架', 'en': 'Backend Frameworks', 'ru': 'Бэкенд-фреймворки' },
+  '云服务与DevOps':       { 'zh-CN': '云服务与DevOps', 'zh-TW': '雲端服務與 DevOps', 'en': 'Cloud & DevOps', 'ru': 'Облачные сервисы и DevOps' },
+  '数据库与数据':         { 'zh-CN': '数据库与数据', 'zh-TW': '資料庫與數據', 'en': 'Databases & Data', 'ru': 'Базы данных' },
+  'AI与机器学习':         { 'zh-CN': 'AI与机器学习', 'zh-TW': 'AI 與機器學習', 'en': 'AI & Machine Learning', 'ru': 'AI и машинное обучение' },
+  '产品设计':             { 'zh-CN': '产品设计', 'zh-TW': '產品設計', 'en': 'Product Design', 'ru': 'Дизайн продуктов' },
+  '设计资源与素材':       { 'zh-CN': '设计资源与素材', 'zh-TW': '設計資源與素材', 'en': 'Design Assets', 'ru': 'Ресурсы для дизайна' },
+  '学习教程与课程':       { 'zh-CN': '学习教程与课程', 'zh-TW': '學習教程與課程', 'en': 'Courses & Tutorials', 'ru': 'Обучающие курсы' },
+  '技术博客与社区':       { 'zh-CN': '技术博客与社区', 'zh-TW': '技術部落格與社群', 'en': 'Tech Blogs & Communities', 'ru': 'Технические блоги' },
+  '新闻资讯与媒体':       { 'zh-CN': '新闻资讯与媒体', 'zh-TW': '新聞資訊與媒體', 'en': 'News & Media', 'ru': 'Новости и СМИ' },
+  '在线工具与服务':       { 'zh-CN': '在线工具与服务', 'zh-TW': '線上工具與服務', 'en': 'Online Tools & Services', 'ru': 'Онлайн-инструменты' },
+  '下载与资源':           { 'zh-CN': '下载与资源', 'zh-TW': '下載與資源', 'en': 'Downloads & Resources', 'ru': 'Загрузки и ресурсы' },
+  '视频与音乐':           { 'zh-CN': '视频与音乐', 'zh-TW': '影片與音樂', 'en': 'Videos & Music', 'ru': 'Видео и музыка' },
+  '游戏与娱乐':           { 'zh-CN': '游戏与娱乐', 'zh-TW': '遊戲與娛樂', 'en': 'Games & Entertainment', 'ru': 'Игры и развлечения' },
+  '购物电商':             { 'zh-CN': '购物电商', 'zh-TW': '購物電商', 'en': 'Shopping', 'ru': 'Покупки' },
+  '社交媒体':             { 'zh-CN': '社交媒体', 'zh-TW': '社群媒體', 'en': 'Social Media', 'ru': 'Социальные сети' },
+  '办公与协作':           { 'zh-CN': '办公与协作', 'zh-TW': '辦公與協作', 'en': 'Work & Collaboration', 'ru': 'Работа и совместная работа' },
+  '笔记与知识库':         { 'zh-CN': '笔记与知识库', 'zh-TW': '筆記與知識庫', 'en': 'Notes & Knowledge Base', 'ru': 'Заметки и база знаний' },
+  '项目与任务管理':       { 'zh-CN': '项目与任务管理', 'zh-TW': '專案與任務管理', 'en': 'Projects & Tasks', 'ru': 'Проекты и задачи' },
+  '地图与导航':           { 'zh-CN': '地图与导航', 'zh-TW': '地圖與導航', 'en': 'Maps & Navigation', 'ru': 'Карты и навигация' },
+  '博客平台与CMS':        { 'zh-CN': '博客平台与CMS', 'zh-TW': '部落格平台與 CMS', 'en': 'Blogs & CMS', 'ru': 'Блоги и CMS' },
+  '数据科学与分析':       { 'zh-CN': '数据科学与分析', 'zh-TW': '資料科學與分析', 'en': 'Data Science & Analytics', 'ru': 'Наука о данных и аналитика' },
+  'API测试与开发':        { 'zh-CN': 'API测试与开发', 'zh-TW': 'API 測試與開發', 'en': 'API Testing & Dev', 'ru': 'Тестирование и разработка API' },
+  '邮件与通讯':           { 'zh-CN': '邮件与通讯', 'zh-TW': '郵件與通訊', 'en': 'Mail & Communication', 'ru': 'Почта и связь' },
+  '求职与招聘':           { 'zh-CN': '求职与招聘', 'zh-TW': '求職與招聘', 'en': 'Jobs & Recruiting', 'ru': 'Работа и подбор персонала' },
+  '金融与理财':           { 'zh-CN': '金融与理财', 'zh-TW': '金融與理財', 'en': 'Finance', 'ru': 'Финансы' },
+  '生活服务':             { 'zh-CN': '生活服务', 'zh-TW': '生活服務', 'en': 'Lifestyle Services', 'ru': 'Бытовые услуги' },
+  '阅读与电子书':         { 'zh-CN': '阅读与电子书', 'zh-TW': '閱讀與電子書', 'en': 'Reading & eBooks', 'ru': 'Чтение и электронные книги' },
+  '科研与论文':           { 'zh-CN': '科研与论文', 'zh-TW': '科研與論文', 'en': 'Research & Papers', 'ru': 'Исследования и научные работы' },
+  '浏览器与扩展':         { 'zh-CN': '浏览器与扩展', 'zh-TW': '瀏覽器與擴充功能', 'en': 'Browsers & Extensions', 'ru': 'Браузеры и расширения' },
+  '摄影与照片':           { 'zh-CN': '摄影与照片', 'zh-TW': '攝影與照片', 'en': 'Photography', 'ru': 'Фотография' },
+  '图片处理与修图':       { 'zh-CN': '图片处理与修图', 'zh-TW': '圖片處理與修圖', 'en': 'Photo Editing', 'ru': 'Обработка изображений' },
+  '器材与评测':           { 'zh-CN': '器材与评测', 'zh-TW': '器材與評測', 'en': 'Gear & Reviews', 'ru': 'Обзоры оборудования' },
+  '图片托管与分享':       { 'zh-CN': '图片托管与分享', 'zh-TW': '圖片託管與分享', 'en': 'Image Hosting & Sharing', 'ru': 'Хостинг изображений' },
+  '摄影品牌与官网':       { 'zh-CN': '摄影品牌与官网', 'zh-TW': '攝影品牌與官網', 'en': 'Photo Brands', 'ru': 'Фотобренды' },
+  '器材评测与资讯':       { 'zh-CN': '器材评测与资讯', 'zh-TW': '器材評測與資訊', 'en': 'Gear News & Reviews', 'ru': 'Обзоры и новости' },
+  '版权素材与购买':       { 'zh-CN': '版权素材与购买', 'zh-TW': '版權素材與購買', 'en': 'Stock & Licensing', 'ru': 'Стоковые материалы' },
+  '摄影教程与灵感':       { 'zh-CN': '摄影教程与灵感', 'zh-TW': '攝影教學與靈感', 'en': 'Tutorials & Inspiration', 'ru': 'Фотоуроки и вдохновение' },
+  '其他':                 { 'zh-CN': '其他', 'zh-TW': '其他', 'en': 'Others', 'ru': 'Прочее' }
 };
+
+// 反向映射：所有语言的分类名 → 规范中文名（用于 AI 后处理归一化）
+function buildCategoryReverseMap() {
+  const map = new Map();
+  for (const [canonicalZh, translations] of Object.entries(CATEGORY_TRANSLATIONS)) {
+    for (const name of Object.values(translations)) {
+      if (name && typeof name === 'string') map.set(name.toLowerCase().trim(), canonicalZh);
+    }
+  }
+  return map;
+}
+const TRANSLATED_TO_CANONICAL = buildCategoryReverseMap();
 
 function resolveClassificationLanguage(langSetting) {
   const v = (langSetting || 'auto');
   if (v === 'auto') {
     const nav = (navigator?.language || 'en').toLowerCase();
-    return nav.startsWith('zh') ? 'zh' : 'en';
+    if (nav.startsWith('zh')) {
+      return (nav.includes('tw') || nav.includes('hk')) ? 'zh-TW' : 'zh-CN';
+    }
+    if (nav.startsWith('ru')) return 'ru';
+    return 'en';
   }
-  return (v === 'zh' || v === 'en') ? v : 'zh';
+  // 向后兼容：旧版存储的 'zh' 视为简体中文
+  if (v === 'zh') return 'zh-CN';
+  if (v === 'zh-CN' || v === 'zh-TW' || v === 'en' || v === 'ru') return v;
+  return 'en';
 }
 
+// 返回用于 AI 提示词的语言描述标签（比 ISO 代码更明确）
+function resolveLanguageLabel(langSetting) {
+  const resolved = resolveClassificationLanguage(langSetting);
+  const LABELS = {
+    'zh-CN': 'Chinese Simplified (中文)',
+    'zh-TW': 'Chinese Traditional (繁體中文)',
+    'en': 'English',
+    'ru': 'Russian (Русский)'
+  };
+  return LABELS[resolved] || 'English';
+}
+
+// 判断字符串是否包含中文字符
+function containsChinese(text) {
+  return /[一-鿿㐀-䶿]/.test(text);
+}
+
+// 判断字符串是否包含西里尔字母（俄语等）
+function containsCyrillic(text) {
+  return /[Ѐ-ӿ]/.test(text);
+}
+
+// 当语言设为中文时，检测英文分类名并转译为中文（AI 偶尔漏网）
+const EN_CATEGORY_TO_ZH = {
+  'technology': '科技',
+  'tech': '科技',
+  'programming': '编程开发',
+  'development': '开发',
+  'software': '软件',
+  'tools': '工具',
+  'utilities': '工具',
+  'design': '设计',
+  'art': '艺术设计',
+  'news': '新闻资讯',
+  'media': '媒体',
+  'video': '视频',
+  'music': '音乐',
+  'entertainment': '娱乐',
+  'games': '游戏',
+  'gaming': '游戏',
+  'shopping': '购物',
+  'e-commerce': '电商',
+  'social': '社交媒体',
+  'social media': '社交媒体',
+  'education': '教育',
+  'learning': '学习',
+  'tutorial': '教程',
+  'reference': '参考资料',
+  'documentation': '文档',
+  'blog': '博客',
+  'articles': '文章',
+  'finance': '金融理财',
+  'business': '商业',
+  'health': '健康',
+  'fitness': '健身',
+  'travel': '旅游',
+  'food': '美食',
+  'science': '科学',
+  'research': '研究',
+  'productivity': '效率工具',
+  'communication': '通讯',
+  'email': '邮件',
+  'cloud': '云服务',
+  'devops': 'DevOps',
+  'database': '数据库',
+  'data': '数据',
+  'ai': '人工智能',
+  'machine learning': '机器学习',
+  'security': '安全',
+  'privacy': '隐私',
+  'newsletter': '资讯',
+  'podcast': '播客',
+  'book': '书籍',
+  'reading': '阅读',
+  'download': '下载资源',
+  'resource': '资源',
+  'other': '其他',
+  'others': '其他',
+  'misc': '其他',
+  'miscellaneous': '其他',
+  'uncategorized': '未分类',
+  'uncategorised': '未分类',
+  'general': '通用',
+};
+
 function translateCategoryName(name, lang) {
-  if (lang === 'en') return CATEGORY_EN_MAP[name] || name;
+  const entry = CATEGORY_TRANSLATIONS[name];
+  if (entry && entry[lang]) return entry[lang];
   return name;
 }
 
 // 获取默认分类规则（按语言生成分类名称）
-function getDefaultClassificationRules(lang = 'zh') {
+function getDefaultClassificationRules(lang = 'zh-CN') {
   const t = (zh) => translateCategoryName(zh, lang);
   return [
     { category: t('开源与代码托管'), keywords: ['github', 'gitlab', 'gitee', 'bitbucket', 'source code', 'repository', 'repo'] },
@@ -1464,10 +1571,10 @@ function keywordMatches(text, keyword, isUrl) {
   const kw = keyword.toLowerCase();
   // 短纯 ASCII 关键词（≤3 字符）用更严格的匹配，避免命中 URL 碎片/文件扩展名
   if (kw.length <= 3 && /^[a-z0-9]+$/.test(kw)) {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (isUrl) {
       // URL：切分为 token，要求匹配整个 token 或其有效前缀/后缀
       const tokens = lower.split(/[./_\-]/);
-      const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // 全 token 匹配
       if (tokens.some(t => t === kw)) return true;
       // 前缀匹配（keyword 在 token 开头且 token 更长）
@@ -1849,7 +1956,7 @@ async function refinePreviewWithAI(preview) {
     keywords: categoryKeywords[name] || []
   }));
   const items = preview.details.map(d => ({ id: d.bookmark.id, title: d.bookmark.title || '', url: d.bookmark.url || '', from_key: d.category }));
-  const language = settings.classificationLanguage || 'auto';
+  const language = resolveLanguageLabel(settings.classificationLanguage);
 
   // 根据模型上下文窗口估算最优批次大小
   const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
@@ -2089,7 +2196,8 @@ Rules (Strictly Follow):
 4. For Chinese content: 电影/视频/音乐/影视/下载 → entertainment/media categories; AI/ML/深度学习/模型 → tech categories. A movie download site is NEVER an AI/ML category.
 5. If a bookmark's title clearly indicates content type (e.g., "动作片" = action movie, "下载" = download, "电影" = movie), prioritize the content type category over vague URL-based guesses.
 6. Confidence below 0.5 → list the id in notes.low_confidence_items.
-7. Return ONLY valid JSON — no markdown, no explanations.
+7. IMPORTANT: All category names in the output MUST be in ${language}. Do not mix languages.
+8. Return ONLY valid JSON — no markdown, no explanations.
 
 Output Format:
 {
@@ -2129,7 +2237,7 @@ Input:
 - Bookmarks: ${itemsJson}
 
 Rules:
-1. Create short (1–3 words), meaningful, mutually exclusive category names in ${language}.
+1. ALL category names MUST be written in ${language}. If Chinese is selected, absolutely NO English category names are allowed. This is mandatory.
 2. Every bookmark MUST be assigned to exactly one category.
 3. Group by semantic content type first (e.g., "视频与音乐", "开发工具", "新闻资讯"), NOT by website or domain.
 4. For Chinese titles: pay attention to 电影/视频/音乐/下载/影视/游戏 → media/entertainment; AI/ML/深度学习/模型/GitHub/开源 → tech; 新闻/资讯/博客 → news/blogs; 购物/商城/淘宝/JD → shopping.
@@ -2317,7 +2425,7 @@ async function requestAI({ provider, apiUrl, apiKey, model, maxTokens, prompt })
 async function organizeByPlan(plan) {
   // 计划格式直接复用预览结构：{ total, classified, categories: { name: {count, bookmarks[]} }, details, meta }
   // 创建需要的文件夹（支持多范围）
-  const otherCandidates = ['其他', 'Others'];
+  const otherCandidates = ['其他', 'Others', 'Прочее', 'Другое'];
   const categoryFoldersByScope = {};
   const categoriesPerScope = {};
   // 为非“其他”类别按范围预创建文件夹
@@ -2353,6 +2461,7 @@ async function organizeByPlan(plan) {
   // 执行移动，遇到"其他"时懒创建
   let moved = 0;
   let skipped = 0;
+  let alreadyInPlace = 0;
   const oldParentCandidates = new Set();
   for (const { bookmark, category, scopeFolderId } of plan.details || []) {
     const sid = scopeFolderId || '';
@@ -2360,7 +2469,7 @@ async function organizeByPlan(plan) {
     let targetFolder = categoryFoldersByScope[sid][category];
     if (!targetFolder && otherCandidates.includes(category)) {
       const parentId = sid ? String(sid) : '1';
-      const otherName = plan.categories['其他'] ? '其他' : (plan.categories['Others'] ? 'Others' : '其他');
+      const otherName = otherCandidates.find(n => plan.categories[n]) || '其他';
       try {
         categoryFoldersByScope[sid][otherName] = await findOrCreateFolder(otherName, { parentId });
       } catch (err) {
@@ -2383,7 +2492,15 @@ async function organizeByPlan(plan) {
           throw err;
         }
       }
+    } else {
+      alreadyInPlace++;
     }
+  }
+
+  const total = (plan.details || []).length;
+  console.log(`[organizeByPlan] 移动结果: 成功=${moved}, 跳过(已不存在)=${skipped}, 无需移动=${alreadyInPlace}, 总计=${total}`);
+  if (moved === 0 && total > 0) {
+    console.warn(`[organizeByPlan] ⚠️ 没有任何书签被实际移动！跳过=${skipped}, 无需移动=${alreadyInPlace}`);
   }
 
   const results = { ...plan, moved, skipped };
@@ -2484,7 +2601,7 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
   console.log('[AI Debug] 书签样例:', flatRaw.slice(0, 3).map(b => ({ id: b.id, title: b.title || '无标题', url: b.url || '无URL' })));
 
   const items = flatRaw.map(b => ({ id: b.id, title: b.title || '', url: b.url || '' }));
-  const language = settings.classificationLanguage || 'auto';
+  const language = resolveLanguageLabel(settings.classificationLanguage);
 
   // 根据模型上下文窗口估算最优批次大小
   const userBatchSize = Number(settings.aiBatchSize) > 0 ? Number(settings.aiBatchSize) : 0;
@@ -2554,6 +2671,40 @@ async function organizePlanByAiInference(scopeFolderIds = []) {
     allCategories: Array.from(allCategories)
   });
 
+  // 语言后处理：将 AI 输出的分类名归一化为目标语言
+  const effectiveLang = resolveClassificationLanguage(settings.classificationLanguage);
+  const catRename = new Map();
+  for (const cat of allCategories) {
+    const trimmed = cat.trim();
+    const canonical = TRANSLATED_TO_CANONICAL.get(trimmed.toLowerCase());
+    if (canonical) {
+      // 已知分类名 → 翻译为目标语言
+      const expectedName = CATEGORY_TRANSLATIONS[canonical][effectiveLang] || canonical;
+      if (trimmed !== expectedName) catRename.set(cat, expectedName);
+    } else if (/^[a-zA-Z]/.test(trimmed)) {
+      // AI 输出英文分类名且不在映射表中 → 用 EN_CATEGORY_TO_ZH 兜底
+      const zhName = EN_CATEGORY_TO_ZH[trimmed.toLowerCase()];
+      if (zhName) {
+        const expectedName = CATEGORY_TRANSLATIONS[zhName]?.[effectiveLang] || zhName;
+        if (trimmed !== expectedName) catRename.set(cat, expectedName);
+      }
+    }
+  }
+  if (catRename.size > 0) {
+    console.log(`[AI Debug] 检测到语言不匹配的分类名，归一化为 ${effectiveLang}:`, Object.fromEntries(catRename));
+    for (const a of assignments) {
+      if (catRename.has(a.to_key)) a.to_key = catRename.get(a.to_key);
+    }
+    const newCategories = new Set();
+    for (const cat of allCategories) {
+      newCategories.add(catRename.get(cat) || cat);
+    }
+    allCategories.clear();
+    for (const cat of newCategories) {
+      allCategories.add(cat);
+    }
+  }
+
   if (assignments.length === 0 || allCategories.size === 0) {
     console.error('[AI Debug] AI推理结果为空或无有效分类');
     console.error('[AI Debug] 详细状态:', {
@@ -2620,8 +2771,12 @@ async function cleanupEmptyFolders(folderIds) {
         deleted.push(String(id));
       }
     } catch (e) {
-      // 忽略单个失败，继续其他
-      console.warn('[cleanup] 删除空目录失败:', id, e);
+      // "Can't find bookmark" 表示文件夹已被删除（如作为上级空目录的子文件夹被一并删除），可忽略
+      if (e && e.message && e.message.includes("Can't find bookmark for id")) {
+        // 静默跳过，不影响后续处理
+      } else {
+        console.warn('[cleanup] 删除空目录失败:', id, e);
+      }
     }
   }
   return deleted;

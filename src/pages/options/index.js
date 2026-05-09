@@ -176,7 +176,7 @@ class OptionsManager {
         aiPromptInfer: (typeof result.aiPromptInfer === 'string' && result.aiPromptInfer.trim().length > 0)
           ? result.aiPromptInfer
           : this.getDefaultAiPromptInfer(),
-        classificationLanguage: result.classificationLanguage ?? 'auto',
+        classificationLanguage: result.classificationLanguage === 'zh' ? 'zh-CN' : (result.classificationLanguage ?? 'auto'),
         maxCategories: result.maxCategories ?? undefined,
         weatherEnabled: result.weatherEnabled !== undefined ? !!result.weatherEnabled : true,
         weatherCity: (result.weatherCity || '').trim(),
@@ -368,7 +368,7 @@ class OptionsManager {
         validModels = ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo', 'gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o3', 'o4-mini'];
         break;
       case 'deepseek':
-        validModels = ['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'];
+        validModels = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat'];
         break;
       case 'siliconflow':
         // SiliconFlow 支持任意模型，不在此验证
@@ -1389,17 +1389,7 @@ class OptionsManager {
       if (!previewResponse?.success) throw new Error(previewResponse?.error || '生成预览失败');
       let plan = previewResponse.data;
 
-      // 若启用 AI 且已配置，调用后台 AI 优化
-      setStatus('AI 优化中...', 'success');
-      const useAI = !!this.settings.enableAI && !!this.settings.aiApiKey;
-      if (useAI && typeof chrome !== 'undefined' && chrome?.runtime) {
-        const aiResp = await chrome.runtime.sendMessage({ action: 'refineOrganizeWithAI', preview: plan });
-        if (aiResp?.success && aiResp.data) {
-          plan = aiResp.data;
-        }
-      }
-
-      // 将预览内嵌到“整理”标签，不再使用弹窗
+      // 将预览内嵌到”整理”标签，不再使用弹窗
       // 记录当前选择至计划元信息，便于确认时传递
       const meta = {
         scopeFolderIds: scopeFolderIds
@@ -1787,7 +1777,12 @@ class OptionsManager {
               };
               const runResponse = await chrome.runtime.sendMessage({ action: 'organizeByPlan', plan: planToRun });
               if (!runResponse?.success) throw new Error(runResponse?.error || '整理失败');
-              setStatus('整理完成', 'success');
+              const movedCount = runResponse?.data?.moved ?? 0;
+              if (movedCount === 0) {
+                setStatus('整理完成（但无书签被移动，可能是书签已处于目标分类中或书签已不存在）', 'warning');
+              } else {
+                setStatus('整理完成', 'success');
+              }
               container.innerHTML = '';
               this.organizePreviewPlan = null;
             } catch (err) {
@@ -4263,13 +4258,13 @@ class OptionsManager {
       }
     } else if (provider === 'deepseek') {
       models = [
-        { value: 'deepseek-v4-pro', label: 'DeepSeek-V4 Pro' },
         { value: 'deepseek-v4-flash', label: 'DeepSeek-V4 Flash' },
+        { value: 'deepseek-v4-pro', label: 'DeepSeek-V4 Pro' },
         { value: 'deepseek-chat', label: 'DeepSeek-Chat (即将停用)' }
       ];
       // 屏蔽 reasoner 类思考模型：不展示且强制回退
       if (!['deepseek-chat', 'deepseek-v4-pro', 'deepseek-v4-flash'].includes(this.settings.aiModel)) {
-        this.settings.aiModel = 'deepseek-v4-pro';
+        this.settings.aiModel = 'deepseek-v4-flash';
       }
     } else if (provider === 'ollama') {
       // 优先尝试从远端 /api/tags 获取模型列表
