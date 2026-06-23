@@ -1979,7 +1979,14 @@ class OptionsManager {
     // 打开时不进行任何默认勾选
     const preselected = [];
     const buildOptions = () => {
+      const selectAllText = window.I18n ? (window.I18n.t('organize.scope.selectAll') || '全选') : '全选';
       const items = [];
+      items.push(`
+        <label for="dlgSelectAll" style="display:block;margin:6px 0 10px;cursor:pointer;color:#374151;font-weight:600;border-bottom:1px solid #E5E7EB;padding-bottom:10px;">
+          <input id="dlgSelectAll" type="checkbox" value="" style="margin-right:8px;vertical-align:middle;"/>
+          <span style="vertical-align:middle;">${this.escapeHtml(selectAllText)}</span>
+        </label>
+      `);
       for (const f of folders) {
         const inputId = `dlgScope_${this.escapeHtml(String(f.id))}`;
         items.push(`
@@ -2007,10 +2014,26 @@ class OptionsManager {
     const okText = window.I18n ? (window.I18n.t('modal.confirm') || '确定') : '确定';
     const cancelText = window.I18n ? (window.I18n.t('modal.cancel') || '取消') : '取消';
     // 显示通用确认弹窗
-    const confirmed = await this.showConfirmDialog({ title, message: messageHtml, okText, cancelText });
+    const confirmed = await this.showConfirmDialog({
+      title,
+      message: messageHtml,
+      okText,
+      cancelText,
+      onOpen: () => {
+        const selectAll = document.getElementById('dlgSelectAll');
+        if (!selectAll) return;
+        selectAll.addEventListener('change', function onChange() {
+          const checked = this.checked;
+          const container = document.getElementById('dlgScopes');
+          if (!container) return;
+          const cbs = container.querySelectorAll('input[type="checkbox"]:not(#dlgSelectAll)');
+          for (let i = 0; i < cbs.length; i++) cbs[i].checked = checked;
+        });
+      }
+    });
     if (!confirmed) return null;
     const dlgScopes = document.getElementById('dlgScopes');
-    const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked')).map(i => String(i.value)).filter(Boolean) : [];
+    const scopeFolderIds = dlgScopes ? Array.from(dlgScopes.querySelectorAll('input[type="checkbox"]:checked:not(#dlgSelectAll)')).map(i => String(i.value)).filter(Boolean) : [];
     // 同步设置以便下次默认（保持旧字段兼容）
     this.settings.organizeScopeFolderIds = scopeFolderIds;
     this.settings.organizeScopeFolderId = scopeFolderIds[0] || '';
@@ -4151,7 +4174,7 @@ class OptionsManager {
   }
 
   // 统一确认弹窗（与插件样式一致）
-  showConfirmDialog({ title = '确认操作', message = '', okText = '确定', cancelText = '取消' } = {}) {
+  showConfirmDialog({ title = '确认操作', message = '', okText = '确定', cancelText = '取消', onOpen } = {}) {
     return new Promise((resolve) => {
       let modal = document.getElementById('confirmModal');
       if (!modal) {
@@ -4186,6 +4209,11 @@ class OptionsManager {
       msgEl.innerHTML = message;
       okBtn.textContent = okText;
       cancelBtn.textContent = cancelText;
+
+      // 渲染完成后回调（用于绑定事件等）
+      if (typeof onOpen === 'function') {
+        try { onOpen(msgEl); } catch (e) { console.warn('showConfirmDialog onOpen error:', e); }
+      }
 
       // 针对多选下拉增强：Command(mac)/Ctrl(win) 切换单项选择，Shift 保持范围选择
       let dlgScopesEl = msgEl.querySelector('#dlgScopes');

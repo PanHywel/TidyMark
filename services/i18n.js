@@ -608,6 +608,7 @@
     'organize.confirm.title': { 'zh-CN': '确认整理参数', 'zh-TW': '確認整理參數', 'en': 'Confirm Organize Parameters', 'ru': 'Подтвердить параметры упорядочивания' },
     'organize.scope.label': { 'zh-CN': '整理范围', 'zh-TW': '整理範圍', 'en': 'Scope', 'ru': 'Область' },
     'organize.scope.option.all': { 'zh-CN': '全部书签', 'zh-TW': '全部書籤', 'en': 'All bookmarks', 'ru': 'Все закладки' },
+    'organize.scope.selectAll': { 'zh-CN': '全选', 'zh-TW': '全選', 'en': 'Select All', 'ru': 'Выбрать все' },
     'organize.target.label': { 'zh-CN': '目标父目录', 'zh-TW': '目標父目錄', 'en': 'Target parent folder', 'ru': 'Целевая родительская папка' },
     'organize.target.option.bar': { 'zh-CN': '书签栏（默认）', 'zh-TW': '書籤列（預設）', 'en': 'Bookmarks Bar (default)', 'ru': 'Панель закладок (по умолчанию)' }
   };
