@@ -17,6 +17,7 @@
   "host_permissions": [
     "https://api.github.com/*",
     "https://raw.githubusercontent.com/*",
+    "https://dav.jianguoyun.com/*",
     "https://dns.google/*",
     "https://cloudflare-dns.com/*",
     "https://dns.alidns.com/*"
@@ -55,6 +56,6 @@
   },
 
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://dns.google https://cloudflare-dns.com https://dns.alidns.com https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://api.groq.com https://api.perplexity.ai https://openrouter.ai https://api.mistral.ai https://api.cohere.ai https://api.together.xyz https://integrate.api.nvidia.com https://api.fireworks.ai https://api.moonshot.cn https://api.minimax.chat https://open.bigmodel.cn https://dashscope.aliyuncs.com https://ark.cn-beijing.volces.com https://api.siliconflow.cn https://api.siliconflow.ai"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://localhost:* http://127.0.0.1:* https://dav.jianguoyun.com https://dns.google https://cloudflare-dns.com https://dns.alidns.com https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://api.groq.com https://api.perplexity.ai https://openrouter.ai https://api.mistral.ai https://api.cohere.ai https://api.together.xyz https://integrate.api.nvidia.com https://api.fireworks.ai https://api.moonshot.cn https://api.minimax.chat https://open.bigmodel.cn https://dashscope.aliyuncs.com https://ark.cn-beijing.volces.com https://api.siliconflow.cn https://api.siliconflow.ai"
   }
 }
